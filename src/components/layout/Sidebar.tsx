@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Folder, BarChart2 } from 'lucide-react';
 import { modulesData, cockpitData, MenuSubItem } from './SidebarNav/menuData';
 import { WindowType } from '../../types/window';
+import { useAuth } from '../../context/AuthContext';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface SidebarProps {
@@ -292,6 +293,14 @@ const CockpitItem: React.FC<{
 // ─── Main Sidebar Component ───────────────────────────────────────────────────
 export const Sidebar: React.FC<SidebarProps> = ({ onOpen }) => {
   const [activeTab, setActiveTab] = useState('Modules');
+  const { user, isSuperAdmin } = useAuth();
+
+  // Filter modules based on user role
+  const filteredModules = useMemo(() => {
+    if (isSuperAdmin || !user) return modulesData;
+    const allowedModules = user.modules || [];
+    return modulesData.filter((m) => allowedModules.includes(m.name));
+  }, [user, isSuperAdmin]);
 
   return (
     <div className="flex border-r border-[#d4d0c8] relative z-[1000]">
@@ -316,7 +325,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpen }) => {
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {activeTab === 'Modules' ? (
             <div className="flex flex-col p-1">
-              {modulesData.map((module, i) => (
+              {filteredModules.map((module, i) => (
                 <TreeItem key={i} item={module} depth={0} onOpen={onOpen} />
               ))}
             </div>
