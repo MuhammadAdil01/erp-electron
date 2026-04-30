@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Minus, Square, RefreshCw, Save, Shield, User } from 'lucide-react';
 import { useAuth, AuthUser } from '../../context/AuthContext';
 
@@ -17,6 +17,7 @@ interface UsersSetupWindowProps {
   onClose: () => void;
   windowState: WindowState; 
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  onFocus?: () => void;
 }
 
 // All available top-level modules that can be assigned
@@ -38,7 +39,7 @@ const ALL_MODULES = [
   'Reports',
 ];
 
-const API_BASE = 'http://localhost:3000/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 interface BackendUser {
   id: number;
@@ -61,16 +62,21 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('General');
 
-  // Fetch users on mount
-  useEffect(() => {
-    if (show) fetchUsers();
-  }, [show]);
+  const cleanupListeners = useRef<(() => void) | null>(null);
 
-  const fetchUsers = async () => {
+  useEffect(() => {
+    return () => {
+      if (cleanupListeners.current) cleanupListeners.current();
+    };
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setError('');
     try {
       const res = await fetch(`${API_BASE}/users`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -79,13 +85,21 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
         const data = await res.json();
         const list = data.data || data;
         setUsers(Array.isArray(list) ? list : []);
+      } else {
+        setError('Failed to load users');
       }
     } catch (err) {
       console.error('Failed to fetch users', err);
+      setError('Network error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  // Fetch users on mount
+  useEffect(() => {
+    if (show && token) fetchUsers();
+  }, [show, token, fetchUsers]);
 
   const selectUser = (user: BackendUser) => {
     setSelectedUserId(user.id);
@@ -146,10 +160,15 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      cleanupListeners.current = null;
     };
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    cleanupListeners.current = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
   };
 
   const handleResize = (direction: string) => (e: React.MouseEvent) => {
@@ -210,10 +229,15 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      cleanupListeners.current = null;
     };
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    cleanupListeners.current = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
   };
 
   const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap leading-[18px]";
@@ -226,6 +250,7 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
 
   return (
     <div 
+      onMouseDown={onFocus}
       style={{
         left: windowState.isMaximized ? 0 : windowState.x,
         top: windowState.isMaximized ? 0 : windowState.y,
@@ -289,8 +314,11 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
                 </div>
               </div>
             ))}
-            {users.length === 0 && !loading && (
+            {users.length === 0 && !loading && !error && (
               <div className="p-3 text-[10px] text-gray-400 italic text-center">No users found</div>
+            )}
+            {error && (
+              <div className="p-3 text-[10px] text-red-500 italic text-center">{error}</div>
             )}
           </div>
         </div>

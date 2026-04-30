@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Minus, Square, ExternalLink } from 'lucide-react';
 
 interface WindowState {
@@ -16,13 +16,15 @@ interface UserGroupsWindowProps {
   onClose: () => void;
   windowState: WindowState; 
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  onFocus?: () => void;
 }
 
 export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
   show,
   onClose,
   windowState,
-  setWindowState
+  setWindowState,
+  onFocus
 }) => {
   const [formData, setFormData] = useState({
     name: '',
@@ -50,6 +52,14 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
     to: ''
   }));
 
+  const cleanupListeners = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cleanupListeners.current) cleanupListeners.current();
+    };
+  }, []);
+
   if (!show || windowState.isMinimized) return null;
 
   const handleDrag = (e: React.MouseEvent) => {
@@ -68,10 +78,15 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      cleanupListeners.current = null;
     };
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    cleanupListeners.current = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
   };
 
   const handleResize = (direction: string) => (e: React.MouseEvent) => {
@@ -132,10 +147,15 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      cleanupListeners.current = null;
     };
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    cleanupListeners.current = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
   };
 
   const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap leading-[18px]";
@@ -147,6 +167,7 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
 
   return (
     <div 
+      onMouseDown={onFocus}
       style={{
         left: windowState.isMaximized ? 0 : windowState.x,
         top: windowState.isMaximized ? 0 : windowState.y,
@@ -187,21 +208,46 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
         <div className="p-3 border border-gray-400 bg-[#f5f5f5]/50 flex flex-col gap-1.5 max-w-md shadow-sm">
           <div className="grid grid-cols-[100px_1fr] gap-x-2 items-center">
             <span className={sapLabelStyle}>Name</span>
-            <input type="text" className={sapDisabledInputStyle} />
+            <input 
+              type="text" 
+              className={sapInputStyle} 
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+            />
           </div>
           <div className="grid grid-cols-[100px_1fr] gap-x-2 items-center">
             <span className={sapLabelStyle}>Description</span>
-            <input type="text" className={sapDisabledInputStyle} />
+            <input 
+              type="text" 
+              className={sapInputStyle} 
+              value={formData.description}
+              onChange={(e) => setFormData({...formData, description: e.target.value})}
+            />
           </div>
           <div className="grid grid-cols-[100px_1fr] gap-x-2 items-center">
             <span className={sapLabelStyle}>Group Type</span>
-            <input type="text" className={sapDisabledInputStyle} />
+            <input 
+              type="text" 
+              className={sapDisabledInputStyle} 
+              value={formData.groupType}
+              disabled
+            />
           </div>
           <div className="grid grid-cols-[100px_1fr_20px_1fr] gap-x-2 items-center">
             <span className={sapLabelStyle}>Active From</span>
-            <input type="text" className={sapDisabledInputStyle} />
+            <input 
+              type="date" 
+              className={sapInputStyle} 
+              value={formData.activeFrom}
+              onChange={(e) => setFormData({...formData, activeFrom: e.target.value})}
+            />
             <span className={sapLabelStyle}>To</span>
-            <input type="text" className={sapDisabledInputStyle} />
+            <input 
+              type="date" 
+              className={sapInputStyle} 
+              value={formData.activeTo}
+              onChange={(e) => setFormData({...formData, activeTo: e.target.value})}
+            />
           </div>
         </div>
 
