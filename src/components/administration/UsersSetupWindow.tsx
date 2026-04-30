@@ -1,4 +1,4 @@
-cheimport React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Minus, Square, RefreshCw, Save, Shield, User } from 'lucide-react';
 import { useAuth, AuthUser } from '../../context/AuthContext';
 
@@ -39,7 +39,7 @@ const ALL_MODULES = [
   'Reports',
 ];
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api/v1';
 
 interface BackendUser {
   id: number;
@@ -53,7 +53,8 @@ export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
   show,
   onClose,
   windowState,
-  setWindowState
+  setWindowState,
+  onFocus
 }) => {
   const { token, isSuperAdmin } = useAuth();
   const [users, setUsers] = useState<BackendUser[]>([]);
