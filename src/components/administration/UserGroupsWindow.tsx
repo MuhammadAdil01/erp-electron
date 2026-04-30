@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Minus, Square, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Minus, Square, ExternalLink, RefreshCw, Plus } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface WindowState {
   x: number;
@@ -19,6 +20,24 @@ interface UserGroupsWindowProps {
   onFocus?: () => void;
 }
 
+interface UserGroup {
+  id: number;
+  name: string;
+  description: string;
+  groupType: string;
+  activeFrom: string;
+  activeTo: string;
+}
+
+interface BackendUser {
+  id: number;
+  name: string;
+  email: string;
+  dept?: string;
+}
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+
 export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
   show,
   onClose,
@@ -26,7 +45,8 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
   setWindowState,
   onFocus
 }) => {
-  const [formData, setFormData] = useState({
+  const { token } = useAuth();
+  const [formData, setFormData] = useState<Omit<UserGroup, 'id'>>({
     name: '',
     description: '',
     groupType: 'Authorization',
@@ -34,25 +54,47 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
     activeTo: ''
   });
 
+  const [groups, setGroups] = useState<UserGroup[]>([
+    { id: 1, name: 'Finance', description: 'Financial department users', groupType: 'Authorization', activeFrom: '', activeTo: '' },
+    { id: 2, name: 'Sales', description: 'Sales team members', groupType: 'Authorization', activeFrom: '', activeTo: '' },
+    { id: 3, name: 'Purchase', description: 'Procurement department', groupType: 'Authorization', activeFrom: '', activeTo: '' },
+    { id: 4, name: 'Inventory', description: 'Warehouse and stock management', groupType: 'Authorization', activeFrom: '', activeTo: '' },
+  ]);
+
+  const [users, setUsers] = useState<BackendUser[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const [groupTypeFilter, setGroupTypeFilter] = useState('Authorization');
-
-  const groupData = [
-    { id: 1, name: 'Finance' },
-    { id: 2, name: 'Sales' },
-    { id: 3, name: 'Purchase' },
-    { id: 4, name: 'Inventory' },
-  ];
-
-  const userData = Array(15).fill(null).map((_, i) => ({
-    id: i + 1,
-    code: '',
-    name: '',
-    dept: '',
-    from: '',
-    to: ''
-  }));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const cleanupListeners = useRef<(() => void) | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.data || data;
+        setUsers(Array.isArray(list) ? list : []);
+      } else {
+        setError('Failed to load users');
+      }
+    } catch (err) {
+      console.error('Failed to fetch users', err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (show && token) fetchUsers();
+  }, [show, token, fetchUsers]);
 
   useEffect(() => {
     return () => {
@@ -61,6 +103,27 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
   }, []);
 
   if (!show || windowState.isMinimized) return null;
+
+  const handleGroupClick = (group: UserGroup) => {
+    setSelectedGroupId(group.id);
+    setFormData({
+      name: group.name,
+      description: group.description,
+      groupType: group.groupType,
+      activeFrom: group.activeFrom,
+      activeTo: group.activeTo
+    });
+  };
+
+  const handleCreateGroup = () => {
+    if (!formData.name) return;
+    const newGroup: UserGroup = {
+      ...formData,
+      id: Math.max(0, ...groups.map(g => g.id)) + 1
+    };
+    setGroups([...groups, newGroup]);
+    setSelectedGroupId(newGroup.id);
+  };
 
   const handleDrag = (e: React.MouseEvent) => {
     if (windowState.isMaximized) return;
@@ -162,7 +225,7 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
   const sapInputStyle = "w-full h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-white";
   const sapDisabledInputStyle = "w-full h-[18px] border border-gray-400 px-1 text-[11px] outline-none bg-[#e1e1e1] text-gray-600";
   const sapSelectStyle = "w-full h-[18px] border border-gray-400 px-0.5 text-[11px] outline-none focus:border-orange-400 bg-white appearance-none";
-  const sapButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#f8f8f8] to-[#e4e4e4] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner font-normal";
+  const sapButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#f8f8f8] to-[#e4e4e4] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner font-normal flex items-center justify-center gap-1";
   const sapActionButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner";
 
   return (
@@ -286,15 +349,20 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
                 </div>
              </div>
              <div className="flex-1 overflow-y-auto custom-scrollbar bg-[repeating-linear-gradient(white,white_21px,#f5f5f5_21px,#f5f5f5_22px)]">
-                {groupData.map((group, i) => (
-                   <div key={group.id} className="flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center hover:bg-blue-50 cursor-default group/row">
+                {groups.map((group, i) => (
+                   <div 
+                    key={group.id} 
+                    onClick={() => handleGroupClick(group)}
+                    className={`flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center cursor-default group/row
+                      ${selectedGroupId === group.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50'}`}
+                   >
                       <div className="w-10 px-1 text-center text-gray-500">{i + 1}</div>
-                      <div className="flex-1 px-2 text-black">{group.name}</div>
+                      <div className="flex-1 px-2 text-black truncate">{group.name}</div>
                    </div>
                 ))}
-                {Array(20).fill(null).map((_, i) => (
-                   <div key={i} className="flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center">
-                      <div className="w-10 px-1 text-center opacity-0">{i + 5}</div>
+                {Array(Math.max(0, 20 - groups.length)).fill(null).map((_, i) => (
+                   <div key={`empty-g-${i}`} className="flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center">
+                      <div className="w-10 px-1 text-center opacity-0">{groups.length + i + 1}</div>
                       <div className="flex-1 px-2"></div>
                    </div>
                 ))}
@@ -308,23 +376,42 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
                 <div className="w-24 px-2 py-0.5 text-gray-700 font-medium">User Code</div>
                 <div className="w-32 px-2 py-0.5 text-gray-700 font-medium">User Name</div>
                 <div className="w-24 px-2 py-0.5 text-gray-700 font-medium">Department</div>
-                <div className="w-20 px-2 py-0.5 text-gray-700 font-medium">From</div>
                 <div className="flex-1 px-2 py-0.5 text-gray-700 font-medium flex items-center justify-between">
-                   To
+                   Status
                    <ExternalLink className="w-2.5 h-2.5 text-blue-600" />
                 </div>
              </div>
              <div className="flex-1 overflow-y-auto custom-scrollbar bg-[repeating-linear-gradient(white,white_21px,#f5f5f5_21px,#f5f5f5_22px)]">
-                {userData.map((user, i) => (
-                   <div key={i} className="flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center hover:bg-blue-50 cursor-default">
-                      <div className="w-8 px-1 text-center text-gray-500">{i + 1}</div>
-                      <div className="w-24 px-2"></div>
-                      <div className="w-32 px-2"></div>
-                      <div className="w-24 px-2"></div>
-                      <div className="w-20 px-2"></div>
-                      <div className="flex-1 px-2"></div>
-                   </div>
-                ))}
+                {loading ? (
+                  <div className="flex items-center justify-center h-full text-gray-500 italic">
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" /> Loading users...
+                  </div>
+                ) : error ? (
+                  <div className="flex items-center justify-center h-full text-red-500 italic">
+                    {error}
+                  </div>
+                ) : (
+                  <>
+                    {users.map((user, i) => (
+                      <div key={user.id} className="flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center hover:bg-blue-50 cursor-default">
+                          <div className="w-8 px-1 text-center text-gray-500">{i + 1}</div>
+                          <div className="w-24 px-2 truncate text-gray-700">{user.id}</div>
+                          <div className="w-32 px-2 truncate font-medium">{user.name}</div>
+                          <div className="w-24 px-2 truncate text-gray-600">{user.dept || 'N/A'}</div>
+                          <div className="flex-1 px-2 text-green-600 font-medium">Active</div>
+                      </div>
+                    ))}
+                    {Array(Math.max(0, 15 - users.length)).fill(null).map((_, i) => (
+                      <div key={`empty-u-${i}`} className="flex border-b border-gray-200 divide-x divide-gray-200 h-[22px] items-center">
+                          <div className="w-8 px-1 text-center opacity-0">{users.length + i + 1}</div>
+                          <div className="w-24 px-2"></div>
+                          <div className="w-32 px-2"></div>
+                          <div className="w-24 px-2"></div>
+                          <div className="flex-1 px-2"></div>
+                      </div>
+                    ))}
+                  </>
+                )}
              </div>
           </div>
 
@@ -336,7 +423,20 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
               <button onClick={onClose} className={sapActionButtonStyle}>OK</button>
               <button onClick={onClose} className={sapButtonStyle}>Cancel</button>
            </div>
-           <button className={sapButtonStyle}>Create Group</button>
+           <div className="flex gap-1.5">
+            <button onClick={fetchUsers} className={sapButtonStyle} title="Refresh User List">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button 
+              onClick={handleCreateGroup} 
+              className={sapButtonStyle}
+              disabled={!formData.name}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Create Group
+            </button>
+           </div>
         </div>
 
       </div>
@@ -357,3 +457,4 @@ export const UserGroupsWindow: React.FC<UserGroupsWindowProps> = ({
     </div>
   );
 };
+
