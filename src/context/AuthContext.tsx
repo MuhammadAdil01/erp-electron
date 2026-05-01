@@ -1,14 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
+import { useAuthStore, type AuthUser } from '../store/authStore';
+import { authApi } from '../api/auth.api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-export interface AuthUser {
-  id: number;
-  name: string;
-  email: string;
-  role: 'super_admin' | 'user';
-  modules: string[];
-}
-
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
@@ -21,73 +15,36 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api/v1';
-
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = localStorage.getItem('erp_user');
-    return stored ? JSON.parse(stored) : null;
-  });
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('erp_token');
-  });
+  const { user, token, setAuth, clearAuth, updateUser } = useAuthStore();
 
   const isAuthenticated = !!token && !!user;
   const isSuperAdmin = user?.role === 'super_admin';
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || 'Login failed');
-    }
-
-    const data = await res.json();
-    // The backend wraps response in a "data" property via the ResponseInterceptor
-    const payload = data.data || data;
-    
-    setToken(payload.access_token);
-    setUser(payload.user);
-    localStorage.setItem('erp_token', payload.access_token);
-    localStorage.setItem('erp_user', JSON.stringify(payload.user));
-  }, []);
+    const { access_token, user: authUser } = await authApi.login({ email, password });
+    setAuth(authUser, access_token);
+  }, [setAuth]);
 
   const logout = useCallback(() => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('erp_token');
-    localStorage.removeItem('erp_user');
-  }, []);
+    clearAuth();
+  }, [clearAuth]);
 
   const refreshUser = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_BASE}/auth/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const profile = data.data || data;
-        setUser(prev => prev ? { ...prev, ...profile } : prev);
-        localStorage.setItem('erp_user', JSON.stringify({ ...user, ...profile }));
-      }
+      const profile = await authApi.profile();
+      updateUser(profile);
     } catch {
-      // silently fail
+      // silently fail — token may still be valid
     }
-  }, [token, user]);
+  }, [token, updateUser]);
 
-  // Validate token on mount
+  // Clear stale state on mount if token exists but user is missing
   useEffect(() => {
-    if (token && !user) {
-      logout();
-    }
-  }, [token, user, logout]);
+    if (token && !user) clearAuth();
+  }, [token, user, clearAuth]);
 
   return (
     <AuthContext.Provider value={{ user, token, isAuthenticated, isSuperAdmin, login, logout, refreshUser }}>
@@ -102,3 +59,5 @@ export const useAuth = (): AuthContextType => {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 };
+
+export type { AuthUser };

@@ -57,7 +57,7 @@ export const CapitalizationCreditMemoWindow: React.FC<Props> = (props) => {
 
       {/* Table */}
       {tab === 'Contents'
-        ? <DataTable headers={['#','Asset No.','Asset Description','Total (LC)','Quantity','Remarks']} rows={13}/>
+        ? <DataTable headers={['#','Asset No.','Asset Description','Total (LC)','Quantity','Remarks']} emptyRows={13}/>
         : <AccountingTab/>}
 
       {/* Footer */}

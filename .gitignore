@@ -1,24 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output — Vite + Electron compiled/packaged output
+dist/
+dist-ssr/
+dist-electron/
+release/
+
+# Environment — never commit real env files, only .env.example
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# OS
+.DS_Store
+Thumbs.db
 
-# Editor directories and files
+# IDE
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# TypeScript incremental build info
+*.tsbuildinfo
