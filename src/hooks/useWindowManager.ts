@@ -146,6 +146,7 @@ export function useWindowManager() {
   const [showCostElements, setShowCostElements] = useState(false);
   const [showPrintPreferences, setShowPrintPreferences] = useState(false);
   const [showTooltipPreview, setShowTooltipPreview] = useState(false);
+  const [showCompanyAdmin, setShowCompanyAdmin] = useState(false);
   const [showUsersSetup, setShowUsersSetup] = useState(false);
   const [showUserGroups, setShowUserGroups] = useState(false);
   const [showUserDefaults, setShowUserDefaults] = useState(false);
@@ -337,7 +338,8 @@ export function useWindowManager() {
   const [documentSettingsWindowPos,         setDocumentSettingsWindowPos]         = useState(win(160, 160, 1000, 700, 73));
   const [printPreferencesWindowPos,         setPrintPreferencesWindowPos]         = useState(win(170, 170,  620, 580, 74));
   const [tooltipPreviewWindowPos,          setTooltipPreviewWindowPos]           = useState(win(180, 180, 1000, 600, 75));
-  const [usersSetupWindowPos,             setUsersSetupWindowPos]              = useState(win(190, 190,  550, 650, 76));
+  const [companyAdminWindowPos,           setCompanyAdminWindowPos]            = useState(win(100,  80,  960, 680, 76));
+  const [usersSetupWindowPos,             setUsersSetupWindowPos]              = useState(win(190, 190,  550, 650, 77));
   const [userGroupsWindowPos,            setUserGroupsWindowPos]             = useState(win(200, 200, 650, 650, 77));
   const [userDefaultsWindowPos,          setUserDefaultsWindowPos]           = useState(win(210, 210, 600, 650, 78));
   const [salesEmployeesSetupWindowPos,   setSalesEmployeesSetupWindowPos]    = useState(win(220, 220, 800, 500, 79));
@@ -537,6 +539,7 @@ export function useWindowManager() {
       case 'costElements':               setShowCostElements(true);                bringFront(setCostElementsWindow); break;
       case 'printPreferences':           setShowPrintPreferences(true);            bringFront(setPrintPreferencesWindowPos); break;
       case 'tooltipPreview':             setShowTooltipPreview(true);               bringFront(setTooltipPreviewWindowPos); break;
+      case 'companyAdmin':               setShowCompanyAdmin(true);                 bringFront(setCompanyAdminWindowPos); break;
       case 'usersSetup':                 setShowUsersSetup(true);                   bringFront(setUsersSetupWindowPos); break;
       case 'userGroups':                 setShowUserGroups(true);                   bringFront(setUserGroupsWindowPos); break;
       case 'userDefaults':               setShowUserDefaults(true);                 bringFront(setUserDefaultsWindowPos); break;
@@ -732,6 +735,7 @@ export function useWindowManager() {
     showCostElements, setShowCostElements,
     showPrintPreferences, setShowPrintPreferences,
     showTooltipPreview, setShowTooltipPreview,
+    showCompanyAdmin, setShowCompanyAdmin,
     showUsersSetup, setShowUsersSetup,
     showUserGroups, setShowUserGroups,
     showUserDefaults, setShowUserDefaults,
@@ -921,6 +925,7 @@ export function useWindowManager() {
     documentSettingsWindowPos, setDocumentSettingsWindowPos,
     printPreferencesWindowPos, setPrintPreferencesWindowPos,
     tooltipPreviewWindowPos, setTooltipPreviewWindowPos,
+    companyAdminWindowPos, setCompanyAdminWindowPos,
     usersSetupWindowPos, setUsersSetupWindowPos,
     userGroupsWindowPos, setUserGroupsWindowPos,
     userDefaultsWindowPos, setUserDefaultsWindowPos,

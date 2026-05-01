@@ -1,5 +1,7 @@
 export * from './auth.api';
 export * from './users.api';
+export * from './roles.api';
+export * from './companies.api';
 export * from './employees.api';
 export * from './departments.api';
 export * from './products.api';

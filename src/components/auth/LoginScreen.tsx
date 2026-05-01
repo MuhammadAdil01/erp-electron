@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, Mail, Building2, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useAuthStore } from '../../store/authStore';
 
 export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
+  const savedSlug = useAuthStore((s) => s.companySlug);
+
+  const [companySlug, setCompanySlug] = useState(savedSlug ?? '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,7 +18,8 @@ export const LoginScreen: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
+      // Pass companySlug only if provided (empty = super admin login)
+      await login(email, password, companySlug.trim() || undefined);
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -24,7 +29,6 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <div className="flex items-center justify-center h-screen w-screen bg-gradient-to-b from-[#f0f0f0] to-[#d8d8d8] select-none font-sans">
-      {/* Login Card */}
       <div className="w-[420px] bg-[#ececec] border border-[#a0a0a0] shadow-[4px_4px_16px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden">
         {/* Title Bar */}
         <div className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center px-3 border-b border-gray-400 shrink-0">
@@ -34,7 +38,6 @@ export const LoginScreen: React.FC = () => {
         {/* Orange ribbon */}
         <div className="h-2 bg-[#f39c12] border-b border-gray-400" />
 
-        {/* Content */}
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
           {/* Logo/Header */}
           <div className="text-center mb-2">
@@ -53,14 +56,21 @@ export const LoginScreen: React.FC = () => {
             </div>
           )}
 
-          {/* Company field (cosmetic, SAP style) */}
+          {/* Company Slug */}
           <div className="space-y-1">
-            <label className="text-[11px] text-gray-700 font-medium">Company</label>
-            <select
-              className="w-full h-[24px] border border-gray-400 px-2 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd5]"
-            >
-              <option>ERP Demo Company</option>
-            </select>
+            <label className="text-[11px] text-gray-700 font-medium">
+              Company <span className="text-gray-400 font-normal">(leave empty for Super Admin)</span>
+            </label>
+            <div className="relative">
+              <Building2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                type="text"
+                value={companySlug}
+                onChange={(e) => setCompanySlug(e.target.value)}
+                className="w-full h-[24px] border border-gray-400 pl-7 pr-2 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd5]"
+                placeholder="company-slug  e.g. demo"
+              />
+            </div>
           </div>
 
           {/* Email */}
@@ -108,17 +118,19 @@ export const LoginScreen: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => { setEmail(''); setPassword(''); setError(''); }}
+              onClick={() => { setEmail(''); setPassword(''); setCompanySlug(''); setError(''); }}
               className="flex-1 py-1.5 bg-gradient-to-b from-[#f8f8f8] to-[#e4e4e4] border border-gray-500 text-[11px] font-normal shadow-sm rounded-[1px] hover:brightness-95 active:shadow-inner"
             >
               Cancel
             </button>
           </div>
 
-          {/* Help text */}
-          <div className="text-center text-[10px] text-gray-400 mt-2 border-t border-gray-300 pt-3 space-y-1">
-            <p><span className="font-medium">Super Admin:</span> admin@erp.com / admin</p>
-            <p><span className="font-medium">Standard User:</span> user@erp.com / user1</p>
+          {/* Test credentials */}
+          <div className="text-center text-[10px] text-gray-400 mt-1 border-t border-gray-300 pt-3 space-y-1">
+            <p className="font-medium text-gray-500">Test Accounts (after seeding)</p>
+            <p><span className="font-medium">Super Admin:</span> admin@erp.com / admin123 (no company)</p>
+            <p><span className="font-medium">Manager:</span> manager@demo.com / password123 (company: demo)</p>
+            <p><span className="font-medium">Viewer:</span> viewer@demo.com / password123 (company: demo)</p>
           </div>
         </form>
       </div>

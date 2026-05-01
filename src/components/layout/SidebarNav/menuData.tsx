@@ -50,7 +50,8 @@ export const modulesData: MenuSubItem[] = [
           {
             name: 'Authorizations', icon: subFolderIcon,
             subItems: [
-              { name: 'General Authorizations',       icon: docIcon },
+              { name: 'Company Admin',                    icon: subFileIcon, isHighlighted: false },
+              { name: 'General Authorizations',           icon: docIcon },
               { name: 'Additional Authorization Creator', icon: docIcon },
             ],
           },

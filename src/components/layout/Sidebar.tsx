@@ -101,6 +101,7 @@ const TreeItem: React.FC<{
       'Profit and Loss Statement Budget Report': 'profitLossBudget',
       'Budget Report Categorized': 'budgetReportCategorized',
       'Choose Company': 'chooseCompany', 'Exchange Rates & Indexes': 'exchangeRates',
+      'Company Admin': 'companyAdmin',
       'Company Details': 'companyDetails', 'General Settings': 'generalSettings',
       'Posting Periods': 'postingPeriods', 'Document Numbering': 'documentNumbering',
       'Document Settings': 'documentSettings',
@@ -295,11 +296,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpen }) => {
   const [activeTab, setActiveTab] = useState('Modules');
   const { user, isSuperAdmin } = useAuth();
 
-  // Filter modules based on user role
+  // Filter modules based on permissions — user sees a module if they have any permission for it
   const filteredModules = useMemo(() => {
-    if (isSuperAdmin || !user) return modulesData;
-    const allowedModules = user.modules || [];
-    return modulesData.filter((m) => allowedModules.includes(m.name));
+    if (isSuperAdmin || user?.permissions?.includes('*:*') || !user) return modulesData;
+    const toSlug = (name: string) => name.toLowerCase().replace(/ /g, '-');
+    return modulesData.filter((m) =>
+      user.permissions.some((p) => p.startsWith(toSlug(m.name) + ':'))
+    );
   }, [user, isSuperAdmin]);
 
   return (

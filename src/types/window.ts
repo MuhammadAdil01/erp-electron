@@ -53,4 +53,5 @@ export type WindowType =
   | 'costCenterHierarchy' | 'costCenterReport' | 'distributionReport'
   | 'costAccountingSummary' | 'budgetVersusCostAccounting' | 'accrualTypes'
   | 'costAccountingReconciliation' | 'costAccountingAdjustment' | 'costElements'
+  | 'companyAdmin'
   | 'printPreferences' | 'tooltipPreview' | 'usersSetup' | 'userGroups' | 'userDefaults' | 'salesEmployeesSetup' | 'territoriesSetup' | 'commissionGroupsSetup' | 'predefinedTextSetup' | 'referenceFieldLinksSetup' | 'freightSetup' | 'messagePreferencesSetup' | 'reportLayoutManager' | 'crystalReportElementsSetup' | 'serverPrintConfig' | 'dashboardManager' | 'dashboardParametersSetup' | 'passwordAdministration' | 'changePassword' | 'siteUser' | 'electronicFileManagerSetup' | 'electronicCertificatesSetup' | 'crystalServerConfig' | 'processChecklistTemplate' | 'sapLinks' | 'dunningHistoryReport' | 'customersCreditLimitDeviation' | 'reconByDueDate' | 'reconByExactAmount' | 'reconByTransNumber' | 'reconLocateByRowNumber' | 'reconByExactSum' | 'reconBySumFC' | 'selectionUsers' | 'selectionEmployees' | 'selectionRecipientLists' | 'selectionProperties' | 'selectionUdf' | 'selectionBusinessPartners';

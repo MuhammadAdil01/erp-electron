@@ -4,14 +4,14 @@ import type { AuthUser } from '../store/authStore';
 export interface LoginPayload {
   email: string;
   password: string;
+  companySlug?: string;  // omit for super admin login
 }
 
 export interface RegisterPayload {
   name: string;
   email: string;
   password: string;
-  role?: 'super_admin' | 'user';
-  modules?: string[];
+  companySlug?: string;
 }
 
 export interface LoginResponse {
@@ -24,7 +24,7 @@ export const authApi = {
     api.post<LoginResponse>('/auth/login', payload).then((r) => r.data),
 
   register: (payload: RegisterPayload) =>
-    api.post<LoginResponse>('/auth/register', payload).then((r) => r.data),
+    api.post<{ message: string; user: Partial<AuthUser> }>('/auth/register', payload).then((r) => r.data),
 
   profile: () =>
     api.get<AuthUser>('/auth/profile').then((r) => r.data),

@@ -1,42 +1,47 @@
 import api from '../lib/axios';
 
+export interface UserRole {
+  role: { id: string; name: string };
+}
+
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
-  role: 'super_admin' | 'user';
-  modules: string[];
+  isActive: boolean;
+  createdAt: string;
+  userRoles?: UserRole[];
 }
 
 export interface CreateUserPayload {
   name: string;
   email: string;
   password: string;
-  role?: 'super_admin' | 'user';
-  modules?: string[];
+  roleIds?: string[];
+  isActive?: boolean;
 }
 
 export interface UpdateUserPayload {
   name?: string;
   email?: string;
   password?: string;
-  role?: 'super_admin' | 'user';
-  modules?: string[];
+  roleIds?: string[];
+  isActive?: boolean;
 }
 
 export const usersApi = {
   getAll: () =>
     api.get<User[]>('/users').then((r) => r.data),
 
-  getOne: (id: number) =>
+  getOne: (id: string) =>
     api.get<User>(`/users/${id}`).then((r) => r.data),
 
   create: (payload: CreateUserPayload) =>
     api.post<User>('/users', payload).then((r) => r.data),
 
-  update: (id: number, payload: UpdateUserPayload) =>
+  update: (id: string, payload: UpdateUserPayload) =>
     api.patch<User>(`/users/${id}`, payload).then((r) => r.data),
 
-  remove: (id: number) =>
+  remove: (id: string) =>
     api.delete<{ message: string }>(`/users/${id}`).then((r) => r.data),
 };
