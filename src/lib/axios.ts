@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import { useAuthStore } from '../store/authStore';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || 'http://localhost:3070/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE || 'https://erp-backend-sepia.vercel.app/api/v1',
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 });
