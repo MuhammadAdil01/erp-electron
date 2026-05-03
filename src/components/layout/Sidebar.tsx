@@ -137,7 +137,7 @@ const TreeItem: React.FC<{
       'Cost Elements': 'costElements',
       'Print Preferences': 'printPreferences',
       'Tooltip Preview': 'tooltipPreview',
-      'Users': 'usersSetup',
+      'Users': 'companyAdmin',
       'User Groups': 'userGroups',
       'User Defaults': 'userDefaults',
       'Sales Employees/Buyers': 'salesEmployeesSetup',
@@ -291,18 +291,46 @@ const CockpitItem: React.FC<{
   );
 };
 
+// Maps each sidebar module name to its backend slug.
+// null = no backend module (super-admin-only visibility).
+const MODULE_TO_SLUG: Record<string, string | null> = {
+  'Administration':    'administration',
+  'Financials':        'financials',
+  'CRM':               'crm',
+  'Sales - A/R':       'crm',
+  'Business Partners': 'crm',
+  'Banking':           'banking',
+  'Inventory':         'inventory',
+  'HR Payroll':        'hr-payroll',
+  'Human Resources':   'hr',
+  'Reports':           'reports',
+  // The modules below have no backend counterpart yet
+  'Resources':         null,
+  'Production':        null,
+  'MRP':               null,
+  'Service':           null,
+  'Project Management': null,
+};
+
 // ─── Main Sidebar Component ───────────────────────────────────────────────────
 export const Sidebar: React.FC<SidebarProps> = ({ onOpen }) => {
   const [activeTab, setActiveTab] = useState('Modules');
   const { user, isSuperAdmin } = useAuth();
 
-  // Filter modules based on permissions — user sees a module if they have any permission for it
+  // Super-admins see everything. Company users see only:
+  //   1. Modules enabled for their company (enabledModuleSlugs)
+  //   2. That they have at least one permission for (permissions)
   const filteredModules = useMemo(() => {
     if (isSuperAdmin || user?.permissions?.includes('*:*') || !user) return modulesData;
-    const toSlug = (name: string) => name.toLowerCase().replace(/ /g, '-');
-    return modulesData.filter((m) =>
-      user.permissions.some((p) => p.startsWith(toSlug(m.name) + ':'))
-    );
+
+    const enabled = user.enabledModuleSlugs ?? [];
+
+    return modulesData.filter((m) => {
+      const slug = MODULE_TO_SLUG[m.name];
+      if (slug === null) return false;          // no backend module → super-admin only
+      if (!enabled.includes(slug)) return false; // company hasn't enabled this module
+      return user.permissions.some((p) => p.startsWith(slug + ':'));
+    });
   }, [user, isSuperAdmin]);
 
   return (

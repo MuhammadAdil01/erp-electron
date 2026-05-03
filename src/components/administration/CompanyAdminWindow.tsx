@@ -1,13 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   X, Minus, Square, Plus, Trash2, RefreshCw,
-  Users, Shield, Layers, Check, AlertCircle,
+  Users, Shield, Layers, Check, AlertCircle, Building2,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { usersApi, User, CreateUserPayload, UpdateUserPayload } from '../../api/users.api';
 import { rolesApi, Role, CreateRolePayload, Permission } from '../../api/roles.api';
-import { companiesApi, systemModulesApi, SystemModule, Company } from '../../api/companies.api';
+import { companiesApi, systemModulesApi, SystemModule, Company, CompanyListItem } from '../../api/companies.api';
 import { WindowState } from '../../types/window';
 import { cn, ClassicTab, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../ui/ClassicERPUI';
 
@@ -37,30 +37,30 @@ const UsersTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 
   const { data: users = [], isLoading: loadingUsers, refetch } = useQuery({
     queryKey: ['company-users', companyId],
-    queryFn: () => usersApi.getAll(),
+    queryFn: () => usersApi.getAll(companyId),
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['company-roles', companyId],
-    queryFn: () => rolesApi.getAll(),
+    queryFn: () => rolesApi.getAll(companyId),
   });
 
   const createMut = useMutation({
-    mutationFn: (p: CreateUserPayload) => usersApi.create(p),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-users'] }); setMode('view'); setStatus('User created.'); },
-    onError: (e: any) => setErr(e.response?.data?.message ?? 'Failed to create user'),
+    mutationFn: (p: CreateUserPayload) => usersApi.create(p, companyId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-users', companyId] }); setMode('view'); setStatus('User created.'); },
+    onError: (e: any) => setErr(e.message ?? 'Failed to create user'),
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, p }: { id: string; p: UpdateUserPayload }) => usersApi.update(id, p),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-users'] }); setMode('view'); setStatus('User updated.'); },
-    onError: (e: any) => setErr(e.response?.data?.message ?? 'Failed to update user'),
+    mutationFn: ({ id, p }: { id: string; p: UpdateUserPayload }) => usersApi.update(id, p, companyId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-users', companyId] }); setMode('view'); setStatus('User updated.'); },
+    onError: (e: any) => setErr(e.message ?? 'Failed to update user'),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => usersApi.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-users'] }); setSelected(null); setStatus('User deleted.'); },
-    onError: (e: any) => setErr(e.response?.data?.message ?? 'Failed to delete user'),
+    mutationFn: (id: string) => usersApi.remove(id, companyId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-users', companyId] }); setSelected(null); setStatus('User deleted.'); },
+    onError: (e: any) => setErr(e.message ?? 'Failed to delete user'),
   });
 
   const openNew = () => {
@@ -126,7 +126,7 @@ const UsersTab: React.FC<{ companyId: string }> = ({ companyId }) => {
           <Trash2 className="w-3 h-3" /> Delete
         </button>
         <button onClick={() => refetch()} className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white hover:bg-[#ffed99] rounded-[1px]">
-          <RefreshCw className="w-3 h-3" />
+          <RefreshCw className={cn('w-3 h-3', loadingUsers && 'animate-spin')} />
         </button>
         {status && <span className="text-[10px] text-green-700 ml-2">{status}</span>}
         {err && <span className="text-[10px] text-red-600 ml-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</span>}
@@ -204,7 +204,7 @@ const UsersTab: React.FC<{ companyId: string }> = ({ companyId }) => {
               <div className="mt-3 mb-1 text-[10.5px] font-bold text-[#444]">Roles</div>
               <div className="border border-[#d4d0c8] rounded-[1px] p-2 max-h-40 overflow-auto bg-white">
                 {roles.length === 0 ? (
-                  <div className="text-[10px] text-gray-400">No roles defined yet</div>
+                  <div className="text-[10px] text-gray-400">No roles defined yet — create roles in the Roles tab.</div>
                 ) : roles.map(r => (
                   <label key={r.id} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-[#f5f5f5] px-1">
                     <input type="checkbox" checked={form.roleIds.includes(r.id)} onChange={() => toggleRole(r.id)} />
@@ -240,30 +240,30 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 
   const { data: roles = [], isLoading: loadingRoles, refetch } = useQuery({
     queryKey: ['company-roles', companyId],
-    queryFn: () => rolesApi.getAll(),
+    queryFn: () => rolesApi.getAll(companyId),
   });
 
   const { data: availablePerms = [] } = useQuery({
     queryKey: ['available-permissions', companyId],
-    queryFn: () => rolesApi.getAvailablePermissions(),
+    queryFn: () => rolesApi.getAvailablePermissions(companyId),
   });
 
   const createMut = useMutation({
-    mutationFn: (p: CreateRolePayload) => rolesApi.create(p),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles'] }); setMode('view'); setStatus('Role created.'); },
-    onError: (e: any) => setErr(e.response?.data?.message ?? 'Failed to create role'),
+    mutationFn: (p: CreateRolePayload) => rolesApi.create(p, companyId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles', companyId] }); setMode('view'); setStatus('Role created.'); },
+    onError: (e: any) => setErr(e.message ?? 'Failed to create role'),
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, p }: { id: string; p: Partial<CreateRolePayload> }) => rolesApi.update(id, p),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles'] }); setMode('view'); setStatus('Role updated.'); },
-    onError: (e: any) => setErr(e.response?.data?.message ?? 'Failed to update role'),
+    mutationFn: ({ id, p }: { id: string; p: Partial<CreateRolePayload> }) => rolesApi.update(id, p, companyId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles', companyId] }); setMode('view'); setStatus('Role updated.'); },
+    onError: (e: any) => setErr(e.message ?? 'Failed to update role'),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => rolesApi.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles'] }); setSelected(null); setStatus('Role deleted.'); },
-    onError: (e: any) => setErr(e.response?.data?.message ?? 'Failed to delete role'),
+    mutationFn: (id: string) => rolesApi.remove(id, companyId),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles', companyId] }); setSelected(null); setStatus('Role deleted.'); },
+    onError: (e: any) => setErr(e.message ?? 'Failed to delete role'),
   });
 
   // Group permissions by module for the matrix
@@ -345,7 +345,7 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
           <Trash2 className="w-3 h-3" /> Delete
         </button>
         <button onClick={() => refetch()} className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white hover:bg-[#ffed99] rounded-[1px]">
-          <RefreshCw className="w-3 h-3" />
+          <RefreshCw className={cn('w-3 h-3', loadingRoles && 'animate-spin')} />
         </button>
         {status && <span className="text-[10px] text-green-700 ml-2">{status}</span>}
         {err && <span className="text-[10px] text-red-600 ml-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</span>}
@@ -438,7 +438,7 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
               <div className="mt-2 mb-1 text-[10.5px] font-bold text-[#444]">Permissions</div>
               <div className="border border-[#d4d0c8] rounded-[1px] flex-1 overflow-auto bg-white">
                 {availablePerms.length === 0 ? (
-                  <div className="text-[10px] text-gray-400 p-3">No modules enabled for this company</div>
+                  <div className="text-[10px] text-gray-400 p-3">No modules enabled for this company — enable modules in the Modules tab first.</div>
                 ) : (
                   <table className="w-full border-collapse text-[10px]">
                     <thead className="sticky top-0">
@@ -536,7 +536,6 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 
   const isLoading = loadingCompany || loadingMods;
 
-  // Icon map for system modules (slug → lucide icon component name)
   const iconColors: Record<string, string> = {
     administration: 'bg-orange-100 text-orange-600',
     financials: 'bg-green-100 text-green-700',
@@ -577,7 +576,6 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
                     <div className={cn('w-7 h-7 rounded-[2px] flex items-center justify-center text-[11px] font-bold', colorClass)}>
                       {mod.name.charAt(0)}
                     </div>
-                    {/* toggle switch */}
                     <button
                       onClick={() => handleToggle(mod.id)}
                       disabled={busy}
@@ -615,10 +613,26 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 export const CompanyAdminWindow: React.FC<Props> = ({
   show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  const { user } = useAuth();
+  const { user, isSuperAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'Users' | 'Roles' | 'Modules'>('Users');
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
 
-  const companyId = user?.companyId;
+  // Super admin: fetch all companies so they can pick one
+  const { data: allCompanies = [], isLoading: loadingCompanies } = useQuery<CompanyListItem[]>({
+    queryKey: ['all-companies-list'],
+    queryFn: () => companiesApi.getAll(),
+    enabled: isSuperAdmin,
+  });
+
+  // Auto-select the first company for super admin
+  useEffect(() => {
+    if (isSuperAdmin && !selectedCompanyId && allCompanies.length > 0) {
+      setSelectedCompanyId(allCompanies[0].id);
+    }
+  }, [isSuperAdmin, allCompanies, selectedCompanyId]);
+
+  // The company ID to actually operate on
+  const effectiveCompanyId = isSuperAdmin ? selectedCompanyId : (user?.companyId ?? '');
 
   // ── drag ──────────────────────────────────────────────────────────────────
   const handleTitleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -713,6 +727,32 @@ export const CompanyAdminWindow: React.FC<Props> = ({
       {/* orange accent bar */}
       <div className="h-[3px] shrink-0" style={{ background: 'linear-gradient(to right, #f39c12, #e67e22)' }} />
 
+      {/* Super admin company selector */}
+      {isSuperAdmin && (
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-[#fff8e6] border-b border-[#f0c060] shrink-0">
+          <Building2 className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+          <span className="text-[10.5px] font-bold text-orange-800 whitespace-nowrap">Managing company:</span>
+          {loadingCompanies ? (
+            <span className="text-[10.5px] text-gray-500">Loading companies…</span>
+          ) : allCompanies.length === 0 ? (
+            <span className="text-[10.5px] text-red-500">No companies found</span>
+          ) : (
+            <select
+              value={selectedCompanyId}
+              onChange={e => setSelectedCompanyId(e.target.value)}
+              className="h-[20px] border border-[#d4a020] px-1 text-[10.5px] bg-white rounded-[1px] outline-none focus:border-orange-500 min-w-[200px]"
+            >
+              {allCompanies.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.slug}) — {c._count.users} user{c._count.users !== 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          <span className="text-[9.5px] text-orange-600 ml-auto italic">Super Admin mode</span>
+        </div>
+      )}
+
       {/* tab bar */}
       <div className="flex items-end px-3 pt-2 border-b border-[#808080] bg-[#e8e8e8] shrink-0">
         {(['Users', 'Roles', 'Modules'] as const).map(tab => {
@@ -737,25 +777,31 @@ export const CompanyAdminWindow: React.FC<Props> = ({
 
       {/* content */}
       <div className="flex-1 overflow-hidden bg-white">
-        {!companyId ? (
+        {!effectiveCompanyId ? (
           <div className="flex items-center justify-center h-full text-[11px] text-gray-400">
             <div className="text-center">
               <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-              No company context — log in as a company user to manage this company.
+              {isSuperAdmin
+                ? 'Select a company above to manage its users, roles, and modules.'
+                : 'No company context — log in as a company user to manage this company.'}
             </div>
           </div>
         ) : (
           <>
-            {activeTab === 'Users'   && <UsersTab   companyId={companyId} />}
-            {activeTab === 'Roles'   && <RolesTab   companyId={companyId} />}
-            {activeTab === 'Modules' && <ModulesTab companyId={companyId} />}
+            {activeTab === 'Users'   && <UsersTab   companyId={effectiveCompanyId} />}
+            {activeTab === 'Roles'   && <RolesTab   companyId={effectiveCompanyId} />}
+            {activeTab === 'Modules' && <ModulesTab companyId={effectiveCompanyId} />}
           </>
         )}
       </div>
 
       {/* status bar */}
       <div className="flex items-center justify-between px-3 py-1 bg-[#f0f0f0] border-t border-[#d4d0c8] text-[9.5px] text-gray-500 shrink-0">
-        <span>{user?.name} · {companyId ? `Company ID: ${companyId.slice(0, 8)}…` : 'No company'}</span>
+        <span>
+          {user?.name}
+          {isSuperAdmin && <span className="ml-1 px-1 bg-orange-500 text-white rounded-[1px] text-[8px] font-bold">SUPER ADMIN</span>}
+          {effectiveCompanyId && <span className="ml-2 text-gray-400">· Company ID: {effectiveCompanyId.slice(0, 8)}…</span>}
+        </span>
         <span>Company Administration</span>
       </div>
 

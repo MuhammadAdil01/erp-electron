@@ -7,7 +7,8 @@ export interface AuthUser {
   email: string;
   companyId: string | null;
   isSuperAdmin: boolean;
-  permissions: string[];  // "moduleSlug:ACTION" e.g. "hr:VIEW"
+  permissions: string[];       // "moduleSlug:ACTION" e.g. "hr:VIEW"
+  enabledModuleSlugs: string[]; // slugs of modules enabled for this user's company
 }
 
 interface AuthState {

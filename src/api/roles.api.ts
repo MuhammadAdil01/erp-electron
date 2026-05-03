@@ -29,22 +29,25 @@ export interface CreateRolePayload {
   permissionIds?: string[];
 }
 
+// companyId is forwarded as a query param so super admins can target any company.
+const cq = (companyId?: string) => (companyId ? { params: { companyId } } : {});
+
 export const rolesApi = {
-  getAll: () =>
-    api.get<Role[]>('/roles').then((r) => r.data),
+  getAll: (companyId?: string) =>
+    api.get<Role[]>('/roles', cq(companyId)).then((r) => r.data),
 
-  getOne: (id: string) =>
-    api.get<Role>(`/roles/${id}`).then((r) => r.data),
+  getOne: (id: string, companyId?: string) =>
+    api.get<Role>(`/roles/${id}`, cq(companyId)).then((r) => r.data),
 
-  getAvailablePermissions: () =>
-    api.get<Permission[]>('/roles/permissions/available').then((r) => r.data),
+  getAvailablePermissions: (companyId?: string) =>
+    api.get<Permission[]>('/roles/permissions/available', cq(companyId)).then((r) => r.data),
 
-  create: (payload: CreateRolePayload) =>
-    api.post<Role>('/roles', payload).then((r) => r.data),
+  create: (payload: CreateRolePayload, companyId?: string) =>
+    api.post<Role>('/roles', payload, cq(companyId)).then((r) => r.data),
 
-  update: (id: string, payload: Partial<CreateRolePayload>) =>
-    api.patch<Role>(`/roles/${id}`, payload).then((r) => r.data),
+  update: (id: string, payload: Partial<CreateRolePayload>, companyId?: string) =>
+    api.patch<Role>(`/roles/${id}`, payload, cq(companyId)).then((r) => r.data),
 
-  remove: (id: string) =>
-    api.delete<{ message: string }>(`/roles/${id}`).then((r) => r.data),
+  remove: (id: string, companyId?: string) =>
+    api.delete<{ message: string }>(`/roles/${id}`, cq(companyId)).then((r) => r.data),
 };

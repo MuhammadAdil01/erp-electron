@@ -1,490 +1,323 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Minus, Square, RefreshCw, Save, Shield, User } from 'lucide-react';
-import { useAuth, AuthUser } from '../../context/AuthContext';
+import React, { useState, useCallback, useRef } from 'react';
+import { X, Minus, Square, Plus, Trash2, RefreshCw, Shield, User, AlertCircle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../context/AuthContext';
+import { usersApi, User as ApiUser, CreateUserPayload, UpdateUserPayload } from '../../api/users.api';
+import { rolesApi } from '../../api/roles.api';
+import { cn, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../ui/ClassicERPUI';
 
 interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
+  x: number; y: number; width: number; height: number;
+  isMinimized: boolean; isMaximized: boolean; zIndex: number;
 }
 
-interface UsersSetupWindowProps {
+interface Props {
   show: boolean;
   onClose: () => void;
-  windowState: WindowState; 
+  windowState: WindowState;
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
   onFocus?: () => void;
 }
 
-// All available top-level modules that can be assigned
-const ALL_MODULES = [
-  'Administration',
-  'Financials',
-  'CRM',
-  'Sales - A/R',
-  'Business Partners',
-  'Banking',
-  'Inventory',
-  'Resources',
-  'Production',
-  'MRP',
-  'HR Payroll',
-  'Service',
-  'Human Resources',
-  'Project Management',
-  'Reports',
-];
+type Mode = 'view' | 'new' | 'edit';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://erp-backend-sepia.vercel.app/api/v1';
-
-interface BackendUser {
-  id: number;
-  name: string;
-  email: string;
-  role: 'super_admin' | 'user';
-  modules: string[];
-}
-
-export const UsersSetupWindow: React.FC<UsersSetupWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState,
-  onFocus
+export const UsersSetupWindow: React.FC<Props> = ({
+  show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  const { token, isSuperAdmin } = useAuth();
-  const [users, setUsers] = useState<BackendUser[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [selectedModules, setSelectedModules] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('General');
+  const { user: authUser } = useAuth();
+  const qc = useQueryClient();
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-  const cleanupListeners = useRef<(() => void) | null>(null);
+  const [selected, setSelected] = useState<ApiUser | null>(null);
+  const [mode, setMode] = useState<Mode>('view');
+  const [form, setForm] = useState({ name: '', email: '', password: '', isActive: true, roleIds: [] as string[] });
+  const [err, setErr] = useState('');
+  const [status, setStatus] = useState('');
 
-  useEffect(() => {
-    return () => {
-      if (cleanupListeners.current) cleanupListeners.current();
-    };
-  }, []);
+  const companyId = authUser?.companyId;
 
-  const fetchUsers = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`${API_BASE}/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const list = data.data || data;
-        setUsers(Array.isArray(list) ? list : []);
-      } else {
-        setError('Failed to load users');
-      }
-    } catch (err) {
-      console.error('Failed to fetch users', err);
-      setError('Network error');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const { data: users = [], isLoading, refetch } = useQuery({
+    queryKey: ['users-setup', companyId],
+    queryFn: () => usersApi.getAll(),
+    enabled: !!companyId,
+  });
 
-  // Fetch users on mount
-  useEffect(() => {
-    if (show && token) fetchUsers();
-  }, [show, token, fetchUsers]);
+  const { data: roles = [] } = useQuery({
+    queryKey: ['roles-setup', companyId],
+    queryFn: () => rolesApi.getAll(),
+    enabled: !!companyId,
+  });
 
-  const selectUser = (user: BackendUser) => {
-    setSelectedUserId(user.id);
-    setSelectedModules([...(user.modules || [])]);
-    setMessage('');
+  const createMut = useMutation({
+    mutationFn: (p: CreateUserPayload) => usersApi.create(p),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users-setup'] });
+      setMode('view'); setStatus('User created successfully.'); setErr('');
+    },
+    onError: (e: any) => setErr(e.message ?? 'Failed to create user'),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, p }: { id: string; p: UpdateUserPayload }) => usersApi.update(id, p),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users-setup'] });
+      setMode('view'); setStatus('User updated successfully.'); setErr('');
+    },
+    onError: (e: any) => setErr(e.message ?? 'Failed to update user'),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => usersApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users-setup'] });
+      setSelected(null); setMode('view'); setStatus('User deleted.'); setErr('');
+    },
+    onError: (e: any) => setErr(e.message ?? 'Failed to delete user'),
+  });
+
+  const isBusy = createMut.isPending || updateMut.isPending || deleteMut.isPending;
+
+  const openNew = () => {
+    setForm({ name: '', email: '', password: '', isActive: true, roleIds: [] });
+    setErr(''); setStatus(''); setMode('new');
   };
 
-  const toggleModule = (mod: string) => {
-    setSelectedModules((prev) =>
-      prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod]
-    );
+  const openEdit = (u: ApiUser) => {
+    setSelected(u);
+    setForm({
+      name: u.name, email: u.email, password: '',
+      isActive: u.isActive,
+      roleIds: (u.userRoles ?? []).map(ur => ur.role.id),
+    });
+    setErr(''); setStatus(''); setMode('edit');
   };
 
-  const selectAllModules = () => setSelectedModules([...ALL_MODULES]);
-  const clearAllModules = () => setSelectedModules([]);
-
-  const saveModules = async () => {
-    if (!selectedUserId || !token) return;
-    setSaving(true);
-    setMessage('');
-    try {
-      const res = await fetch(`${API_BASE}/users/${selectedUserId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ modules: selectedModules }),
-      });
-      if (res.ok) {
-        setMessage('✓ Modules updated successfully');
-        fetchUsers();
-      } else {
-        setMessage('✗ Failed to update modules');
-      }
-    } catch {
-      setMessage('✗ Network error');
-    } finally {
-      setSaving(false);
+  const handleSave = () => {
+    setErr('');
+    if (!form.name.trim() || !form.email.trim()) { setErr('Name and email are required.'); return; }
+    if (mode === 'new') {
+      if (!form.password.trim()) { setErr('Password is required for new users.'); return; }
+      createMut.mutate({ name: form.name, email: form.email, password: form.password, isActive: form.isActive, roleIds: form.roleIds });
+    } else if (mode === 'edit' && selected) {
+      const p: UpdateUserPayload = { name: form.name, email: form.email, isActive: form.isActive, roleIds: form.roleIds };
+      if (form.password.trim()) p.password = form.password;
+      updateMut.mutate({ id: selected.id, p });
     }
   };
 
-  if (!show || windowState.isMinimized) return null;
+  const handleDelete = () => {
+    if (!selected || !window.confirm(`Delete user "${selected.name}"?`)) return;
+    deleteMut.mutate(selected.id);
+  };
 
-  const handleDrag = (e: React.MouseEvent) => {
+  const toggleRole = (roleId: string) => {
+    setForm(f => ({
+      ...f,
+      roleIds: f.roleIds.includes(roleId) ? f.roleIds.filter(id => id !== roleId) : [...f.roleIds, roleId],
+    }));
+  };
+
+  // ── drag ──────────────────────────────────────────────────────────────────────
+  const handleDrag = useCallback((e: React.MouseEvent) => {
     if (windowState.isMaximized) return;
     const startX = e.clientX - windowState.x;
     const startY = e.clientY - windowState.y;
+    const onMove = (me: MouseEvent) => setWindowState(p => ({ ...p, x: me.clientX - startX, y: me.clientY - startY }));
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); cleanupRef.current = null; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    cleanupRef.current = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, [windowState.isMaximized, windowState.x, windowState.y, setWindowState]);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      cleanupListeners.current = null;
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    cleanupListeners.current = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-  };
-
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
+  // ── resize ─────────────────────────────────────────────────────────────────────
+  const handleResize = useCallback((dir: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        const minW = 600;
-        const minH = 550;
-
-        if (direction.includes('e')) {
-          newWidth = Math.max(minW, startWidth + deltaX);
-        }
-        if (direction.includes('s')) {
-          newHeight = Math.max(minH, startHeight + deltaY);
-        }
-        
-        if (direction.includes('w')) {
-          const possibleWidth = startWidth - deltaX;
-          if (possibleWidth > minW) {
-            newWidth = possibleWidth;
-            newX = startXPos + deltaX;
-          } else {
-            newWidth = minW;
-            newX = startXPos + (startWidth - minW);
-          }
-        }
-        
-        if (direction.includes('n')) {
-          const possibleHeight = startHeight - deltaY;
-          if (possibleHeight > minH) {
-            newHeight = possibleHeight;
-            newY = startYPos + deltaY;
-          } else {
-            newHeight = minH;
-            newY = startYPos + (startHeight - minH);
-          }
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
+    const { x: sx, y: sy, width: sw, height: sh } = windowState;
+    const mx = e.clientX, my = e.clientY;
+    const onMove = (me: MouseEvent) => {
+      const dx = me.clientX - mx, dy = me.clientY - my;
+      setWindowState(p => {
+        const MIN_W = 680, MIN_H = 520;
+        let nx = p.x, ny = p.y, nw = p.width, nh = p.height;
+        if (dir.includes('e')) nw = Math.max(MIN_W, sw + dx);
+        if (dir.includes('s')) nh = Math.max(MIN_H, sh + dy);
+        if (dir.includes('w')) { const pw = sw - dx; nw = pw > MIN_W ? pw : MIN_W; nx = pw > MIN_W ? sx + dx : sx + sw - MIN_W; }
+        if (dir.includes('n')) { const ph = sh - dy; nh = ph > MIN_H ? ph : MIN_H; ny = ph > MIN_H ? sy + dy : sy + sh - MIN_H; }
+        return { ...p, x: nx, y: ny, width: nw, height: nh };
       });
     };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [windowState, setWindowState]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      cleanupListeners.current = null;
-    };
+  if (!show || windowState.isMinimized) return null;
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    cleanupListeners.current = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-  };
-
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap leading-[18px]";
-  const sapButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#f8f8f8] to-[#e4e4e4] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner font-normal";
-  const sapActionButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner";
-  const sapCheckboxStyle = "w-3.5 h-3.5 mt-0.5 border-gray-400 border bg-white cursor-pointer accent-blue-600";
-
-  const selectedUser = users.find((u) => u.id === selectedUserId);
-  const tabs = ['General', 'Module Access'];
+  const style: React.CSSProperties = windowState.isMaximized
+    ? { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', zIndex: windowState.zIndex }
+    : { position: 'absolute', left: windowState.x, top: windowState.y, width: windowState.width, height: windowState.height, zIndex: windowState.zIndex };
 
   return (
-    <div 
-      onMouseDown={onFocus}
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none text-[11px]"
-    >
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[26px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
+    <div style={style} onMouseDown={onFocus}
+      className="flex flex-col bg-[#ececec] shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden select-none text-[11px]">
+
+      {/* Title bar */}
+      <div onMouseDown={handleDrag}
+        className="h-[26px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400">
         <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[11.5px] tracking-tight">Users - Setup & Module Access</span>
+          <User className="w-3.5 h-3.5 text-gray-600" />
+          <span className="text-black font-medium text-[11.5px] tracking-tight">Users - Setup</span>
         </div>
         <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3 h-3 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-3.5 h-3.5 text-gray-600 group-hover:text-white" />
-           </div>
+          <div onClick={() => setWindowState(p => ({ ...p, isMinimized: true }))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5"><Minus className="w-3.5 h-3.5 text-gray-600" /></div>
+          <div onClick={() => setWindowState(p => ({ ...p, isMaximized: !p.isMaximized }))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5"><Square className="w-3 h-3 text-gray-600" /></div>
+          <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 group"><X className="w-3.5 h-3.5 text-gray-600 group-hover:text-white" /></div>
         </div>
       </div>
 
-      {/* Ribbon */}
-      <div className="h-2 bg-[#f39c12] border-b border-gray-400"></div>
+      {/* Orange accent */}
+      <div className="h-[3px] shrink-0" style={{ background: 'linear-gradient(to right, #f39c12, #e67e22)' }} />
 
-      {/* Main layout: User list on left, details on right */}
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1 bg-[#f0f0f0] border-b border-[#d4d0c8] shrink-0">
+        <button onClick={openNew} className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white hover:bg-[#ffed99] rounded-[1px]">
+          <Plus className="w-3 h-3" /> New
+        </button>
+        <button onClick={() => selected && openEdit(selected)} disabled={!selected}
+          className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white hover:bg-[#ffed99] rounded-[1px] disabled:opacity-40">
+          Edit
+        </button>
+        <button onClick={handleDelete} disabled={!selected || isBusy}
+          className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white hover:bg-red-100 rounded-[1px] disabled:opacity-40">
+          <Trash2 className="w-3 h-3" /> Delete
+        </button>
+        <button onClick={() => refetch()} className="flex items-center gap-1 px-2 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white hover:bg-[#ffed99] rounded-[1px]">
+          <RefreshCw className={cn('w-3 h-3', isLoading && 'animate-spin')} />
+        </button>
+        {status && <span className="text-[10px] text-green-700 ml-2">{status}</span>}
+        {err && <span className="text-[10px] text-red-600 ml-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</span>}
+      </div>
+
+      {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel - User List */}
-        <div className="w-[200px] bg-white border-r border-gray-400 flex flex-col shrink-0">
-          <div className="flex items-center justify-between px-2 py-1.5 bg-gradient-to-b from-[#f0f0f0] to-[#e4e4e4] border-b border-gray-400">
-            <span className="text-[11px] font-bold text-gray-700">Users</span>
-            <button onClick={fetchUsers} className="p-0.5 hover:bg-black/5 rounded-sm" title="Refresh">
-              <RefreshCw className={`w-3 h-3 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {users.map((u) => (
-              <div
-                key={u.id}
-                onClick={() => selectUser(u)}
-                className={`flex items-center gap-2 px-2 py-1.5 cursor-pointer border-b border-gray-200 transition-colors
-                  ${selectedUserId === u.id ? 'bg-[#ffed99]' : 'hover:bg-[#f5f5f5]'}`}
-              >
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 
-                  ${u.role === 'super_admin' ? 'bg-[#f39c12]' : 'bg-gray-400'}`}>
-                  {u.role === 'super_admin' 
-                    ? <Shield className="w-3 h-3 text-white" />
-                    : <User className="w-3 h-3 text-white" />}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[10.5px] font-medium text-gray-800 truncate">{u.name}</span>
-                  <span className="text-[9.5px] text-gray-500 truncate">{u.email}</span>
+        {/* User list */}
+        <div className="w-[220px] bg-white border-r border-[#d4d0c8] flex flex-col shrink-0 overflow-auto">
+          {!companyId ? (
+            <div className="p-3 text-[10px] text-gray-400 italic">Log in as a company user to manage users.</div>
+          ) : isLoading ? (
+            <div className="p-3 text-[10.5px] text-gray-400">Loading…</div>
+          ) : users.length === 0 ? (
+            <div className="p-3 text-[10.5px] text-gray-400">No users found.</div>
+          ) : users.map(u => (
+            <div key={u.id}
+              onClick={() => { setSelected(u); setMode('view'); setErr(''); setStatus(''); }}
+              onDoubleClick={() => openEdit(u)}
+              className={cn('flex items-center gap-2 px-2 py-1.5 cursor-pointer border-b border-[#f0f0f0] transition-colors',
+                selected?.id === u.id ? 'bg-[#ffed99]' : 'hover:bg-[#f5f5f5]')}>
+              <div className={cn('w-5 h-5 rounded-full flex items-center justify-center shrink-0', u.isActive ? 'bg-blue-400' : 'bg-gray-300')}>
+                <User className="w-3 h-3 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10.5px] font-medium text-gray-800 truncate">{u.name}</div>
+                <div className="text-[9.5px] text-gray-500 truncate">{u.email}</div>
+                <div className="flex gap-0.5 mt-0.5 flex-wrap">
+                  {(u.userRoles ?? []).map(ur => (
+                    <span key={ur.role.id} className="bg-orange-100 text-orange-700 px-1 rounded-[1px] text-[8.5px]">{ur.role.name}</span>
+                  ))}
+                  {!u.isActive && <span className="bg-gray-200 text-gray-500 px-1 rounded-[1px] text-[8.5px]">Inactive</span>}
                 </div>
               </div>
-            ))}
-            {users.length === 0 && !loading && !error && (
-              <div className="p-3 text-[10px] text-gray-400 italic text-center">No users found</div>
-            )}
-            {error && (
-              <div className="p-3 text-[10px] text-red-500 italic text-center">{error}</div>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
 
-        {/* Right panel - User Details */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {selectedUser ? (
-            <>
-              {/* User header */}
-              <div className="p-3 bg-white mx-1.5 mt-1.5 border border-gray-400 shadow-inner flex items-center gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 
-                  ${selectedUser.role === 'super_admin' ? 'bg-[#f39c12]' : 'bg-gray-400'}`}>
-                  {selectedUser.role === 'super_admin' 
-                    ? <Shield className="w-5 h-5 text-white" />
-                    : <User className="w-5 h-5 text-white" />}
+        {/* Detail / form panel */}
+        <div className="flex-1 p-4 overflow-auto bg-white">
+          {mode === 'view' && !selected && (
+            <div className="text-[11px] text-gray-400 mt-10 text-center">Select a user or click New</div>
+          )}
+
+          {mode === 'view' && selected && (
+            <div>
+              <div className="flex items-center gap-3 mb-4 pb-2 border-b border-[#e0e0e0]">
+                <div className={cn('w-9 h-9 rounded-full flex items-center justify-center shrink-0', selected.isActive ? 'bg-blue-400' : 'bg-gray-300')}>
+                  <User className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-[12px] font-bold text-gray-800">{selectedUser.name}</div>
-                  <div className="text-[10.5px] text-gray-500">{selectedUser.email}</div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-sm 
-                      ${selectedUser.role === 'super_admin' ? 'bg-[#f39c12] text-white' : 'bg-gray-300 text-gray-700'}`}>
-                      {selectedUser.role === 'super_admin' ? 'SUPER ADMIN' : 'USER'}
-                    </span>
-                  </div>
+                  <div className="text-[12px] font-bold text-gray-800">{selected.name}</div>
+                  <div className="text-[10px] text-gray-500">{selected.email}</div>
                 </div>
               </div>
+              <FieldRow label="Status">{selected.isActive ? 'Active' : 'Inactive'}</FieldRow>
+              <FieldRow label="Roles">
+                <div className="flex gap-1 flex-wrap">
+                  {(selected.userRoles ?? []).length === 0
+                    ? <span className="text-gray-400 text-[10px]">None assigned</span>
+                    : (selected.userRoles ?? []).map(ur => (
+                      <span key={ur.role.id} className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-[1px] text-[9px]">{ur.role.name}</span>
+                    ))}
+                </div>
+              </FieldRow>
+              <div className="mt-4">
+                <YellowBtn onClick={() => openEdit(selected)}>Edit</YellowBtn>
+              </div>
+            </div>
+          )}
 
-              {/* Tabs */}
-              <div className="flex px-1.5 pt-1.5 bg-[#ececec]">
-                {tabs.map((tab) => (
-                  <div 
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-6 py-1 text-[11px] font-medium cursor-default rounded-t-[3px] border border-gray-300 relative transition-all -ml-[1px]
-                      ${activeTab === tab 
-                        ? 'bg-white border-gray-400 border-b-white z-10 shadow-sm' 
-                        : 'bg-gradient-to-b from-[#f0f0f0] to-[#e4e4e4] text-gray-600 hover:from-[#f5f5f5]'}`}
-                  >
-                    {tab}
-                  </div>
-                ))}
+          {(mode === 'new' || mode === 'edit') && (
+            <div>
+              <div className="text-[11px] font-bold text-[#333] mb-3 border-b border-[#e0e0e0] pb-1">
+                {mode === 'new' ? 'New User' : `Edit — ${selected?.name}`}
+              </div>
+              <FieldRow label="Name" required>
+                <ClassicInput value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-52" />
+              </FieldRow>
+              <FieldRow label="Email" required>
+                <ClassicInput type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="w-52" />
+              </FieldRow>
+              <FieldRow label={mode === 'new' ? 'Password *' : 'New Password'}>
+                <ClassicInput type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  className="w-52" placeholder={mode === 'edit' ? 'leave blank to keep current' : ''} />
+              </FieldRow>
+              <FieldRow label="Active">
+                <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} />
+              </FieldRow>
+
+              <div className="mt-3 mb-1 text-[10.5px] font-bold text-[#444]">Roles</div>
+              <div className="border border-[#d4d0c8] rounded-[1px] p-2 max-h-40 overflow-auto bg-white">
+                {roles.length === 0
+                  ? <div className="text-[10px] text-gray-400">No roles defined yet. Create roles in Company Admin.</div>
+                  : roles.map(r => (
+                    <label key={r.id} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-[#f5f5f5] px-1 rounded-[1px]">
+                      <input type="checkbox" checked={form.roleIds.includes(r.id)} onChange={() => toggleRole(r.id)} />
+                      <span className="text-[10.5px]">{r.name}</span>
+                      {r.description && <span className="text-[9px] text-gray-400">— {r.description}</span>}
+                    </label>
+                  ))}
               </div>
 
-              {/* Tab Content */}
-              <div className="flex-1 flex flex-col p-3 overflow-hidden bg-white mx-1.5 mb-1.5 border border-gray-400 shadow-inner overflow-y-auto custom-scrollbar">
-                {activeTab === 'General' && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-1.5 max-w-sm">
-                      <span className={sapLabelStyle}>User ID</span>
-                      <span className="text-[11px] text-gray-800 font-medium">{selectedUser.id}</span>
-                      <span className={sapLabelStyle}>User Name</span>
-                      <span className="text-[11px] text-gray-800 font-medium">{selectedUser.name}</span>
-                      <span className={sapLabelStyle}>E-Mail</span>
-                      <span className="text-[11px] text-gray-800 font-medium">{selectedUser.email}</span>
-                      <span className={sapLabelStyle}>Role</span>
-                      <span className="text-[11px] text-gray-800 font-medium">{selectedUser.role === 'super_admin' ? 'Super Admin' : 'Standard User'}</span>
-                    </div>
-                    {selectedUser.role === 'super_admin' && (
-                      <div className="mt-3 px-3 py-2 bg-[#fff6d5] border border-[#f39c12]/40 text-[10.5px] text-gray-700">
-                        <span className="font-bold">ℹ</span> Super Admin has full access to all modules. Module restrictions cannot be applied.
-                      </div>
-                    )}
-                    {selectedUser.role === 'user' && (
-                      <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 text-[10.5px] text-gray-700">
-                        <span className="font-bold">ℹ</span> This user has access to <span className="font-bold">{selectedUser.modules?.length || 0}</span> module(s). 
-                        Go to the "Module Access" tab to manage.
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'Module Access' && (
-                  <div className="space-y-3">
-                    {selectedUser.role === 'super_admin' ? (
-                      <div className="px-3 py-3 bg-[#fff6d5] border border-[#f39c12]/40 text-[10.5px] text-gray-700">
-                        <span className="font-bold">ℹ</span> Super Admin has unrestricted access to all modules. No configuration needed.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-gray-800">Assign Modules</span>
-                          <div className="flex gap-1">
-                            <button onClick={selectAllModules} className={sapButtonStyle}>Select All</button>
-                            <button onClick={clearAllModules} className={sapButtonStyle}>Clear All</button>
-                          </div>
-                        </div>
-
-                        <div className="border border-gray-300 bg-white">
-                          <div className="grid grid-cols-[auto_1fr] items-center px-2 py-1 bg-gradient-to-b from-[#f0f0f0] to-[#e4e4e4] border-b border-gray-300">
-                            <span className="text-[10px] font-bold text-gray-600 w-8">✓</span>
-                            <span className="text-[10px] font-bold text-gray-600">Module Name</span>
-                          </div>
-                          {ALL_MODULES.map((mod) => (
-                            <div
-                              key={mod}
-                              onClick={() => toggleModule(mod)}
-                              className={`grid grid-cols-[auto_1fr] items-center px-2 py-1 border-b border-gray-200 cursor-pointer transition-colors
-                                ${selectedModules.includes(mod) ? 'bg-[#ffed99]/40' : 'hover:bg-gray-50'}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedModules.includes(mod)}
-                                onChange={() => toggleModule(mod)}
-                                className={`${sapCheckboxStyle} w-8`}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <span className="text-[11px] text-gray-800">{mod}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="text-[10px] text-gray-500 italic">
-                          Selected: {selectedModules.length} of {ALL_MODULES.length} modules
-                        </div>
-
-                        {/* Save button */}
-                        <div className="flex items-center gap-3 pt-2">
-                          <button 
-                            onClick={saveModules} 
-                            disabled={saving}
-                            className={`${sapActionButtonStyle} flex items-center gap-1.5 ${saving ? 'opacity-50' : ''}`}
-                          >
-                            <Save className="w-3 h-3" />
-                            {saving ? 'Saving...' : 'Update'}
-                          </button>
-                          {message && (
-                            <span className={`text-[10.5px] font-medium ${message.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
-                              {message}
-                            </span>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
+              <div className="flex gap-2 mt-4">
+                <YellowBtn onClick={handleSave} disabled={isBusy}>{isBusy ? 'Saving…' : 'Save'}</YellowBtn>
+                <GreyBtn onClick={() => { setMode('view'); setErr(''); setStatus(''); }}>Cancel</GreyBtn>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-[12px] italic">
-              Select a user from the list to manage their settings
             </div>
           )}
         </div>
       </div>
 
-      {/* Footer Buttons */}
-      <div className="p-2 pt-0 flex justify-between bg-[#ececec]">
-        <div className="flex gap-1.5">
-           <button onClick={onClose} className={sapButtonStyle}>Close</button>
-        </div>
-        <div className="flex gap-1.5">
-           <button onClick={fetchUsers} className={sapButtonStyle}>
-             <RefreshCw className="w-3 h-3 inline mr-1" />Refresh
-           </button>
-        </div>
+      {/* Footer */}
+      <div className="px-3 py-1 bg-[#f0f0f0] border-t border-[#d4d0c8] text-[9.5px] text-gray-500 shrink-0 flex justify-between">
+        <span>{authUser?.name} · {companyId ? `Company: ${companyId.slice(0, 8)}…` : 'No company'}</span>
+        <span>Users Setup</span>
       </div>
 
-      {/* Resize Handles */}
+      {/* Resize handles */}
       {!windowState.isMaximized && (
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
+          <div onMouseDown={handleResize('n')} className="absolute top-0 left-1 right-1 h-1 cursor-ns-resize z-[60]" />
+          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-1 right-1 h-1 cursor-ns-resize z-[60]" />
+          <div onMouseDown={handleResize('e')} className="absolute top-1 bottom-1 right-0 w-1 cursor-ew-resize z-[60]" />
+          <div onMouseDown={handleResize('w')} className="absolute top-1 bottom-1 left-0 w-1 cursor-ew-resize z-[60]" />
           <div onMouseDown={handleResize('nw')} className="absolute top-0 left-0 w-2 h-2 cursor-nwse-resize z-[70]" />
           <div onMouseDown={handleResize('ne')} className="absolute top-0 right-0 w-2 h-2 cursor-nesw-resize z-[70]" />
           <div onMouseDown={handleResize('sw')} className="absolute bottom-0 left-0 w-2 h-2 cursor-nesw-resize z-[70]" />
