@@ -54,8 +54,7 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*",
-      "node_modules/**/*"
+      "dist-electron/**/*"
     ],
     "win": {
       "target": "nsis",
