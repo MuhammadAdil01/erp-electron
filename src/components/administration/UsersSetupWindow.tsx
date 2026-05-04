@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { usersApi, User as ApiUser, CreateUserPayload, UpdateUserPayload } from '../../api/users.api';
 import { rolesApi } from '../../api/roles.api';
+import { departmentsApi } from '../../api/departments.api';
+import { systemModulesApi } from '../../api/system-modules.api';
 import { cn, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../ui/ClassicERPUI';
 
 interface WindowState {
@@ -30,7 +32,16 @@ export const UsersSetupWindow: React.FC<Props> = ({
 
   const [selected, setSelected] = useState<ApiUser | null>(null);
   const [mode, setMode] = useState<Mode>('view');
-  const [form, setForm] = useState({ name: '', email: '', password: '', isActive: true, roleIds: [] as string[] });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    isActive: true,
+    roleType: 'NORMAL_USER',
+    departmentId: '',
+    roleIds: [] as string[],
+    moduleIds: [] as string[]
+  });
   const [err, setErr] = useState('');
   const [status, setStatus] = useState('');
 
@@ -45,6 +56,18 @@ export const UsersSetupWindow: React.FC<Props> = ({
   const { data: roles = [] } = useQuery({
     queryKey: ['roles-setup', companyId],
     queryFn: () => rolesApi.getAll(),
+    enabled: !!companyId,
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments-setup', companyId],
+    queryFn: () => departmentsApi.getAll(),
+    enabled: !!companyId,
+  });
+
+  const { data: modules = [] } = useQuery({
+    queryKey: ['system-modules', companyId],
+    queryFn: () => systemModulesApi.getAll(),
     enabled: !!companyId,
   });
 
@@ -78,7 +101,10 @@ export const UsersSetupWindow: React.FC<Props> = ({
   const isBusy = createMut.isPending || updateMut.isPending || deleteMut.isPending;
 
   const openNew = () => {
-    setForm({ name: '', email: '', password: '', isActive: true, roleIds: [] });
+    setForm({
+      name: '', email: '', password: '', isActive: true,
+      roleType: 'NORMAL_USER', departmentId: '', roleIds: [], moduleIds: []
+    });
     setErr(''); setStatus(''); setMode('new');
   };
 
@@ -87,7 +113,10 @@ export const UsersSetupWindow: React.FC<Props> = ({
     setForm({
       name: u.name, email: u.email, password: '',
       isActive: u.isActive,
+      roleType: u.roleType || 'NORMAL_USER',
+      departmentId: u.departmentId || '',
       roleIds: (u.userRoles ?? []).map(ur => ur.role.id),
+      moduleIds: (u.userModules ?? []).map(um => um.module.id),
     });
     setErr(''); setStatus(''); setMode('edit');
   };
@@ -95,11 +124,22 @@ export const UsersSetupWindow: React.FC<Props> = ({
   const handleSave = () => {
     setErr('');
     if (!form.name.trim() || !form.email.trim()) { setErr('Name and email are required.'); return; }
+    
+    const payload = {
+      name: form.name,
+      email: form.email,
+      isActive: form.isActive,
+      roleType: form.roleType,
+      departmentId: form.departmentId || undefined,
+      roleIds: form.roleIds,
+      moduleIds: form.moduleIds
+    };
+
     if (mode === 'new') {
       if (!form.password.trim()) { setErr('Password is required for new users.'); return; }
-      createMut.mutate({ name: form.name, email: form.email, password: form.password, isActive: form.isActive, roleIds: form.roleIds });
+      createMut.mutate({ ...payload, password: form.password });
     } else if (mode === 'edit' && selected) {
-      const p: UpdateUserPayload = { name: form.name, email: form.email, isActive: form.isActive, roleIds: form.roleIds };
+      const p: UpdateUserPayload = { ...payload };
       if (form.password.trim()) p.password = form.password;
       updateMut.mutate({ id: selected.id, p });
     }
@@ -114,6 +154,13 @@ export const UsersSetupWindow: React.FC<Props> = ({
     setForm(f => ({
       ...f,
       roleIds: f.roleIds.includes(roleId) ? f.roleIds.filter(id => id !== roleId) : [...f.roleIds, roleId],
+    }));
+  };
+
+  const toggleModule = (moduleId: string) => {
+    setForm(f => ({
+      ...f,
+      moduleIds: f.moduleIds.includes(moduleId) ? f.moduleIds.filter(id => id !== moduleId) : [...f.moduleIds, moduleId],
     }));
   };
 
@@ -221,6 +268,8 @@ export const UsersSetupWindow: React.FC<Props> = ({
                 <div className="text-[10.5px] font-medium text-gray-800 truncate">{u.name}</div>
                 <div className="text-[9.5px] text-gray-500 truncate">{u.email}</div>
                 <div className="flex gap-0.5 mt-0.5 flex-wrap">
+                  <span className="bg-blue-100 text-blue-700 px-1 rounded-[1px] text-[8.5px]">{u.roleType}</span>
+                  {u.department && <span className="bg-green-100 text-green-700 px-1 rounded-[1px] text-[8.5px]">{u.department.name}</span>}
                   {(u.userRoles ?? []).map(ur => (
                     <span key={ur.role.id} className="bg-orange-100 text-orange-700 px-1 rounded-[1px] text-[8.5px]">{ur.role.name}</span>
                   ))}
@@ -248,13 +297,24 @@ export const UsersSetupWindow: React.FC<Props> = ({
                   <div className="text-[10px] text-gray-500">{selected.email}</div>
                 </div>
               </div>
+              <FieldRow label="Role">{selected.roleType}</FieldRow>
+              <FieldRow label="Department">{selected.department?.name || 'Not assigned'}</FieldRow>
               <FieldRow label="Status">{selected.isActive ? 'Active' : 'Inactive'}</FieldRow>
-              <FieldRow label="Roles">
+              <FieldRow label="Permissions (Roles)">
                 <div className="flex gap-1 flex-wrap">
                   {(selected.userRoles ?? []).length === 0
                     ? <span className="text-gray-400 text-[10px]">None assigned</span>
                     : (selected.userRoles ?? []).map(ur => (
                       <span key={ur.role.id} className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-[1px] text-[9px]">{ur.role.name}</span>
+                    ))}
+                </div>
+              </FieldRow>
+              <FieldRow label="Assigned Modules">
+                <div className="flex gap-1 flex-wrap">
+                  {(selected.userModules ?? []).length === 0
+                    ? <span className="text-gray-400 text-[10px]">None assigned (Admin defaults apply)</span>
+                    : (selected.userModules ?? []).map(um => (
+                      <span key={um.module.id} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-[1px] text-[9px]">{um.module.name}</span>
                     ))}
                 </div>
               </FieldRow>
@@ -279,19 +339,48 @@ export const UsersSetupWindow: React.FC<Props> = ({
                 <ClassicInput type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   className="w-52" placeholder={mode === 'edit' ? 'leave blank to keep current' : ''} />
               </FieldRow>
+              <FieldRow label="Role Type" required>
+                <select value={form.roleType} onChange={e => setForm(f => ({ ...f, roleType: e.target.value }))}
+                  className="w-52 h-5 border border-gray-400 bg-white text-[11px] outline-none">
+                  <option value="SUPER_ADMIN">Super Admin</option>
+                  <option value="SUB_ADMIN">Sub-Admin</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="NORMAL_USER">Normal User</option>
+                </select>
+              </FieldRow>
+              <FieldRow label="Department">
+                <select value={form.departmentId} onChange={e => setForm(f => ({ ...f, departmentId: e.target.value }))}
+                  className="w-52 h-5 border border-gray-400 bg-white text-[11px] outline-none">
+                  <option value="">None / All</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </FieldRow>
               <FieldRow label="Active">
                 <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} />
               </FieldRow>
 
-              <div className="mt-3 mb-1 text-[10.5px] font-bold text-[#444]">Roles</div>
-              <div className="border border-[#d4d0c8] rounded-[1px] p-2 max-h-40 overflow-auto bg-white">
+              <div className="mt-3 mb-1 text-[10.5px] font-bold text-[#444]">Permissions (Roles)</div>
+              <div className="border border-[#d4d0c8] rounded-[1px] p-2 max-h-32 overflow-auto bg-white">
                 {roles.length === 0
-                  ? <div className="text-[10px] text-gray-400">No roles defined yet. Create roles in Company Admin.</div>
+                  ? <div className="text-[10px] text-gray-400">No roles defined yet.</div>
                   : roles.map(r => (
                     <label key={r.id} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-[#f5f5f5] px-1 rounded-[1px]">
                       <input type="checkbox" checked={form.roleIds.includes(r.id)} onChange={() => toggleRole(r.id)} />
                       <span className="text-[10.5px]">{r.name}</span>
                       {r.description && <span className="text-[9px] text-gray-400">— {r.description}</span>}
+                    </label>
+                  ))}
+              </div>
+
+              <div className="mt-3 mb-1 text-[10.5px] font-bold text-[#444]">Module Access</div>
+              <div className="border border-[#d4d0c8] rounded-[1px] p-2 max-h-32 overflow-auto bg-white">
+                {modules.length === 0
+                  ? <div className="text-[10px] text-gray-400">No modules found.</div>
+                  : modules.map(m => (
+                    <label key={m.id} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-[#f5f5f5] px-1 rounded-[1px]">
+                      <input type="checkbox" checked={form.moduleIds.includes(m.id)} onChange={() => toggleModule(m.id)} />
+                      <span className="text-[10.5px]">{m.name}</span>
+                      <span className="text-[9px] text-gray-400">({m.slug})</span>
                     </label>
                   ))}
               </div>

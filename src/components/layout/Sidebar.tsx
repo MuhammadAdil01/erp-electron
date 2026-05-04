@@ -296,19 +296,23 @@ const CockpitItem: React.FC<{
 const MODULE_TO_SLUG: Record<string, string | null> = {
   'Administration':    'administration',
   'Financials':        'financials',
+  'Finance':           'financials',
   'CRM':               'crm',
+  'Sales':             'crm',
   'Sales - A/R':       'crm',
   'Business Partners': 'crm',
   'Banking':           'banking',
   'Inventory':         'inventory',
+  'Purchasing (Current)': 'purchasing',
+  'Purchasing':        'purchasing',
   'HR Payroll':        'hr-payroll',
   'Human Resources':   'hr',
   'Reports':           'reports',
+  'Service':           'service',
   // The modules below have no backend counterpart yet
   'Resources':         null,
   'Production':        null,
   'MRP':               null,
-  'Service':           null,
   'Project Management': null,
 };
 
@@ -327,9 +331,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpen }) => {
 
     return modulesData.filter((m) => {
       const slug = MODULE_TO_SLUG[m.name];
+      if (slug === undefined) return true;       // internal UI item
       if (slug === null) return false;          // no backend module → super-admin only
-      if (!enabled.includes(slug)) return false; // company hasn't enabled this module
-      return user.permissions.some((p) => p.startsWith(slug + ':'));
+      if (!enabled.includes(slug)) return false; // company or user hasn't enabled this module
+      
+      return true; 
+    });
+  }, [user, isSuperAdmin]);
+
+  const filteredCockpit = useMemo(() => {
+    if (isSuperAdmin || user?.permissions?.includes('*:*') || !user) return cockpitData;
+
+    const enabled = user.enabledModuleSlugs ?? [];
+
+    return cockpitData.filter((m) => {
+      const slug = MODULE_TO_SLUG[m.name];
+      if (slug === undefined) return true;       // internal UI item (e.g. Home, Widget Gallery)
+      if (slug === null) return false;          // no backend module → super-admin only
+      if (!enabled.includes(slug)) return false; // company or user hasn't enabled this module
+      
+      return true; 
     });
   }, [user, isSuperAdmin]);
 
@@ -362,7 +383,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpen }) => {
             </div>
           ) : activeTab === 'My Cockpit' ? (
             <div className="flex flex-col bg-[#e1e1e1] h-full overflow-y-auto">
-              {cockpitData.map((item, i) => (
+              {filteredCockpit.map((item, i) => (
                 <CockpitItem key={i} item={item} onOpen={onOpen} />
               ))}
               {/* Fill remaining space with grey rows to match image look */}

@@ -10,14 +10,21 @@ export interface User {
   email: string;
   isActive: boolean;
   createdAt: string;
+  roleType: 'SUPER_ADMIN' | 'SUB_ADMIN' | 'MANAGER' | 'NORMAL_USER';
+  departmentId?: string;
+  department?: { id: string; name: string };
   userRoles?: UserRole[];
+  userModules?: { module: { id: string; name: string; slug: string } }[];
 }
 
 export interface CreateUserPayload {
   name: string;
   email: string;
   password: string;
+  roleType?: string;
+  departmentId?: string;
   roleIds?: string[];
+  moduleIds?: string[];
   isActive?: boolean;
 }
 
@@ -25,7 +32,10 @@ export interface UpdateUserPayload {
   name?: string;
   email?: string;
   password?: string;
+  roleType?: string;
+  departmentId?: string;
   roleIds?: string[];
+  moduleIds?: string[];
   isActive?: boolean;
 }
 
