@@ -67,7 +67,7 @@ export const UsersSetupWindow: React.FC<Props> = ({
 
   const { data: modules = [] } = useQuery({
     queryKey: ['system-modules', companyId],
-    queryFn: () => systemModulesApi.getAll(),
+    queryFn: () => systemModulesApi.getCompanyModules(companyId!),
     enabled: !!companyId,
   });
 
