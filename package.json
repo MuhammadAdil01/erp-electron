@@ -10,6 +10,7 @@
     "build": "tsc && vite build && electron-builder --dir",
     "build:exe": "tsc && vite build && electron-packager . \"ERP System\" --platform=win32 --arch=x64 --out=release --overwrite --prune --ignore=\"/(src|electron|tsconfig\\.json|vite\\.config\\.ts|\\.eslintrc\\.cjs|\\.git)/\"",
     "build:win": "tsc && vite build && electron-builder --win",
+    "build:pkg": "tsc && vite build && electron-packager . \"ERP System\" --platform=win32 --arch=x64 --electron-version=30.5.1 --out=release --overwrite --ignore=\"node_modules\" --ignore=\"src\" --ignore=\"electron\" --ignore=\"release\"",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
