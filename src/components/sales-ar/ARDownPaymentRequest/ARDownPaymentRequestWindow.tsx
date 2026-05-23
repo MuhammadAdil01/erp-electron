@@ -1,0 +1,344 @@
+import React, { useState } from 'react';
+import { ChevronDown, ArrowRight } from 'lucide-react';
+import { WindowControls } from '../../ui/WindowControls';
+import { ARDownPaymentRequestContentsTab } from './tabs/ARDownPaymentRequestContentsTab';
+import { LogisticsTab } from './tabs/LogisticsTab';
+import { AccountingTab } from './tabs/AccountingTab';
+import { ARDownPaymentRequestAttachmentsTab } from './tabs/ARDownPaymentRequestAttachmentsTab';
+
+interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isMinimized: boolean;
+  isMaximized: boolean;
+  zIndex: number;
+}
+
+interface ARDownPaymentRequestWindowProps {
+  windowState: WindowState;
+  onClose: () => void;
+  onUpdateState: (newState: Partial<WindowState>) => void;
+  onFocus: () => void;
+}
+
+const sapLabelStyle = "text-[11px] text-[#333] whitespace-nowrap leading-[18px]";
+const sapInputStyle = "h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-white w-full shadow-inner";
+const sapButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd000]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
+const sapGreyButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
+
+export const ARDownPaymentRequestWindow: React.FC<ARDownPaymentRequestWindowProps> = ({
+  windowState,
+  onClose,
+  onUpdateState,
+  onFocus
+}) => {
+  const [activeTab, setActiveTab] = useState('Contents');
+
+  if (windowState.isMinimized) return null;
+
+  const handleDrag = (e: React.MouseEvent) => {
+    if (windowState.isMaximized) return;
+    const startX = e.clientX - windowState.x;
+    const startY = e.clientY - windowState.y;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      onUpdateState({
+        x: moveEvent.clientX - startX,
+        y: moveEvent.clientY - startY
+      });
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleResize = (direction: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const startWidth = windowState.width;
+    const startHeight = windowState.height;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startXPos = windowState.x;
+    const startYPos = windowState.y;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      let newX = windowState.x;
+      let newY = windowState.y;
+      let newWidth = windowState.width;
+      let newHeight = windowState.height;
+
+      if (direction.includes('e')) newWidth = Math.max(900, startWidth + deltaX);
+      if (direction.includes('s')) newHeight = Math.max(550, startHeight + deltaY);
+      
+      if (direction.includes('w')) {
+        newWidth = startWidth - deltaX;
+        if (newWidth >= 900) newX = startXPos + deltaX;
+        else newWidth = 900;
+      }
+      
+      if (direction.includes('n')) {
+        newHeight = startHeight - deltaY;
+        if (newHeight >= 550) newY = startYPos + deltaY;
+        else newHeight = 550;
+      }
+
+      onUpdateState({ x: newX, y: newY, width: newWidth, height: newHeight });
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const tabs = ['Contents', 'Logistics', 'Accounting', 'Attachments'];
+
+  return (
+    <div
+      className="absolute bg-[#f0f0f0] border border-gray-500 shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden select-none"
+      style={{
+        left: windowState.isMaximized ? 0 : windowState.x,
+        top: windowState.isMaximized ? 0 : windowState.y,
+        width: windowState.isMaximized ? '100%' : windowState.width,
+        height: windowState.isMaximized ? '100%' : windowState.height,
+        zIndex: windowState.zIndex,
+      }}
+      onClick={onFocus}
+    >
+      {/* Resize Handles */}
+      {!windowState.isMaximized && (
+        <>
+          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[100]" />
+          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[100]" />
+          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[100]" />
+          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[100]" />
+          <div onMouseDown={handleResize('nw')} className="absolute top-0 left-0 w-2 h-2 cursor-nwse-resize z-[101]" />
+          <div onMouseDown={handleResize('ne')} className="absolute top-0 right-0 w-2 h-2 cursor-nesw-resize z-[101]" />
+          <div onMouseDown={handleResize('sw')} className="absolute bottom-0 left-0 w-2 h-2 cursor-nesw-resize z-[101]" />
+          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[101]" />
+        </>
+      )}
+
+      {/* Title Bar */}
+      <div 
+        onMouseDown={handleDrag}
+        className="h-[24px] bg-[#f0f0f0] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
+      >
+        <span className="text-black text-[12px] font-medium truncate">A/R Down Payment Request</span>
+        <WindowControls
+          onClose={onClose}
+          onMinimize={() => onUpdateState({ isMinimized: true })}
+          onMaximize={() => onUpdateState({ isMaximized: !windowState.isMaximized })}
+        />
+      </div>
+
+      <div className="h-[4px] bg-gradient-to-r from-orange-400 via-orange-500 to-orange-400 shrink-0" />
+
+      {/* Main Content Areas */}
+      <div className="flex-1 flex flex-col p-2 gap-4 overflow-hidden pt-4">
+         {/* Top Section */}
+         <div className="grid grid-cols-[1fr_350px] gap-x-12 shrink-0 px-1">
+            {/* Left Col */}
+            <div className="flex flex-col gap-1">
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Customer</label>
+                  <div className="flex-1 relative group">
+                     <input type="text" className="h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-[#fff9c4] w-full" />
+                     <div className="absolute right-0 top-0 bottom-0 w-[18px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border-l border-gray-400 flex items-center justify-center cursor-pointer">
+                        <div className="w-[12px] h-[12px] border border-gray-500 flex items-center justify-center bg-[#f0f0f0]">
+                           <div className="w-[6px] h-[6px] rounded-full border border-blue-600" />
+                        </div>
+                     </div>
+                  </div>
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Name</label>
+                  <input type="text" className={sapInputStyle} />
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Contact Person</label>
+                  <div className="flex-1 relative">
+                     <input type="text" className={sapInputStyle} />
+                     <div className="absolute right-0 top-0 bottom-0 w-[18px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border-l border-gray-400 flex items-center justify-center cursor-pointer">
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+                     </div>
+                  </div>
+                  <div className="w-[18px] h-[18px] flex items-center justify-center">
+                     <div className="w-[12px] h-[12px] rounded-full border border-blue-500 flex items-center justify-center text-[7px] text-blue-600 font-black">i</div>
+                  </div>
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Customer Ref. No.</label>
+                  <input type="text" className={sapInputStyle} />
+               </div>
+               <div className="flex items-center gap-1">
+                  <div className="w-[100px] flex items-center gap-1">
+                     <span className="text-[11px] text-gray-700 underline">Local Currency</span>
+                     <ChevronDown className="w-3 h-3 text-gray-400" />
+                  </div>
+               </div>
+            </div>
+
+            {/* Right Col */}
+            <div className="flex flex-col gap-1">
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">No.</label>
+                  <div className="flex flex-1 gap-1">
+                     <div className="w-[100px] relative">
+                        <input type="text" defaultValue="DHAB-ARD" className={sapInputStyle} />
+                        <div className="absolute right-0 top-0 bottom-0 w-[18px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border-l border-gray-400 flex items-center justify-center cursor-pointer">
+                           <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+                        </div>
+                     </div>
+                     <input type="text" defaultValue="1" className={sapInputStyle} />
+                  </div>
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Status</label>
+                  <input type="text" defaultValue="Open" disabled className="h-[18px] border border-gray-400 px-1 text-[11px] bg-white w-full font-bold" />
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Posting Date</label>
+                  <input type="text" defaultValue="01.04.26" className={sapInputStyle} />
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Due Date</label>
+                  <input type="text" className={sapInputStyle} />
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Document Date</label>
+                  <input type="text" defaultValue="01.04.26" className={sapInputStyle} />
+               </div>
+            </div>
+         </div>
+
+         {/* Tab Container */}
+         <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Tabs List */}
+            <div className="flex gap-[1px] shrink-0">
+               {tabs.map(tab => (
+                  <button
+                     key={tab}
+                     onClick={() => setActiveTab(tab)}
+                     className={`px-6 h-[20px] text-[11px] border border-gray-400 rounded-t-[3px] flex items-center justify-center transition-all ${
+                        activeTab === tab
+                           ? 'bg-white border-b-white font-bold relative z-20 translate-y-[1px]'
+                           : 'bg-gradient-to-b from-[#fefefe] to-[#dcdcdc] border-b-gray-400 text-gray-700 z-10'
+                     }`}
+                  >
+                     {tab}
+                  </button>
+               ))}
+            </div>
+
+            {/* Tab Panel */}
+            <div className="flex-1 border border-gray-400 bg-white overflow-hidden flex flex-col p-1 pt-2">
+               {activeTab === 'Contents' && <ARDownPaymentRequestContentsTab />}
+               {activeTab === 'Logistics' && <LogisticsTab />}
+               {activeTab === 'Accounting' && <AccountingTab />}
+               {activeTab === 'Attachments' && <ARDownPaymentRequestAttachmentsTab />}
+            </div>
+         </div>
+
+         {/* Bottom Section */}
+         <div className="grid grid-cols-[1fr_350px] gap-x-12 shrink-0 px-1">
+            {/* Left Col */}
+            <div className="flex flex-col gap-1">
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Sales Employee</label>
+                  <div className="flex-1 relative">
+                     <input type="text" defaultValue="-No Sales Employee-" className={sapInputStyle} />
+                     <div className="absolute right-0 top-0 bottom-0 w-[18px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border-l border-gray-400 flex items-center justify-center cursor-pointer">
+                        <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+                     </div>
+                  </div>
+                  <div className="w-[18px] h-[18px] flex items-center justify-center">
+                     <div className="w-[12px] h-[12px] rounded-full border border-blue-500 flex items-center justify-center text-[7px] text-blue-600 font-black">i</div>
+                  </div>
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="w-[100px] text-[11px] text-gray-700">Owner</label>
+                  <div className="flex-1 flex gap-1 items-center">
+                     <input type="text" className="w-[80px] h-[18px] border border-gray-400 px-1 text-[11px] outline-none" />
+                     <input type="text" className={sapInputStyle} />
+                  </div>
+               </div>
+               <div className="flex items-center gap-2 mt-4 cursor-pointer">
+                  <input type="checkbox" className="w-[13px] h-[13px]" />
+                  <span className="text-[11px] text-gray-700">Payment Order Run</span>
+               </div>
+               <div className="flex items-start gap-1 mt-2">
+                  <label className="w-[100px] text-[11px] text-gray-700">Remarks</label>
+                  <textarea className="flex-1 h-[60px] border border-gray-400 p-1 text-[11px] outline-none shadow-inner resize-none" />
+               </div>
+            </div>
+
+            {/* Right Col */}
+            <div className="flex flex-col gap-1">
+               <div className="flex items-center">
+                  <label className="flex-1 text-[11px] text-gray-700">Total Before Discount</label>
+                  <input type="text" disabled className="w-[140px] h-[18px] border border-gray-400 px-1 text-right text-[11px] bg-[#f0f0f0]" />
+               </div>
+               <div className="flex items-center gap-1">
+                  <label className="flex-1 text-[11px] text-gray-700 underline cursor-pointer">DPM</label>
+                  <div className="flex items-center gap-1">
+                     <input type="text" defaultValue="100" className="w-[40px] h-[18px] border border-gray-400 px-1 text-right text-[11px] outline-none" />
+                     <span className="text-[11px] text-gray-700">%</span>
+                     <input type="text" className="w-[85px] h-[18px] border border-gray-400 px-1 text-right text-[11px] outline-none" />
+                  </div>
+               </div>
+               <div className="flex items-center">
+                  <label className="flex-1 text-[11px] text-gray-700">Tax</label>
+                  <input type="text" className="w-[140px] h-[18px] border border-gray-400 px-1 text-right text-[11px] outline-none" />
+               </div>
+               <div className="flex items-center">
+                  <label className="flex-1 text-[11px] text-gray-700">WTax Amount</label>
+                  <input type="text" className="w-[140px] h-[18px] border border-gray-400 px-1 text-right text-[11px] outline-none" />
+               </div>
+               <div className="flex items-center mt-2">
+                  <label className="flex-1 text-[11px] text-gray-700 font-bold">Total</label>
+                  <div className="w-[140px] flex items-center justify-between h-[20px] border border-gray-400 px-1 bg-white">
+                     <span className="text-[10px] text-gray-400">PKR</span>
+                     <span className="text-[11px] font-bold">0.00</span>
+                  </div>
+               </div>
+               <div className="flex items-center">
+                  <label className="flex-1 text-[11px] text-gray-700">Applied Amount</label>
+                  <input type="text" disabled className="w-[140px] h-[18px] border border-gray-400 px-1 text-right text-[11px] bg-[#f0f0f0]" />
+               </div>
+               <div className="flex items-center">
+                  <label className="flex-1 text-[11px] text-gray-700">Balance Due</label>
+                  <input type="text" disabled className="w-[140px] h-[18px] border border-gray-400 px-1 text-right text-[11px] bg-[#f0f0f0]" />
+               </div>
+            </div>
+         </div>
+
+         {/* Footer Buttons */}
+         <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-300">
+            <div className="flex gap-2">
+               <button className={sapButtonStyle}>Add & New</button>
+               <button className={sapGreyButtonStyle}>Add Draft & New</button>
+               <button onClick={onClose} className={sapGreyButtonStyle}>Cancel</button>
+            </div>
+            <div className="flex gap-2">
+               <button className={sapGreyButtonStyle}>Copy From</button>
+               <button className={sapGreyButtonStyle}>Copy To</button>
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+};

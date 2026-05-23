@@ -1,6 +1,12 @@
 import React from 'react';
+<<<<<<< HEAD
 import { ChevronDown } from 'lucide-react';
 import { FixedAssetWindowShell, GoldBtn } from '../financials/FixedAssetShared';
+=======
+import { FixedAssetWindowShell, GoldBtn } from '../financials/FixedAssets/FixedAssetShared';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ResizableCriteriaWindow } from '../ui/ResizableCriteriaWindow';
+>>>>>>> 79f5e6e57eb1f46aa7f40d6ef9e2b948709ba14a
 
 interface WindowState { x:number;y:number;width:number;height:number;isMinimized:boolean;isMaximized:boolean;zIndex:number; }
 interface Props { windowState:WindowState; onClose:()=>void; onUpdateState:(s:Partial<WindowState>)=>void; onFocus:()=>void; }
@@ -276,3 +282,197 @@ export const SelectionBusinessPartnersWindow: React.FC<Props> = (props) => (
      </div>
   </FixedAssetWindowShell>
 );
+
+export const SelectionAccountsWindow: React.FC<Props> = (props) => (
+  <FixedAssetWindowShell title="List of Accounts" {...props} minWidth={600} minHeight={400}>
+     <div className="flex-1 overflow-auto bg-[#f0f0f0] p-3 flex flex-col gap-2">
+        <div className="flex items-center gap-2 mb-2">
+          <span className={sapLabelStyle}>Find</span>
+          <input className="flex-1 h-[18px] border border-gray-400 px-1 text-[11px] bg-[#fffbd5]" />
+        </div>
+        <div className="flex-1 bg-white border border-gray-400 overflow-auto shadow-sm">
+          <table className="w-full border-collapse text-[11px]">
+            <thead className="sticky top-0 bg-[#ececec] border-b border-gray-300 z-10">
+              <tr className="h-6">
+                <th className="w-8 border-r border-gray-300 px-1 font-normal text-left text-gray-700">#</th>
+                <th className="w-48 border-r border-gray-300 px-2 font-normal text-left text-gray-700">
+                   <div className="flex items-center justify-between">
+                     <span>Account Number</span>
+                     <ChevronDown className="w-3 h-3 text-gray-600" />
+                   </div>
+                </th>
+                <th className="border-r border-gray-300 px-2 font-normal text-left text-gray-700">
+                  <div className="flex items-center justify-between">
+                    <span>Account Name</span>
+                    <ChevronUp className="w-3 h-3 text-gray-600" />
+                  </div>
+                </th>
+                <th className="w-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { code: '39001', name: 'Retained Earnings' },
+                { code: '39002', name: 'Period-End Closing' },
+                { code: '400000', name: 'Sales Revenue' },
+                { code: '410000', name: 'Service Revenue' },
+                { code: '500000', name: 'Cost of Goods Sold' },
+              ].map((acc, idx) => (
+                <tr key={idx} className={`h-5 border-b border-gray-100 hover:bg-[#ffed99]/20 cursor-default ${idx===0 ? 'bg-[#ffed99]' : ''}`}>
+                  <td className="border-r border-gray-100 px-1 text-center text-gray-600 font-bold bg-[#e8e8e8] w-6">{idx + 1}</td>
+                  <td className="border-r border-gray-100 px-2 text-[#333]">{acc.code}</td>
+                  <td className="border-r border-gray-100 px-2 text-[#333]">{acc.name}</td>
+                  <td></td>
+                </tr>
+              ))}
+              {Array.from({length: 15}).map((_, i) => (
+                <tr key={i+10} className="h-5 border-b border-gray-100">
+                  <td className="border-r border-gray-100 px-1 bg-[#e8e8e8]"></td>
+                  <td className="border-r border-gray-100 px-2"></td>
+                  <td className="border-r border-gray-100 px-2"></td>
+                  <td></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+     </div>
+     <div className="px-3 py-2 shrink-0 bg-[#f0f0f0] border-t border-gray-300 flex gap-2">
+        <GoldBtn onClick={props.onClose} className="px-10!">Choose</GoldBtn>
+        <GoldBtn onClick={props.onClose} className="px-10! bg-[#ececec] text-[#333]">Cancel</GoldBtn>
+        <GoldBtn className="px-10! bg-[#ffffff] border-gray-500">New</GoldBtn>
+     </div>
+  </FixedAssetWindowShell>
+);
+
+export const SelectionItemsWindow: React.FC<Props> = (props) => {
+  const data = [
+    { id: 1, code: 'AMM-00001', name: 'Ammo', stock: '900' },
+    { id: 2, code: 'AMM-00002', name: 'Ammunition Cart No. 4', stock: '' },
+    { id: 3, code: 'AMM-00003', name: 'Ammunition Cart No. 7', stock: '' },
+    { id: 4, code: 'AMM-00004', name: 'Ammunition Cart No. 8', stock: '' },
+    { id: 5, code: 'AMM-00005', name: 'Ammunition Cart No. 9', stock: '' },
+    { id: 6, code: 'AMM-00006', name: 'Clay Birds Laporte (France)', stock: '' },
+    { id: 7, code: 'AMM-00007', name: 'Clay Birds Crosivia (Spain)', stock: '' },
+    { id: 8, code: 'AMM-00008', name: '"CDMF- 2305, 28"barrel"', stock: '' },
+    { id: 9, code: 'AMM-00009', name: 'Wpns Hard Cases (Boxes)', stock: '' },
+    { id: 10, code: 'AMM-00010', name: 'Fire Fighting Extinguishers', stock: '' },
+  ];
+  return (
+    <FixedAssetWindowShell title="List of Items" {...props} minWidth={650} minHeight={450}>
+      <div className="flex-1 overflow-auto bg-[#f0f0f0] p-3 flex flex-col gap-2">
+        <div className="flex items-center gap-2 mb-2">
+           <span className={sapLabelStyle}>Find</span>
+           <input type="text" className="h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd0] w-64" />
+        </div>
+        <div className="flex-1 bg-white border border-gray-400 overflow-auto shadow-inner custom-scrollbar">
+          <table className="w-full border-collapse text-[11px]">
+            <thead className="sticky top-0 bg-[#ececec] border-b border-gray-300 z-10">
+              <tr className="h-[20px]">
+                <th className="w-8 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">#</th>
+                <th className="w-32 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">
+                  <div className="flex items-center justify-between">
+                    <span>Item No.</span>
+                    <ChevronDown className="w-3 h-3 text-blue-600" />
+                  </div>
+                </th>
+                <th className="border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">Item Description</th>
+                <th className="w-24 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">In Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((item, i) => (
+                <tr key={i} className={`h-[18px] border-b border-gray-100 hover:bg-[#ffed99]/30 cursor-default ${i === 0 ? 'bg-[#ffed99]' : ''}`}>
+                  <td className="px-1 border-r border-gray-100 text-center">{item.id}</td>
+                  <td className="px-1 border-r border-gray-100 font-medium">{item.code}</td>
+                  <td className="px-1 border-r border-gray-100">{item.name}</td>
+                  <td className="px-1 text-right pr-2">{item.stock}</td>
+                </tr>
+              ))}
+              {Array.from({length: 15}).map((_, i) => (
+                <tr key={i+100} className="h-[18px] border-b border-gray-100">
+                  <td className="px-1 border-r border-gray-100 bg-gray-50"></td>
+                  <td className="px-1 border-r border-gray-100"></td>
+                  <td className="px-1 border-r border-gray-100"></td>
+                  <td className="px-1"></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="px-3 py-2 shrink-0 bg-[#f0f0f0] border-t border-gray-300 flex gap-2">
+         <GoldBtn onClick={props.onClose} className="px-10!">Choose</GoldBtn>
+         <GoldBtn onClick={props.onClose} className="px-10! bg-[#ececec] text-[#333]">Cancel</GoldBtn>
+         <GoldBtn className="px-10! bg-[#ffffff] border-gray-500">New</GoldBtn>
+      </div>
+    </FixedAssetWindowShell>
+  );
+};
+
+export const SelectionUsersListWindow: React.FC<Props> = ({
+  windowState,
+  onClose,
+  onUpdateState,
+  onFocus,
+}) => {
+  const users = [
+    'Abdul Rab Shafiq', 'Additional Director ICT', 'addldir', 'admdte', 'Ahmed Raza',
+    'arooj', 'Assistant Director Finance', 'Assistant Director Finance', 'asstdir', 'auditor'
+  ];
+
+  return (
+    <ResizableCriteriaWindow
+      title="List of Users"
+      windowState={windowState}
+      onClose={onClose}
+      onUpdateState={onUpdateState}
+      onFocus={onFocus}
+      minWidth={600}
+      minHeight={400}
+    >
+      <div className="flex-1 p-3 flex flex-col gap-3 bg-[#f0f0f0] overflow-hidden">
+        <div className="grid grid-cols-[80px_1fr] items-center gap-2">
+           <span className="text-[11px] text-[#333]">Find</span>
+           <input type="text" className="h-[18px] border border-gray-400 px-1 text-[11px] outline-none bg-[#fffbd0] w-full" />
+        </div>
+
+        <div className="flex-1 bg-white border border-gray-400 overflow-auto shadow-inner custom-scrollbar">
+           <table className="w-full border-collapse text-[11px]">
+              <thead className="sticky top-0 bg-[#f8f8f8] border-b border-gray-300 z-10">
+                 <tr className="h-[20px]">
+                    <th className="w-8 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">#</th>
+                    <th className="px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">
+                       <div className="flex items-center justify-between">
+                          <span>User Name</span>
+                          <ChevronDown className="w-3 h-3 text-gray-800" />
+                       </div>
+                    </th>
+                 </tr>
+              </thead>
+              <tbody>
+                 {users.map((name, i) => (
+                   <tr key={i} className={`h-[18px] border-b border-gray-50 hover:bg-[#ffed99]/30 ${i === 0 ? 'bg-[#ffed99]' : ''}`}>
+                      <td className="w-8 border-r border-gray-100 text-center text-gray-500">{i + 1}</td>
+                      <td className="px-1">{name}</td>
+                   </tr>
+                 ))}
+                 {Array.from({ length: 15 }).map((_, i) => (
+                    <tr key={i} className="h-[18px] border-b border-gray-50">
+                       <td className="w-8 border-r border-gray-100"></td>
+                       <td></td>
+                    </tr>
+                 ))}
+              </tbody>
+           </table>
+        </div>
+
+        <div className="flex gap-2 shrink-0">
+           <button className="px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px]">Choose</button>
+           <button onClick={onClose} className="px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px]">Cancel</button>
+           <button className="px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px]">New</button>
+        </div>
+      </div>
+    </ResizableCriteriaWindow>
+  );
+};

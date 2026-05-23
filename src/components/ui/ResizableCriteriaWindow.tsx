@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { WindowControls } from './WindowControls';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WindowState {
   x: number;
@@ -11,6 +10,7 @@ export interface WindowState {
   isMinimized: boolean;
   isMaximized: boolean;
   zIndex: number;
+  
 }
 
 interface ResizableCriteriaWindowProps {
@@ -27,7 +27,7 @@ interface ResizableCriteriaWindowProps {
   initialHeight?: number;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+
 
 const WINDOW_DEFAULTS = {
   minWidth: 350,
@@ -36,8 +36,8 @@ const WINDOW_DEFAULTS = {
   initialHeight: 300,
 } as const;
 
-const RESIZE_HANDLE_EDGE_SIZE = 'h-1 w-full'; // 4px edge handles
-const RESIZE_HANDLE_CORNER_SIZE = 'w-2 h-2';  // 8px corner handles
+const RESIZE_HANDLE_EDGE_SIZE = 'h-1 w-full'; 
+const RESIZE_HANDLE_CORNER_SIZE = 'w-2 h-2'; 
 
 // ─── Resize Handle Definitions ───────────────────────────────────────────────
 
@@ -171,10 +171,10 @@ export const ResizableCriteriaWindow: React.FC<ResizableCriteriaWindowProps> = (
     <div
       className="absolute flex flex-col bg-[#f0f0f0] border border-gray-400 shadow-[2px_2px_10px_rgba(0,0,0,0.3)] rounded-[2px] overflow-hidden select-none"
       style={{
-        left:   windowState.x,
-        top:    windowState.y,
-        width:  currentWidth,
-        height: currentHeight,
+        left:   windowState.isMaximized ? 0 : windowState.x,
+        top:    windowState.isMaximized ? 0 : windowState.y,
+        width:  windowState.isMaximized ? '100%' : currentWidth,
+        height: windowState.isMaximized ? '100%' : currentHeight,
         zIndex: windowState.zIndex,
       }}
       onClick={onFocus}

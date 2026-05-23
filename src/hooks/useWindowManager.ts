@@ -184,6 +184,39 @@ export function useWindowManager() {
   const [showSelectionProperties,      setShowSelectionProperties]      = useState(false);
   const [showSelectionUdf,             setShowSelectionUdf]             = useState(false);
   const [showSelectionBusinessPartners, setShowSelectionBusinessPartners] = useState(false);
+  const [showPeriodEndClosing, setShowPeriodEndClosing] = useState(false);
+  const [showSelectionAccounts, setShowSelectionAccounts] = useState(false);
+  const [showCheckDocumentNumbering, setShowCheckDocumentNumbering] = useState(false);
+  const [showDuplicateLayoutTemplate, setShowDuplicateLayoutTemplate] = useState(false);
+  const [showMasterDataCleanupWizard, setShowMasterDataCleanupWizard] = useState(false);
+  const [showManualMasterDataSeriesConverter, setShowManualMasterDataSeriesConverter] = useState(false);
+  const [showSelectionItems, setShowSelectionItems] = useState(false);
+  const [showUiConfigurationTemplate, setShowUiConfigurationTemplate] = useState(false);
+  const [showConnectedClients, setShowConnectedClients] = useState(false);
+  const [showChangeLogsCleanup, setShowChangeLogsCleanup] = useState(false);
+  const [showApprovalStages, setShowApprovalStages] = useState(false);
+  const [showApprovalTemplates, setShowApprovalTemplates] = useState(false);
+  const [showApprovalStatusReport, setShowApprovalStatusReport] = useState(false);
+  const [showApprovalDecisionReport, setShowApprovalDecisionReport] = useState(false);
+  const [showSelectionUsersList, setShowSelectionUsersList] = useState(false);
+  const [showSubstituteAuthorizer, setShowSubstituteAuthorizer] = useState(false);
+  const [showLicenseAdministration, setShowLicenseAdministration] = useState(false);
+  const [showAddOnIdentifierGenerator, setShowAddOnIdentifierGenerator] = useState(false);
+  const [showSupportUserLog, setShowSupportUserLog] = useState(false);
+  const [showLicenseInformation, setShowLicenseInformation] = useState(false);
+  const [showAlertsManagement, setShowAlertsManagement] = useState(false);
+  const [showDelivery, setShowDelivery] = useState(false);
+  const [showSalesReturn, setShowSalesReturn] = useState(false);
+  const [showARDownPaymentRequest, setShowARDownPaymentRequest] = useState(false);
+  const [showARDownPaymentInvoice, setShowARDownPaymentInvoice] = useState(false);
+  const [showARInvoice, setShowARInvoice] = useState(false);
+  const [showARInvoicePayment, setShowARInvoicePayment] = useState(false);
+  const [showARCreditMemo, setShowARCreditMemo] = useState(false);
+  const [showARReserveInvoice, setShowARReserveInvoice] = useState(false);
+  const [showDocumentDraftsReport, setShowDocumentDraftsReport] = useState(false);
+  const [showSalesAnalysisReport, setShowSalesAnalysisReport] = useState(false);
+  const [showBackorderReport, setShowBackorderReport] = useState(false);
+  const [showBlanketAgreementFulfillmentReport, setShowBlanketAgreementFulfillmentReport] = useState(false);
 
   // ── Banking visibility ────────────────────────────────────────────────────
   const [showIncomingPayments, setShowIncomingPayments] = useState(false);
@@ -376,6 +409,39 @@ export function useWindowManager() {
   const [selectionPropertiesPos,          setSelectionPropertiesPos]          = useState(win(180, 180, 500, 600, 167));
   const [selectionUdfPos,                 setSelectionUdfPos]                 = useState(win(190, 190, 600, 350, 168));
   const [selectionBusinessPartnersPos,    setSelectionBusinessPartnersPos]    = useState(win(150, 150, 650, 450, 169));
+  const [periodEndClosingPos, setPeriodEndClosingPos] = useState(win(100, 100, 600, 450, 170));
+  const [selectionAccountsPos, setSelectionAccountsPos] = useState(win(150, 150, 600, 400, 171));
+  const [checkDocumentNumberingPos, setCheckDocumentNumberingPos] = useState(win(120, 120, 850, 650, 172));
+  const [duplicateLayoutTemplatePos, setDuplicateLayoutTemplatePos] = useState(win(100, 100, 950, 600, 173));
+  const [masterDataCleanupWizardPos, setMasterDataCleanupWizardPos] = useState(win(100, 100, 800, 500, 174));
+  const [manualMasterDataSeriesConverterPos, setManualMasterDataSeriesConverterPos] = useState(win(120, 120, 600, 450, 175));
+  const [selectionItemsPos, setSelectionItemsPos] = useState(win(150, 150, 650, 450, 176));
+  const [uiConfigurationTemplatePos, setUiConfigurationTemplatePos] = useState(win(100, 100, 900, 600, 177));
+  const [connectedClientsPos, setConnectedClientsPos] = useState(win(120, 120, 800, 500, 178));
+  const [changeLogsCleanupPos, setChangeLogsCleanupPos] = useState(win(100, 100, 850, 650, 179));
+  const [approvalStagesPos, setApprovalStagesPos] = useState(win(150, 150, 600, 450, 180));
+  const [approvalTemplatesPos, setApprovalTemplatesPos] = useState(win(120, 120, 850, 650, 181));
+  const [approvalStatusReportPos, setApprovalStatusReportPos] = useState(win(100, 100, 800, 700, 182));
+  const [approvalDecisionReportPos, setApprovalDecisionReportPos] = useState(win(150, 150, 600, 400, 183));
+  const [selectionUsersListPos, setSelectionUsersListPos] = useState(win(180, 180, 600, 400, 184));
+  const [substituteAuthorizerPos, setSubstituteAuthorizerPos] = useState(win(150, 150, 950, 650, 185));
+  const [licenseAdministrationPos, setLicenseAdministrationPos] = useState(win(100, 100, 1000, 700, 186));
+  const [addOnIdentifierGeneratorPos, setAddOnIdentifierGeneratorPos] = useState(win(200, 200, 600, 400, 187));
+  const [supportUserLogPos, setSupportUserLogPos] = useState(win(150, 150, 1000, 600, 188));
+  const [licenseInformationPos, setLicenseInformationPos] = useState(win(200, 200, 700, 450, 189));
+  const [alertsManagementPos, setAlertsManagementPos] = useState(win(50, 50, 1200, 700, 190));
+  const [deliveryPos, setDeliveryPos] = useState(win(150, 150, 900, 550, 191));
+  const [salesReturnWindow, setSalesReturnWindow] = useState(win(160, 160, 1100, 750, 192));
+  const [arDownPaymentRequestWindow, setARDownPaymentRequestWindow] = useState(win(170, 170, 1100, 750, 193));
+  const [arDownPaymentInvoiceWindow, setARDownPaymentInvoiceWindow] = useState(win(180, 180, 1100, 750, 194));
+  const [arInvoiceWindow, setARInvoiceWindow] = useState(win(190, 190, 1100, 750, 195));
+  const [arInvoicePaymentWindow, setARInvoicePaymentWindow] = useState(win(200, 200, 1100, 750, 196));
+  const [arCreditMemoWindow, setARCreditMemoWindow] = useState(win(210, 210, 1100, 750, 197));
+  const [arReserveInvoiceWindow, setARReserveInvoiceWindow] = useState(win(220, 220, 1100, 750, 198));
+  const [documentDraftsReportWindow, setDocumentDraftsReportWindow] = useState(win(230, 230, 800, 600, 199));
+  const [salesAnalysisReportWindow, setSalesAnalysisReportWindow] = useState(win(240, 240, 900, 650, 200));
+  const [backorderReportWindow, setBackorderReportWindow] = useState(win(250, 250, 750, 600, 201));
+  const [blanketAgreementFulfillmentReportWindow, setBlanketAgreementFulfillmentReportWindow] = useState(win(260, 260, 750, 600, 202));
 
   // ── Banking window states ──────────────────────────────────────────────────
   const [incomingPaymentsPos, setIncomingPaymentsPos] = useState(win(100, 100, 900, 650, 170));
@@ -577,6 +643,39 @@ export function useWindowManager() {
       case 'selectionProperties':         setShowSelectionProperties(true);         bringFront(setSelectionPropertiesPos); break;
       case 'selectionUdf':                setShowSelectionUdf(true);                bringFront(setSelectionUdfPos); break;
       case 'selectionBusinessPartners':   setShowSelectionBusinessPartners(true);   bringFront(setSelectionBusinessPartnersPos); break;
+      case 'periodEndClosing':            setShowPeriodEndClosing(true);            bringFront(setPeriodEndClosingPos); break;
+      case 'selectionAccounts':           setShowSelectionAccounts(true);           bringFront(setSelectionAccountsPos); break;
+      case 'checkDocumentNumbering':      setShowCheckDocumentNumbering(true);      bringFront(setCheckDocumentNumberingPos); break;
+      case 'duplicateLayoutTemplate':     setShowDuplicateLayoutTemplate(true);     bringFront(setDuplicateLayoutTemplatePos); break;
+      case 'masterDataCleanupWizard':     setShowMasterDataCleanupWizard(true);     bringFront(setMasterDataCleanupWizardPos); break;
+      case 'manualMasterDataSeriesConverter': setShowManualMasterDataSeriesConverter(true); bringFront(setManualMasterDataSeriesConverterPos); break;
+      case 'selectionItems':               setShowSelectionItems(true);               bringFront(setSelectionItemsPos); break;
+      case 'uiConfigurationTemplate':      setShowUiConfigurationTemplate(true);      bringFront(setUiConfigurationTemplatePos); break;
+      case 'connectedClients':             setShowConnectedClients(true);             bringFront(setConnectedClientsPos); break;
+      case 'changeLogsCleanup':            setShowChangeLogsCleanup(true);            bringFront(setChangeLogsCleanupPos); break;
+      case 'approvalStages':               setShowApprovalStages(true);               bringFront(setApprovalStagesPos); break;
+      case 'approvalTemplates':            setShowApprovalTemplates(true);            bringFront(setApprovalTemplatesPos); break;
+      case 'approvalStatusReport':         setShowApprovalStatusReport(true);         bringFront(setApprovalStatusReportPos); break;
+      case 'approvalDecisionReport':       setShowApprovalDecisionReport(true);       bringFront(setApprovalDecisionReportPos); break;
+      case 'selectionUsersList':           setShowSelectionUsersList(true);           bringFront(setSelectionUsersListPos); break;
+      case 'substituteAuthorizer':         setShowSubstituteAuthorizer(true);         bringFront(setSubstituteAuthorizerPos); break;
+      case 'licenseAdministration':        setShowLicenseAdministration(true);        bringFront(setLicenseAdministrationPos); break;
+      case 'addOnIdentifierGenerator':     setShowAddOnIdentifierGenerator(true);     bringFront(setAddOnIdentifierGeneratorPos); break;
+      case 'supportUserLog':               setShowSupportUserLog(true);               bringFront(setSupportUserLogPos); break;
+      case 'licenseInformation':           setShowLicenseInformation(true);           bringFront(setLicenseInformationPos); break;
+      case 'alertsManagement':             setShowAlertsManagement(true);             bringFront(setAlertsManagementPos); break;
+      case 'delivery':                     setShowDelivery(true);                     bringFront(setDeliveryPos); break;
+      case 'salesReturn':                  setShowSalesReturn(true);                  bringFront(setSalesReturnWindow); break;
+      case 'arDownPaymentRequest':         setShowARDownPaymentRequest(true);         bringFront(setARDownPaymentRequestWindow); break;
+      case 'arDownPaymentInvoice':         setShowARDownPaymentInvoice(true);         bringFront(setARDownPaymentInvoiceWindow); break;
+      case 'arInvoice':                    setShowARInvoice(true);                    bringFront(setARInvoiceWindow); break;
+      case 'arInvoicePayment':             setShowARInvoicePayment(true);             bringFront(setARInvoicePaymentWindow); break;
+      case 'arCreditMemo':                 setShowARCreditMemo(true);                 bringFront(setARCreditMemoWindow); break;
+      case 'arReserveInvoice':             setShowARReserveInvoice(true);             bringFront(setARReserveInvoiceWindow); break;
+      case 'documentDraftsReport':         setShowDocumentDraftsReport(true);         bringFront(setDocumentDraftsReportWindow); break;
+      case 'salesAnalysisReport':          setShowSalesAnalysisReport(true);          bringFront(setSalesAnalysisReportWindow); break;
+      case 'backorderReport':              setShowBackorderReport(true);              bringFront(setBackorderReportWindow); break;
+      case 'blanketAgreementFulfillmentReport': setShowBlanketAgreementFulfillmentReport(true); bringFront(setBlanketAgreementFulfillmentReportWindow); break;
 
       // ── Banking ──
       case 'incomingPayments': setShowIncomingPayments(true); bringFront(setIncomingPaymentsPos); break;
@@ -611,6 +710,18 @@ export function useWindowManager() {
     showActivity, setShowActivity,
     showOpportunity, setShowOpportunity,
     showSalesOrder, setShowSalesOrder,
+    showDelivery, setShowDelivery,
+    showSalesReturn, setShowSalesReturn,
+    showARDownPaymentRequest, setShowARDownPaymentRequest,
+    showARDownPaymentInvoice, setShowARDownPaymentInvoice,
+    showARInvoice, setShowARInvoice,
+    showARInvoicePayment, setShowARInvoicePayment,
+    showARCreditMemo, setShowARCreditMemo,
+    showARReserveInvoice, setShowARReserveInvoice,
+    showDocumentDraftsReport, setShowDocumentDraftsReport,
+    showSalesAnalysisReport, setShowSalesAnalysisReport,
+    showBackorderReport, setShowBackorderReport,
+    showBlanketAgreementFulfillmentReport, setShowBlanketAgreementFulfillmentReport,
     showCustomer360, setShowCustomer360,
     showActivitiesOverview, setShowActivitiesOverview,
     showCampaignsList, setShowCampaignsList,
@@ -773,6 +884,27 @@ export function useWindowManager() {
     showSelectionProperties, setShowSelectionProperties,
     showSelectionUdf, setShowSelectionUdf,
     showSelectionBusinessPartners, setShowSelectionBusinessPartners,
+    showPeriodEndClosing, setShowPeriodEndClosing,
+    showSelectionAccounts, setShowSelectionAccounts,
+    showCheckDocumentNumbering, setShowCheckDocumentNumbering,
+    showDuplicateLayoutTemplate, setShowDuplicateLayoutTemplate,
+    showMasterDataCleanupWizard, setShowMasterDataCleanupWizard,
+    showManualMasterDataSeriesConverter, setShowManualMasterDataSeriesConverter,
+    showSelectionItems, setShowSelectionItems,
+    showUiConfigurationTemplate, setShowUiConfigurationTemplate,
+    showConnectedClients, setShowConnectedClients,
+    showChangeLogsCleanup, setShowChangeLogsCleanup,
+    showApprovalStages, setShowApprovalStages,
+    showApprovalTemplates, setShowApprovalTemplates,
+    showApprovalStatusReport, setShowApprovalStatusReport,
+    showApprovalDecisionReport, setShowApprovalDecisionReport,
+    showSelectionUsersList, setShowSelectionUsersList,
+    showSubstituteAuthorizer, setShowSubstituteAuthorizer,
+    showLicenseAdministration, setShowLicenseAdministration,
+    showAddOnIdentifierGenerator, setShowAddOnIdentifierGenerator,
+    showSupportUserLog, setShowSupportUserLog,
+    showLicenseInformation, setShowLicenseInformation,
+    showAlertsManagement, setShowAlertsManagement,
     // Banking visibility
     showIncomingPayments, setShowIncomingPayments,
     showCheckRegister, setShowCheckRegister,
@@ -963,6 +1095,39 @@ export function useWindowManager() {
     selectionPropertiesPos, setSelectionPropertiesPos,
     selectionUdfPos, setSelectionUdfPos,
     selectionBusinessPartnersPos, setSelectionBusinessPartnersPos,
+    periodEndClosingPos, setPeriodEndClosingPos,
+    selectionAccountsPos, setSelectionAccountsPos,
+    checkDocumentNumberingPos, setCheckDocumentNumberingPos,
+    duplicateLayoutTemplatePos, setDuplicateLayoutTemplatePos,
+    masterDataCleanupWizardPos, setMasterDataCleanupWizardPos,
+    manualMasterDataSeriesConverterPos, setManualMasterDataSeriesConverterPos,
+    selectionItemsPos, setSelectionItemsPos,
+    uiConfigurationTemplatePos, setUiConfigurationTemplatePos,
+    connectedClientsPos, setConnectedClientsPos,
+    changeLogsCleanupPos, setChangeLogsCleanupPos,
+    approvalStagesPos, setApprovalStagesPos,
+    approvalTemplatesPos, setApprovalTemplatesPos,
+    approvalStatusReportPos, setApprovalStatusReportPos,
+    approvalDecisionReportPos, setApprovalDecisionReportPos,
+    selectionUsersListPos, setSelectionUsersListPos,
+    substituteAuthorizerPos, setSubstituteAuthorizerPos,
+    licenseAdministrationPos, setLicenseAdministrationPos,
+    addOnIdentifierGeneratorPos, setAddOnIdentifierGeneratorPos,
+    supportUserLogPos, setSupportUserLogPos,
+    licenseInformationPos, setLicenseInformationPos,
+    alertsManagementPos, setAlertsManagementPos,
+    deliveryPos, setDeliveryPos,
+    salesReturnWindow, setSalesReturnWindow,
+    arDownPaymentRequestWindow, setARDownPaymentRequestWindow,
+    arDownPaymentInvoiceWindow, setARDownPaymentInvoiceWindow,
+    arInvoiceWindow, setARInvoiceWindow,
+    arInvoicePaymentWindow, setARInvoicePaymentWindow,
+    arCreditMemoWindow, setARCreditMemoWindow,
+    arReserveInvoiceWindow, setARReserveInvoiceWindow,
+    documentDraftsReportWindow, setDocumentDraftsReportWindow,
+    salesAnalysisReportWindow, setSalesAnalysisReportWindow,
+    backorderReportWindow, setBackorderReportWindow,
+    blanketAgreementFulfillmentReportWindow, setBlanketAgreementFulfillmentReportWindow,
     // Banking positions
     incomingPaymentsPos, setIncomingPaymentsPos,
     checkRegisterPos, setCheckRegisterPos,

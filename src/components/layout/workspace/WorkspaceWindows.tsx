@@ -29,27 +29,40 @@ import { PayrollMonthlyAdjustmentsWindow } from '../../hr-payroll/Transactions/P
 import { BusinessPartnerMasterDataWindow } from '../../crm/BusinessPartnerMasterData/BusinessPartnerMasterDataWindow';
 import { ActivityWindow } from '../../crm/Activity/ActivityWindow';
 import { OpportunityWindow } from '../../crm/Opportunity/OpportunityWindow';
-import { SalesOrderWindow } from '../../crm/SalesOrder/SalesOrderWindow';
+import { SalesOrderWindow } from '../../sales-ar/SalesOrder/SalesOrderWindow';
+import { DeliveryWindow } from '../../sales-ar/Delivery/DeliveryWindow';
+import { ReturnWindow } from '../../sales-ar/Return/ReturnWindow';
+import { ARDownPaymentRequestWindow } from '../../sales-ar/ARDownPaymentRequest/ARDownPaymentRequestWindow';
+import { ARDownPaymentInvoiceWindow } from '../../sales-ar/ARDownPaymentInvoice/ARDownPaymentInvoiceWindow';
+import { ARInvoiceWindow } from '../../sales-ar/ARInvoice/ARInvoiceWindow';
+import { ARInvoicePaymentWindow } from '../../sales-ar/ARInvoicePayment/ARInvoicePaymentWindow';
+import { ARCreditMemoWindow } from '../../sales-ar/ARCreditMemo/ARCreditMemoWindow';
+import { ARReserveInvoiceWindow } from '../../sales-ar/ARReserveInvoice/ARReserveInvoiceWindow';
+import { DocumentDraftsReport } from '../../sales-ar/Reports/DocumentDraftsReport';
+import { SalesAnalysisReport } from '../../sales-ar/Reports/SalesAnalysisReport';
+import { BackorderReport } from '../../sales-ar/Reports/BackorderReport';
+import { BlanketAgreementFulfillmentReport } from '../../sales-ar/Reports/BlanketAgreementFulfillmentReport';
 import { Customer360Window } from '../../crm/Customer360/Customer360Window';
 import { ActivitiesOverviewCriteria } from '../../crm/Reports/ActivitiesOverviewCriteria';
 import { CampaignsListCriteria } from '../../crm/Reports/CampaignsListCriteria';
 import { InactiveCustomersCriteria } from '../../crm/Reports/InactiveCustomersCriteria';
 import { OppStatisticsCriteria } from '../../crm/Reports/OppStatisticsCriteria';
 import { WonOpportunitiesCriteria } from '../../crm/Reports/WonOpportunitiesCriteria';
-import { IncomingPaymentsWindow } from '../../banking/IncomingPaymentsWindow';
+import { IncomingPaymentsWindow } from '../../banking/IncomingPayments/IncomingPaymentsWindow';
 import { CheckRegisterCriteria } from '../../banking/criteria/CheckRegisterCriteria';
 import { CreditCardManagementCriteria } from '../../banking/criteria/CreditCardManagementCriteria';
 import { CreditCardSummaryCriteria } from '../../banking/criteria/CreditCardSummaryCriteria';
-import { OutgoingPaymentsWindow } from '../../banking/OutgoingPaymentsWindow';
+import { OutgoingPaymentsWindow } from '../../banking/OutgoingPayments/OutgoingPaymentsWindow';
 import { ChecksForPaymentCriteria } from '../../banking/criteria/ChecksForPaymentCriteria';
 import { VoidChecksForPaymentCriteria } from '../../banking/criteria/VoidChecksForPaymentCriteria';
 import { ChecksForPaymentDraftsReportCriteria } from '../../banking/criteria/ChecksForPaymentDraftsReportCriteria';
-import { ChecksForPaymentWindow } from '../../banking/ChecksForPaymentWindow';
-import { ChecksForPaymentDraftsReportWindow } from '../../banking/ChecksForPaymentDraftsReportWindow';
-import { PaymentDraftsReportWindow } from '../../banking/PaymentDraftsReportWindow';
-import { HouseBankAccountsQueryWindow } from '../../banking/HouseBankAccountsQueryWindow';
+import { ChecksForPaymentWindow } from '../../banking/IncomingPayments/ChecksForPaymentWindow';
+import { ChecksForPaymentDraftsReportWindow } from '../../banking/IncomingPayments/ChecksForPaymentDraftsReportWindow';
+import { PaymentDraftsReportWindow } from '../../banking/OutgoingPayments/PaymentDraftsReportWindow';
+import { HouseBankAccountsQueryWindow } from '../../banking/BankAccounts/HouseBankAccountsQueryWindow';
 
 // Purchasing
+<<<<<<< HEAD
 import { PurchaseRequestWindow } from '../../purchasing/PurchaseRequestWindow';
 import { PurchaseQuotationWindow } from '../../purchasing/PurchaseQuotationWindow';
 import { PurchaseOrderWindow } from '../../purchasing/PurchaseOrderWindow';
@@ -129,6 +142,97 @@ import { BudgetScenariosWindow } from '../../financials/BudgetScenariosWindow';
 import { BudgetDistributionMethodsWindow } from '../../financials/BudgetDistributionMethodsWindow';
 import { BudgetScenarioDefinitionWindow } from '../../financials/BudgetScenarioDefinitionWindow';
 import { PMSSurchargeRateWindow } from '../../financials/PMSSurchargeRateWindow';
+=======
+import { PurchaseRequestWindow } from '../../purchasing/Orders/PurchaseRequestWindow';
+import { PurchaseQuotationWindow } from '../../purchasing/Orders/PurchaseQuotationWindow';
+import { PurchaseOrderWindow } from '../../purchasing/Orders/PurchaseOrderWindow';
+import { GoodsReceiptPOWindow } from '../../purchasing/GoodsMovement/GoodsReceiptPOWindow';
+import { GoodsReturnRequestWindow } from '../../purchasing/GoodsMovement/GoodsReturnRequestWindow';
+import { GoodsReturnWindow } from '../../purchasing/GoodsMovement/GoodsReturnWindow';
+import { APDownPaymentRequestWindow } from '../../purchasing/APDocuments/APDownPaymentRequestWindow';
+import { APDownPaymentInvoiceWindow } from '../../purchasing/APDocuments/APDownPaymentInvoiceWindow';
+import { APInvoiceWindow } from '../../purchasing/APDocuments/APInvoiceWindow';
+import { APCreditMemoWindow } from '../../purchasing/APDocuments/APCreditMemoWindow';
+import { APReserveInvoiceWindow } from '../../purchasing/APDocuments/APReserveInvoiceWindow';
+import { ConfirmationRecurringTransactionsWindow } from '../../purchasing/Templates/ConfirmationRecurringTransactionsWindow';
+import { RecurringTransactionTemplatesWindow } from '../../purchasing/Templates/RecurringTransactionTemplatesWindow';
+import { LandedCostsWindow } from '../../purchasing/GoodsMovement/LandedCostsWindow';
+import { ShippingTypesSetupWindow } from '../../purchasing/Templates/ShippingTypesSetupWindow';
+import { DocumentPrintingWindow } from '../../purchasing/Templates/DocumentPrintingWindow';
+import { OpenItemsListWindow } from '../../purchasing/Reports/OpenItemsListWindow';
+import { PurchaseAnalysisWindow } from '../../purchasing/Reports/PurchaseAnalysisWindow';
+import { PurchaseRequestReportWindow } from '../../purchasing/Reports/PurchaseRequestReportWindow';
+import { PurchaseQuotationComparisonReportWindow } from '../../purchasing/Reports/PurchaseQuotationComparisonReportWindow';
+// Administration — SystemInitialization
+import { ChooseCompanyWindow } from '../../administration/SystemInitialization/ChooseCompanyWindow';
+import { ExchangeRatesIndexesWindow } from '../../administration/SystemInitialization/ExchangeRatesIndexesWindow';
+import { CompanyDetailsWindow } from '../../administration/SystemInitialization/CompanyDetailsWindow';
+import { GeneralSettingsWindow } from '../../administration/SystemInitialization/GeneralSettingsWindow';
+import { PostingPeriodsWindow } from '../../administration/SystemInitialization/PostingPeriodsWindow';
+import { DocumentNumberingWindow } from '../../administration/SystemInitialization/DocumentNumberingWindow';
+import { DocumentSettingsWindow } from '../../administration/SystemInitialization/DocumentSettingsWindow';
+// Administration — InterfaceSetup
+import { PrintPreferencesWindow } from '../../administration/InterfaceSetup/PrintPreferencesWindow';
+import { TooltipPreviewWindow } from '../../administration/InterfaceSetup/TooltipPreviewWindow';
+// Administration — UserManagement
+import { UsersSetupWindow } from '../../administration/UserManagement/UsersSetupWindow';
+import { UserGroupsWindow } from '../../administration/UserManagement/UserGroupsWindow';
+import { UserDefaultsWindow } from '../../administration/UserManagement/UserDefaultsWindow';
+import { SalesEmployeesSetupWindow } from '../../administration/UserManagement/SalesEmployeesSetupWindow';
+import { TerritoriesSetupWindow } from '../../administration/UserManagement/TerritoriesSetupWindow';
+import { CommissionGroupsWindow } from '../../administration/UserManagement/CommissionGroupsWindow';
+// Administration — InterfaceSetup (continued)
+import { PredefinedTextWindow } from '../../administration/InterfaceSetup/PredefinedTextWindow';
+import { ReferenceFieldLinksWindow } from '../../administration/InterfaceSetup/ReferenceFieldLinksWindow';
+import { FreightSetupWindow } from '../../administration/InterfaceSetup/FreightSetupWindow';
+import { MessagePreferencesWindow } from '../../administration/InterfaceSetup/MessagePreferencesWindow';
+import { ReportLayoutManagerWindow } from '../../administration/InterfaceSetup/ReportLayoutManagerWindow';
+import { CrystalReportElementsWindow } from '../../administration/InterfaceSetup/CrystalReportElementsWindow';
+import { ServerPrintConfigWindow } from '../../administration/InterfaceSetup/ServerPrintConfigWindow';
+import { DashboardManagerWindow } from '../../administration/InterfaceSetup/DashboardManagerWindow';
+import { DashboardParametersWindow } from '../../administration/InterfaceSetup/DashboardParametersWindow';
+// Administration — Security
+import { PasswordAdministrationWindow } from '../../administration/Security/PasswordAdministrationWindow';
+import { ChangePasswordWindow } from '../../administration/Security/ChangePasswordWindow';
+import { SiteUserWindow } from '../../administration/Security/SiteUserWindow';
+// Administration — ElectronicDocs
+import { ElectronicFileManagerSetupWindow } from '../../administration/ElectronicDocs/ElectronicFileManagerSetupWindow';
+import { ElectronicCertificatesWindow } from '../../administration/ElectronicDocs/ElectronicCertificatesWindow';
+import { CrystalServerConfigWindow } from '../../administration/InterfaceSetup/CrystalServerConfigWindow';
+import { ProcessChecklistTemplateWindow } from '../../administration/ElectronicDocs/ProcessChecklistTemplateWindow';
+import { SAPLinksWindow } from '../../administration/InterfaceSetup/SAPLinksWindow';
+// Financials — GeneralLedger
+import { ChartOfAccountsWindow } from '../../financials/GeneralLedger/ChartOfAccountsWindow';
+import { EditChartOfAccountsWindow } from '../../financials/GeneralLedger/EditChartOfAccountsWindow';
+import { DataNotProvidedWindow } from '../../financials/GeneralLedger/DataNotProvidedWindow';
+import { JournalEntryWindow } from '../../financials/GeneralLedger/JournalEntryWindow';
+import { PostingTemplatesWindow } from '../../financials/GeneralLedger/PostingTemplatesWindow';
+import { RecurringPostingsWindow } from '../../financials/GeneralLedger/RecurringPostingsWindow';
+// Financials — Documents
+import { DocumentPrintingSelectionWindow } from '../../financials/Documents/DocumentPrintingSelectionWindow';
+// Financials — FixedAssets
+import { AssetMasterDataWindow } from '../../financials/FixedAssets/AssetMasterDataWindow';
+import { CapitalizationWindow } from '../../financials/FixedAssets/CapitalizationWindow';
+import { CapitalizationCreditMemoWindow } from '../../financials/FixedAssets/CapitalizationCreditMemoWindow';
+import { RetirementWindow } from '../../financials/FixedAssets/RetirementWindow';
+import { TransferWindow } from '../../financials/FixedAssets/TransferWindow';
+import { ManualDepreciationWindow } from '../../financials/FixedAssets/ManualDepreciationWindow';
+import { DepreciationRunWindow } from '../../financials/FixedAssets/DepreciationRunWindow';
+import { AssetRevaluationWindow } from '../../financials/FixedAssets/AssetRevaluationWindow';
+import { FiscalYearChangeWindow } from '../../financials/FixedAssets/FiscalYearChangeWindow';
+import { AssetDepreciationForecastWindow } from '../../financials/FixedAssets/AssetDepreciationForecastWindow';
+import { AssetHistorySheetWindow } from '../../financials/FixedAssets/AssetHistorySheetWindow';
+import { AssetStatusReportWindow } from '../../financials/FixedAssets/AssetStatusReportWindow';
+import { AssetTransactionReportWindow } from '../../financials/FixedAssets/AssetTransactionReportWindow';
+// Financials — Reconciliation
+import { ManagePreviousReconciliationsWindow } from '../../financials/Reconciliation/ManagePreviousReconciliationsWindow';
+import { ReconciliationWindow } from '../../financials/Reconciliation/ReconciliationWindow';
+// Financials — Budget
+import { BudgetScenariosWindow } from '../../financials/Budget/BudgetScenariosWindow';
+import { BudgetDistributionMethodsWindow } from '../../financials/Budget/BudgetDistributionMethodsWindow';
+import { BudgetScenarioDefinitionWindow } from '../../financials/Budget/BudgetScenarioDefinitionWindow';
+import { PMSSurchargeRateWindow } from '../../financials/Budget/PMSSurchargeRateWindow';
+>>>>>>> 79f5e6e57eb1f46aa7f40d6ef9e2b948709ba14a
 import {
   ElectronicReportRESectorWindow,
   ElectronicReportRERealEstateTypeWindow,
@@ -141,7 +245,7 @@ import {
   ElectronicReportFixAssetWindow,
   ElectronicReportSurchargeWindow,
   ElectronicReportSurcharge2Window
-} from '../../financials/ElectronicReportsCriteriaWindows';
+} from '../../financials/Documents/ElectronicReportsCriteriaWindows';
 import { GLAccountsBPCriteriaWindow } from '../../financials/reports/GLAccountsBPCriteriaWindow';
 import { GeneralLedgerCriteriaWindow } from '../../financials/reports/GeneralLedgerCriteriaWindow';
 import { 
@@ -212,8 +316,34 @@ import {
   SelectionRecipientListsWindow, 
   SelectionPropertiesWindow, 
   SelectionUdfWindow,
-  SelectionBusinessPartnersWindow
+  SelectionBusinessPartnersWindow,
+  SelectionAccountsWindow,
+  SelectionItemsWindow,
+  SelectionUsersListWindow
 } from '../../common/SelectionWindows';
+// Administration — Utilities
+import { PeriodEndClosingWindow } from '../../administration/Utilities/PeriodEndClosingWindow';
+import { CheckDocumentNumberingWindow } from '../../administration/Utilities/CheckDocumentNumberingWindow';
+import { DuplicateLayoutTemplateWindow } from '../../administration/Utilities/DuplicateLayoutTemplateWindow';
+import { MasterDataCleanupWizard } from '../../administration/Utilities/MasterDataCleanupWizard';
+import { ManualMasterDataSeriesConverter } from '../../administration/Utilities/ManualMasterDataSeriesConverter';
+// Administration — InterfaceSetup
+import { UiConfigurationTemplateWindow } from '../../administration/InterfaceSetup/UiConfigurationTemplateWindow';
+// Administration — Utilities (continued)
+import { ConnectedClientsWindow } from '../../administration/Utilities/ConnectedClientsWindow';
+import { ChangeLogsCleanupWindow } from '../../administration/Utilities/ChangeLogsCleanupWindow';
+// Administration — Approvals
+import { ApprovalStagesWindow } from '../../administration/Approvals/ApprovalStagesWindow';
+import { ApprovalTemplatesWindow } from '../../administration/Approvals/ApprovalTemplatesWindow';
+import { ApprovalStatusReportWindow } from '../../administration/Approvals/ApprovalStatusReportWindow';
+import { ApprovalDecisionReportWindow } from '../../administration/Approvals/ApprovalDecisionReportWindow';
+import { SubstituteAuthorizerWindow } from '../../administration/Approvals/SubstituteAuthorizerWindow';
+// Administration — License
+import { LicenseAdministrationWindow } from '../../administration/License/LicenseAdministrationWindow';
+import { AddOnIdentifierGeneratorWindow } from '../../administration/License/AddOnIdentifierGeneratorWindow';
+import { SupportUserLogWindow } from '../../administration/License/SupportUserLogWindow';
+import { LicenseInformationWindow } from '../../administration/License/LicenseInformationWindow';
+import { AlertsManagementWindow } from '../../administration/Utilities/AlertsManagementWindow';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 type Props = { wm: WindowManagerReturn };
@@ -259,6 +389,18 @@ export const WorkspaceWindows: React.FC<Props> = ({ wm }) => {
       {wm.showActivity              && <ActivityWindow                  windowState={wm.activityWindow}     onClose={() => wm.setShowActivity(false)}              onUpdateState={upd(wm.setActivityWindow)}     onFocus={() => ow('activity')} />}
       {wm.showOpportunity           && <OpportunityWindow               windowState={wm.opportunityWindow}  onClose={() => wm.setShowOpportunity(false)}           onUpdateState={upd(wm.setOpportunityWindow)}  onFocus={() => ow('opportunity')} />}
       {wm.showSalesOrder            && <SalesOrderWindow                windowState={wm.salesOrderWindow}   onClose={() => wm.setShowSalesOrder(false)}            onUpdateState={upd(wm.setSalesOrderWindow)}   onFocus={() => ow('salesOrder')} />}
+      {wm.showDelivery              && <DeliveryWindow                  windowState={wm.deliveryPos}     onClose={() => wm.setShowDelivery(false)}              onUpdateState={upd(wm.setDeliveryPos)}     onFocus={() => ow('delivery')} />}
+      {wm.showSalesReturn           && <ReturnWindow                    windowState={wm.salesReturnWindow} onClose={() => wm.setShowSalesReturn(false)}          onUpdateState={upd(wm.setSalesReturnWindow)} onFocus={() => ow('salesReturn')} />}
+      {wm.showARDownPaymentRequest  && <ARDownPaymentRequestWindow     windowState={wm.arDownPaymentRequestWindow} onClose={() => wm.setShowARDownPaymentRequest(false)} onUpdateState={upd(wm.setARDownPaymentRequestWindow)} onFocus={() => ow('arDownPaymentRequest')} />}
+      {wm.showARDownPaymentInvoice  && <ARDownPaymentInvoiceWindow     windowState={wm.arDownPaymentInvoiceWindow} onClose={() => wm.setShowARDownPaymentInvoice(false)} onUpdateState={upd(wm.setARDownPaymentInvoiceWindow)} onFocus={() => ow('arDownPaymentInvoice')} />}
+      {wm.showARInvoice             && <ARInvoiceWindow                windowState={wm.arInvoiceWindow} onClose={() => wm.setShowARInvoice(false)}               onUpdateState={upd(wm.setARInvoiceWindow)}    onFocus={() => ow('arInvoice')} />}
+      {wm.showARInvoicePayment      && <ARInvoicePaymentWindow         windowState={wm.arInvoicePaymentWindow} onClose={() => wm.setShowARInvoicePayment(false)} onUpdateState={upd(wm.setARInvoicePaymentWindow)} onFocus={() => ow('arInvoicePayment')} />}
+      {wm.showARCreditMemo         && <ARCreditMemoWindow           windowState={wm.arCreditMemoWindow}    onClose={() => wm.setShowARCreditMemo(false)}          onUpdateState={upd(wm.setARCreditMemoWindow)}    onFocus={() => ow('arCreditMemo')} />}
+      {wm.showARReserveInvoice      && <ARReserveInvoiceWindow        windowState={wm.arReserveInvoiceWindow} onClose={() => wm.setShowARReserveInvoice(false)} onUpdateState={upd(wm.setARReserveInvoiceWindow)} onFocus={() => ow('arReserveInvoice')} />}
+      {wm.showDocumentDraftsReport && <DocumentDraftsReport           windowState={wm.documentDraftsReportWindow} onClose={() => wm.setShowDocumentDraftsReport(false)} onUpdateState={upd(wm.setDocumentDraftsReportWindow)} onFocus={() => ow('documentDraftsReport')} />}
+      {wm.showSalesAnalysisReport  && <SalesAnalysisReport           windowState={wm.salesAnalysisReportWindow}  onClose={() => wm.setShowSalesAnalysisReport(false)}  onUpdateState={upd(wm.setSalesAnalysisReportWindow)}  onFocus={() => ow('salesAnalysisReport')} />}
+      {wm.showBackorderReport      && <BackorderReport               windowState={wm.backorderReportWindow}      onClose={() => wm.setShowBackorderReport(false)}      onUpdateState={upd(wm.setBackorderReportWindow)}      onFocus={() => ow('backorderReport')} />}
+      {wm.showBlanketAgreementFulfillmentReport && <BlanketAgreementFulfillmentReport windowState={wm.blanketAgreementFulfillmentReportWindow} onClose={() => wm.setShowBlanketAgreementFulfillmentReport(false)} onUpdateState={upd(wm.setBlanketAgreementFulfillmentReportWindow)} onFocus={() => ow('blanketAgreementFulfillmentReport')} />}
       {wm.showCustomer360           && <Customer360Window               windowState={wm.customer360Window}  onClose={() => wm.setShowCustomer360(false)}           onUpdateState={upd(wm.setCustomer360Window)}  onFocus={() => ow('customer360')} />}
       {wm.showActivitiesOverview    && <ActivitiesOverviewCriteria      windowState={wm.activitiesWindow}   onClose={() => wm.setShowActivitiesOverview(false)}    onUpdateState={upd(wm.setActivitiesWindow)}   onFocus={() => ow('activitiesOverview')} wm={wm} />}
       {wm.showCampaignsList         && <CampaignsListCriteria           windowState={wm.campaignsWindow}    onClose={() => wm.setShowCampaignsList(false)}         onUpdateState={upd(wm.setCampaignsWindow)}    onFocus={() => ow('campaignsList')} />}
@@ -438,6 +580,27 @@ export const WorkspaceWindows: React.FC<Props> = ({ wm }) => {
       {wm.showSelectionProperties && <SelectionPropertiesWindow windowState={wm.selectionPropertiesPos} onClose={() => wm.setShowSelectionProperties(false)} onUpdateState={upd(wm.setSelectionPropertiesPos)} onFocus={() => ow('selectionProperties')} />}
       {wm.showSelectionUdf && <SelectionUdfWindow windowState={wm.selectionUdfPos} onClose={() => wm.setShowSelectionUdf(false)} onUpdateState={upd(wm.setSelectionUdfPos)} onFocus={() => ow('selectionUdf')} />}
       {wm.showSelectionBusinessPartners && <SelectionBusinessPartnersWindow windowState={wm.selectionBusinessPartnersPos} onClose={() => wm.setShowSelectionBusinessPartners(false)} onUpdateState={upd(wm.setSelectionBusinessPartnersPos)} onFocus={() => ow('selectionBusinessPartners')} />}
+      {wm.showPeriodEndClosing && <PeriodEndClosingWindow windowState={wm.periodEndClosingPos} onClose={() => wm.setShowPeriodEndClosing(false)} onUpdateState={upd(wm.setPeriodEndClosingPos)} onFocus={() => ow('periodEndClosing')} onOpenSelectionAccounts={() => ow('selectionAccounts')} />}
+      {wm.showCheckDocumentNumbering && <CheckDocumentNumberingWindow windowState={wm.checkDocumentNumberingPos} onClose={() => wm.setShowCheckDocumentNumbering(false)} onUpdateState={upd(wm.setCheckDocumentNumberingPos)} onFocus={() => ow('checkDocumentNumbering')} />}
+      {wm.showDuplicateLayoutTemplate && <DuplicateLayoutTemplateWindow windowState={wm.duplicateLayoutTemplatePos} onClose={() => wm.setShowDuplicateLayoutTemplate(false)} onUpdateState={upd(wm.setDuplicateLayoutTemplatePos)} onFocus={() => ow('duplicateLayoutTemplate')} />}
+      {wm.showMasterDataCleanupWizard && <MasterDataCleanupWizard windowState={wm.masterDataCleanupWizardPos} onClose={() => wm.setShowMasterDataCleanupWizard(false)} onUpdateState={upd(wm.setMasterDataCleanupWizardPos)} onFocus={() => ow('masterDataCleanupWizard')} />}
+      {wm.showManualMasterDataSeriesConverter && <ManualMasterDataSeriesConverter windowState={wm.manualMasterDataSeriesConverterPos} onClose={() => wm.setShowManualMasterDataSeriesConverter(false)} onUpdateState={upd(wm.setManualMasterDataSeriesConverterPos)} onFocus={() => ow('manualMasterDataSeriesConverter')} onOpenSelectionItems={() => ow('selectionItems')} />}
+      {wm.showUiConfigurationTemplate && <UiConfigurationTemplateWindow windowState={wm.uiConfigurationTemplatePos} onClose={() => wm.setShowUiConfigurationTemplate(false)} onUpdateState={upd(wm.setUiConfigurationTemplatePos)} onFocus={() => ow('uiConfigurationTemplate')} />}
+      {wm.showConnectedClients && <ConnectedClientsWindow windowState={wm.connectedClientsPos} onClose={() => wm.setShowConnectedClients(false)} onUpdateState={upd(wm.setConnectedClientsPos)} onFocus={() => ow('connectedClients')} />}
+      {wm.showChangeLogsCleanup && <ChangeLogsCleanupWindow windowState={wm.changeLogsCleanupPos} onClose={() => wm.setShowChangeLogsCleanup(false)} onUpdateState={upd(wm.setChangeLogsCleanupPos)} onFocus={() => ow('changeLogsCleanup')} />}
+      {wm.showApprovalStages && <ApprovalStagesWindow windowState={wm.approvalStagesPos} onClose={() => wm.setShowApprovalStages(false)} onUpdateState={upd(wm.setApprovalStagesPos)} onFocus={() => ow('approvalStages')} />}
+      {wm.showApprovalTemplates && <ApprovalTemplatesWindow windowState={wm.approvalTemplatesPos} onClose={() => wm.setShowApprovalTemplates(false)} onUpdateState={upd(wm.setApprovalTemplatesPos)} onFocus={() => ow('approvalTemplates')} />}
+      {wm.showApprovalStatusReport && <ApprovalStatusReportWindow windowState={wm.approvalStatusReportPos} onClose={() => wm.setShowApprovalStatusReport(false)} onUpdateState={upd(wm.setApprovalStatusReportPos)} onFocus={() => ow('approvalStatusReport')} onOpenSelectionUsers={() => ow('selectionUsersList')} />}
+      {wm.showApprovalDecisionReport && <ApprovalDecisionReportWindow windowState={wm.approvalDecisionReportPos} onClose={() => wm.setShowApprovalDecisionReport(false)} onUpdateState={upd(wm.setApprovalDecisionReportPos)} onFocus={() => ow('approvalDecisionReport')} onOpenSelectionUsers={() => ow('selectionUsersList')} />}
+      {wm.showSubstituteAuthorizer && <SubstituteAuthorizerWindow windowState={wm.substituteAuthorizerPos} onClose={() => wm.setShowSubstituteAuthorizer(false)} onUpdateState={upd(wm.setSubstituteAuthorizerPos)} onFocus={() => ow('substituteAuthorizer')} />}
+      {wm.showLicenseAdministration && <LicenseAdministrationWindow windowState={wm.licenseAdministrationPos} onClose={() => wm.setShowLicenseAdministration(false)} onUpdateState={upd(wm.setLicenseAdministrationPos)} onFocus={() => ow('licenseAdministration')} />}
+      {wm.showAddOnIdentifierGenerator && <AddOnIdentifierGeneratorWindow windowState={wm.addOnIdentifierGeneratorPos} onClose={() => wm.setShowAddOnIdentifierGenerator(false)} onUpdateState={upd(wm.setAddOnIdentifierGeneratorPos)} onFocus={() => ow('addOnIdentifierGenerator')} />}
+      {wm.showSupportUserLog && <SupportUserLogWindow windowState={wm.supportUserLogPos} onClose={() => wm.setShowSupportUserLog(false)} onUpdateState={upd(wm.setSupportUserLogPos)} onFocus={() => ow('supportUserLog')} />}
+      {wm.showLicenseInformation && <LicenseInformationWindow windowState={wm.licenseInformationPos} onClose={() => wm.setShowLicenseInformation(false)} onUpdateState={upd(wm.setLicenseInformationPos)} onFocus={() => ow('licenseInformation')} />}
+      {wm.showAlertsManagement && <AlertsManagementWindow windowState={wm.alertsManagementPos} onClose={() => wm.setShowAlertsManagement(false)} onUpdateState={upd(wm.setAlertsManagementPos)} onFocus={() => ow('alertsManagement')} />}
+      {wm.showSelectionAccounts && <SelectionAccountsWindow windowState={wm.selectionAccountsPos} onClose={() => wm.setShowSelectionAccounts(false)} onUpdateState={upd(wm.setSelectionAccountsPos)} onFocus={() => ow('selectionAccounts')} />}
+      {wm.showSelectionItems && <SelectionItemsWindow windowState={wm.selectionItemsPos} onClose={() => wm.setShowSelectionItems(false)} onUpdateState={upd(wm.setSelectionItemsPos)} onFocus={() => ow('selectionItems')} />}
+      {wm.showSelectionUsersList && <SelectionUsersListWindow windowState={wm.selectionUsersListPos} onClose={() => wm.setShowSelectionUsersList(false)} onUpdateState={upd(wm.setSelectionUsersListPos)} onFocus={() => ow('selectionUsersList')} />}
     </>
   );
 };

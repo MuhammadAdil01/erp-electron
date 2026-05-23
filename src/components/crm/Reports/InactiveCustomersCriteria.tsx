@@ -96,4 +96,4 @@ export const InactiveCustomersCriteria: React.FC<InactiveCustomersCriteriaProps>
       </div>
     </ResizableCriteriaWindow>
   );
-};
+}; 
