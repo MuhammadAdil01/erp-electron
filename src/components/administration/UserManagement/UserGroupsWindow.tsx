@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Minus, Square, ExternalLink, RefreshCw, Plus } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../../context/AuthContext';
 
 interface WindowState {
   x: number;

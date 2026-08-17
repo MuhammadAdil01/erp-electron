@@ -35,8 +35,10 @@ export const invoicesApi = {
   create: (payload: CreateInvoicePayload) =>
     api.post<Invoice>('/invoices', payload).then((r) => r.data),
 
+  // InvoicesController maps PUT, not PATCH — a PATCH here returns 404, which
+  // reads like a missing invoice rather than a wrong verb.
   update: (id: number, payload: Partial<CreateInvoicePayload & { status: Invoice['status'] }>) =>
-    api.patch<Invoice>(`/invoices/${id}`, payload).then((r) => r.data),
+    api.put<Invoice>(`/invoices/${id}`, payload).then((r) => r.data),
 
   remove: (id: number) =>
     api.delete<{ message: string }>(`/invoices/${id}`).then((r) => r.data),

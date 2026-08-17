@@ -62,87 +62,7 @@ import { PaymentDraftsReportWindow } from '../../banking/OutgoingPayments/Paymen
 import { HouseBankAccountsQueryWindow } from '../../banking/BankAccounts/HouseBankAccountsQueryWindow';
 
 // Purchasing
-<<<<<<< HEAD
-import { PurchaseRequestWindow } from '../../purchasing/PurchaseRequestWindow';
-import { PurchaseQuotationWindow } from '../../purchasing/PurchaseQuotationWindow';
-import { PurchaseOrderWindow } from '../../purchasing/PurchaseOrderWindow';
-import { GoodsReceiptPOWindow } from '../../purchasing/GoodsReceiptPOWindow';
-import { GoodsReturnRequestWindow } from '../../purchasing/GoodsReturnRequestWindow';
-import { GoodsReturnWindow } from '../../purchasing/GoodsReturnWindow';
-import { APDownPaymentRequestWindow } from '../../purchasing/APDownPaymentRequestWindow';
-import { APDownPaymentInvoiceWindow } from '../../purchasing/APDownPaymentInvoiceWindow';
-import { APInvoiceWindow } from '../../purchasing/APInvoiceWindow';
-import { APCreditMemoWindow } from '../../purchasing/APCreditMemoWindow';
-import { APReserveInvoiceWindow } from '../../purchasing/APReserveInvoiceWindow';
-import { ConfirmationRecurringTransactionsWindow } from '../../purchasing/ConfirmationRecurringTransactionsWindow';
-import { RecurringTransactionTemplatesWindow } from '../../purchasing/RecurringTransactionTemplatesWindow';
-import { LandedCostsWindow } from '../../purchasing/LandedCostsWindow';
-import { ShippingTypesSetupWindow } from '../../purchasing/ShippingTypesSetupWindow';
-import { DocumentPrintingWindow } from '../../purchasing/DocumentPrintingWindow';
-import { OpenItemsListWindow } from '../../purchasing/OpenItemsListWindow';
-import { PurchaseAnalysisWindow } from '../../purchasing/PurchaseAnalysisWindow';
-import { PurchaseRequestReportWindow } from '../../purchasing/PurchaseRequestReportWindow';
-import { PurchaseQuotationComparisonReportWindow } from '../../purchasing/PurchaseQuotationComparisonReportWindow';
-import { ChooseCompanyWindow } from '../../administration/ChooseCompanyWindow';
-import { ExchangeRatesIndexesWindow } from '../../administration/ExchangeRatesIndexesWindow';
-import { CompanyDetailsWindow } from '../../administration/CompanyDetailsWindow';
-import { GeneralSettingsWindow } from '../../administration/GeneralSettingsWindow';
-import { PostingPeriodsWindow } from '../../administration/PostingPeriodsWindow';
-import { DocumentNumberingWindow } from '../../administration/DocumentNumberingWindow';
-import { DocumentSettingsWindow } from '../../administration/DocumentSettingsWindow';
-import { PrintPreferencesWindow } from '../../administration/PrintPreferencesWindow';
-import { TooltipPreviewWindow } from '../../administration/TooltipPreviewWindow';
 import { CompanyAdminWindow } from '../../administration/CompanyAdminWindow';
-import { UsersSetupWindow } from '../../administration/UsersSetupWindow';
-import { UserGroupsWindow } from '../../administration/UserGroupsWindow';
-import { UserDefaultsWindow } from '../../administration/UserDefaultsWindow';
-import { SalesEmployeesSetupWindow } from '../../administration/SalesEmployeesSetupWindow';
-import { TerritoriesSetupWindow } from '../../administration/TerritoriesSetupWindow';
-import { CommissionGroupsWindow } from '../../administration/CommissionGroupsWindow';
-import { PredefinedTextWindow } from '../../administration/PredefinedTextWindow';
-import { ReferenceFieldLinksWindow } from '../../administration/ReferenceFieldLinksWindow';
-import { FreightSetupWindow } from '../../administration/FreightSetupWindow';
-import { MessagePreferencesWindow } from '../../administration/MessagePreferencesWindow';
-import { ReportLayoutManagerWindow } from '../../administration/ReportLayoutManagerWindow';
-import { CrystalReportElementsWindow } from '../../administration/CrystalReportElementsWindow';
-import { ServerPrintConfigWindow } from '../../administration/ServerPrintConfigWindow';
-import { DashboardManagerWindow } from '../../administration/DashboardManagerWindow';
-import { DashboardParametersWindow } from '../../administration/DashboardParametersWindow';
-import { PasswordAdministrationWindow } from '../../administration/PasswordAdministrationWindow';
-import { ChangePasswordWindow } from '../../administration/ChangePasswordWindow';
-import { SiteUserWindow } from '../../administration/SiteUserWindow';
-import { ElectronicFileManagerSetupWindow } from '../../administration/ElectronicFileManagerSetupWindow';
-import { ElectronicCertificatesWindow } from '../../administration/ElectronicCertificatesWindow';
-import { CrystalServerConfigWindow } from '../../administration/CrystalServerConfigWindow';
-import { ProcessChecklistTemplateWindow } from '../../administration/ProcessChecklistTemplateWindow';
-import { SAPLinksWindow } from '../../administration/SAPLinksWindow';
-import { ChartOfAccountsWindow } from '../../financials/ChartOfAccountsWindow';
-import { EditChartOfAccountsWindow } from '../../financials/EditChartOfAccountsWindow';
-import { DataNotProvidedWindow } from '../../financials/DataNotProvidedWindow';
-import { JournalEntryWindow } from '../../financials/JournalEntryWindow';
-import { PostingTemplatesWindow } from '../../financials/PostingTemplatesWindow';
-import { RecurringPostingsWindow } from '../../financials/RecurringPostingsWindow';
-import { DocumentPrintingSelectionWindow } from '../../financials/DocumentPrintingSelectionWindow';
-import { AssetMasterDataWindow } from '../../financials/AssetMasterDataWindow';
-import { CapitalizationWindow } from '../../financials/CapitalizationWindow';
-import { CapitalizationCreditMemoWindow } from '../../financials/CapitalizationCreditMemoWindow';
-import { RetirementWindow } from '../../financials/RetirementWindow';
-import { TransferWindow } from '../../financials/TransferWindow';
-import { ManualDepreciationWindow } from '../../financials/ManualDepreciationWindow';
-import { DepreciationRunWindow } from '../../financials/DepreciationRunWindow';
-import { AssetRevaluationWindow } from '../../financials/AssetRevaluationWindow';
-import { FiscalYearChangeWindow } from '../../financials/FiscalYearChangeWindow';
-import { AssetDepreciationForecastWindow } from '../../financials/AssetDepreciationForecastWindow';
-import { AssetHistorySheetWindow } from '../../financials/AssetHistorySheetWindow';
-import { AssetStatusReportWindow } from '../../financials/AssetStatusReportWindow';
-import { AssetTransactionReportWindow } from '../../financials/AssetTransactionReportWindow';
-import { ManagePreviousReconciliationsWindow } from '../../financials/ManagePreviousReconciliationsWindow';
-import { ReconciliationWindow } from '../../financials/ReconciliationWindow';
-import { BudgetScenariosWindow } from '../../financials/BudgetScenariosWindow';
-import { BudgetDistributionMethodsWindow } from '../../financials/BudgetDistributionMethodsWindow';
-import { BudgetScenarioDefinitionWindow } from '../../financials/BudgetScenarioDefinitionWindow';
-import { PMSSurchargeRateWindow } from '../../financials/PMSSurchargeRateWindow';
-=======
 import { PurchaseRequestWindow } from '../../purchasing/Orders/PurchaseRequestWindow';
 import { PurchaseQuotationWindow } from '../../purchasing/Orders/PurchaseQuotationWindow';
 import { PurchaseOrderWindow } from '../../purchasing/Orders/PurchaseOrderWindow';
@@ -232,7 +152,6 @@ import { BudgetScenariosWindow } from '../../financials/Budget/BudgetScenariosWi
 import { BudgetDistributionMethodsWindow } from '../../financials/Budget/BudgetDistributionMethodsWindow';
 import { BudgetScenarioDefinitionWindow } from '../../financials/Budget/BudgetScenarioDefinitionWindow';
 import { PMSSurchargeRateWindow } from '../../financials/Budget/PMSSurchargeRateWindow';
->>>>>>> 79f5e6e57eb1f46aa7f40d6ef9e2b948709ba14a
 import {
   ElectronicReportRESectorWindow,
   ElectronicReportRERealEstateTypeWindow,

@@ -1,404 +1,473 @@
-import React, { useState } from 'react';
-import { X, Minus, Square, ChevronDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Landmark, Search } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useCrudResource } from '../../../hooks/useCrudResource';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  accountsApi,
+  type Account,
+  type AccountNode,
+  type AccountType,
+  type AccountSubtype,
+} from '../../../api/financials.api';
+import {
+  ClassicWindow,
+  CrudToolbar,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface ChartOfAccountsWindowProps {
+interface Props {
+  /** WorkspaceWindows gates this window with `{wm.showChartOfAccounts && …}`. */
+  show?: boolean;
   onClose: () => void;
-  onFocus: () => void;
-  windowState: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    isMinimized: boolean;
-    isMaximized: boolean;
-    zIndex: number;
-  };
-  onUpdateState: (state: Partial<ChartOfAccountsWindowProps['windowState']>) => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-export const ChartOfAccountsWindow: React.FC<ChartOfAccountsWindowProps> = ({
-  onClose,
-  onFocus,
-  windowState,
-  onUpdateState,
+/** The five drawers across the top of the SAP Chart of Accounts window. */
+const DRAWERS: { type: AccountType; label: string }[] = [
+  { type: 'ASSET', label: 'Assets' },
+  { type: 'LIABILITY', label: 'Liabilities' },
+  { type: 'EQUITY', label: 'Equity' },
+  { type: 'INCOME', label: 'Turnover' },
+  { type: 'EXPENSE', label: 'Cost of Sales' },
+];
+
+const SUBTYPES: AccountSubtype[] = [
+  'CASH', 'BANK', 'ACCOUNTS_RECEIVABLE', 'ACCOUNTS_PAYABLE', 'INVENTORY',
+  'FIXED_ASSET', 'CURRENT_LIABILITY', 'LONG_TERM_LIABILITY', 'TAX_PAYABLE',
+  'TAX_RECOVERABLE', 'SHARE_CAPITAL', 'RETAINED_EARNINGS', 'REVENUE',
+  'COST_OF_GOODS_SOLD', 'OPERATING_EXPENSE', 'OTHER_INCOME', 'OTHER_EXPENSE',
+];
+
+const emptyForm = {
+  code: '', name: '', type: 'ASSET' as AccountType, subtype: '',
+  parentId: '', currency: 'USD', isTitle: false, isControl: false,
+  isActive: true, description: '',
+};
+
+const pretty = (s: string) => s.replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
+
+export const ChartOfAccountsWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const [activeTab, setActiveTab] = useState('Assets');
-  const isMaximized = windowState.isMaximized;
+  const { user } = useAuth();
+  const [drawer, setDrawer] = useState<AccountType>('ASSET');
+  const [search, setSearch] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [form, setForm] = useState(emptyForm);
 
-  const sapLabelStyle = "text-[11px] text-[#333333] font-medium whitespace-nowrap";
-  const sapInputStyle = "text-[11px] border border-gray-300 px-1 py-0.5 bg-white focus:border-blue-500 focus:outline-none rounded-[1px]";
-  const sapCheckboxStyle = "w-3 h-3 border-gray-300 rounded-[1px] accent-blue-600";
-  const sapButtonStyle = "px-4 py-0.5 text-[11px] font-medium border border-gray-400 rounded-[1px] shadow-sm hover:bg-gray-100 transition-colors";
+  const crud = useCrudResource<Account>('accounts', accountsApi, {
+    params: { take: 2000 },
+    label: (a) => `${a.code} — ${a.name}`,
+  });
 
-  const categories = [
-    'Assets', 'Liabilities', 'Capital and Reserves', 'Revenue',
-    'Cost of sales', 'Operating costs', 'Non-operating income and expenditure',
-    'Taxation and Extraordinary Items', '#9', '#10'
-  ];
+  // The tree endpoint drives the left pane. Keying on the row count and the
+  // last write keeps it in step with the flat list after every save.
+  const { data: tree = [], isLoading: treeLoading } = useQuery({
+    queryKey: ['accounts-tree', user?.companyId, drawer, showInactive, crud.rows.length, crud.status],
+    queryFn: () => accountsApi.tree({ type: drawer, includeInactive: showInactive }),
+    enabled: !!user?.companyId,
+  });
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFocus();
+  const { data: balances = [] } = useQuery({
+    queryKey: ['account-balances', user?.companyId, crud.status],
+    queryFn: () => accountsApi.balances(),
+    enabled: !!user?.companyId,
+  });
 
-    if (isMaximized) return;
+  const balanceByAccount = useMemo(
+    () => new Map(balances.map((b) => [b.accountId, b.balance])),
+    [balances],
+  );
+  const byId = useMemo(() => new Map(crud.rows.map((a) => [a.id, a])), [crud.rows]);
 
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      onUpdateState({
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY,
+  useEffect(() => {
+    if (crud.mode === 'new') {
+      setForm({ ...emptyForm, type: drawer, parentId: crud.selected?.id ?? '' });
+    } else if (crud.mode === 'edit' && crud.selected) {
+      const a = crud.selected;
+      setForm({
+        code: a.code, name: a.name, type: a.type, subtype: a.subtype ?? '',
+        parentId: a.parentId ?? '', currency: a.currency,
+        isTitle: a.isTitle, isControl: a.isControl,
+        isActive: a.isActive, description: a.description ?? '',
       });
-    };
+    }
+    // `drawer` is intentionally excluded: switching drawers mid-edit must not
+    // silently rewrite the account type the user is editing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crud.mode, crud.selected]);
 
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+  const handleSave = () => {
+    if (!form.code.trim() || !form.name.trim()) {
+      crud.setError('Account code and name are required.');
+      return;
+    }
+    crud.save({
+      code: form.code.trim(),
+      name: form.name.trim(),
+      type: form.type,
+      // '' means "no subtype"; anything else is one of the enum members the
+      // select is populated from.
+      subtype: (form.subtype || undefined) as AccountSubtype | undefined,
+      parentId: form.parentId || undefined,
+      currency: form.currency || 'USD',
+      isTitle: form.isTitle,
+      isControl: form.isControl,
+      isActive: form.isActive,
+      description: form.description || undefined,
+    });
   };
 
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFocus();
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      let newX = windowState.x;
-      let newY = windowState.y;
-      let newWidth = windowState.width;
-      let newHeight = windowState.height;
-
-      if (direction.includes('e')) newWidth = Math.max(600, startWidth + deltaX);
-      if (direction.includes('s')) newHeight = Math.max(400, startHeight + deltaY);
-
-      if (direction.includes('w')) {
-        newWidth = Math.max(600, startWidth - deltaX);
-        if (newWidth > 600) newX = startXPos + deltaX;
-      }
-
-      if (direction.includes('n')) {
-        newHeight = Math.max(400, startHeight - deltaY);
-        if (newHeight > 400) newY = startYPos + deltaY;
-      }
-
-      onUpdateState({ x: newX, y: newY, width: newWidth, height: newHeight });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const matches = (n: AccountNode): boolean => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    if (n.code.toLowerCase().includes(q) || n.name.toLowerCase().includes(q)) return true;
+    // Keep a branch visible when any descendant matches, so filtering never
+    // hides the path to a hit.
+    return n.children.some(matches);
   };
+
+  const renderNode = (node: AccountNode, depth = 0): React.ReactNode => {
+    if (!matches(node)) return null;
+    const hasChildren = node.children.length > 0;
+    // A search expands the tree automatically; otherwise honour the toggles.
+    const isOpen = search.trim() ? true : expanded.has(node.id);
+    const row = byId.get(node.id);
+    const balance = balanceByAccount.get(node.id);
+
+    return (
+      <div key={node.id}>
+        <div
+          onClick={() => row && crud.select(row)}
+          onDoubleClick={() => row && crud.openEdit(row)}
+          style={{ paddingLeft: 6 + depth * 14 }}
+          className={cn(
+            'flex items-center gap-1 py-[3px] pr-2 cursor-default border-b border-[#f7f7f7]',
+            crud.selected?.id === node.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50/60',
+          )}
+        >
+          {hasChildren ? (
+            <span onClick={(e) => { e.stopPropagation(); toggle(node.id); }} className="shrink-0">
+              {isOpen
+                ? <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+                : <ChevronRight className="w-3.5 h-3.5 text-gray-500" />}
+            </span>
+          ) : (
+            <span className="w-3.5 shrink-0" />
+          )}
+          <span className="font-mono text-[10.5px] text-gray-600 w-[90px] shrink-0 truncate">
+            {node.code}
+          </span>
+          <span
+            className={cn(
+              'text-[10.5px] truncate flex-1',
+              node.isTitle ? 'font-bold text-[#1a3a6b]' : 'text-gray-800',
+              !node.isActive && 'text-gray-400 italic',
+            )}
+          >
+            {node.name}
+          </span>
+          {node.isControl && (
+            <span className="text-[8.5px] bg-purple-100 text-purple-700 px-1 rounded-[1px] shrink-0">CTRL</span>
+          )}
+          {node.isTitle && (
+            <span className="text-[8.5px] bg-blue-100 text-blue-700 px-1 rounded-[1px] shrink-0">TITLE</span>
+          )}
+          {!node.isTitle && balance !== undefined && (
+            <span
+              className={cn(
+                'text-[10px] font-mono w-[100px] text-right shrink-0',
+                Number(balance) < 0 ? 'text-red-700' : 'text-gray-700',
+              )}
+            >
+              {balance}
+            </span>
+          )}
+        </div>
+        {hasChildren && isOpen && node.children.map((c) => renderNode(c, depth + 1))}
+      </div>
+    );
+  };
+
+  const isForm = crud.mode === 'new' || crud.mode === 'edit';
+  const selected = crud.selected;
+  const postedLines = selected?._count?.lines ?? 0;
 
   return (
-    <div
-      onClick={onFocus}
-      style={{
-        position: 'absolute',
-        left: isMaximized ? 0 : windowState.x,
-        top: isMaximized ? 0 : windowState.y,
-        width: isMaximized ? '100%' : windowState.width,
-        height: isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex,
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#f0f0f0',
-        border: '1px solid #999',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        userSelect: 'none',
-      }}
-      className="chart-of-accounts-window"
-    >
-      {/* Resize Handles */}
-      {!isMaximized && (
+    <ClassicWindow
+      title="Chart of Accounts"
+      icon={<Landmark className="w-3.5 h-3.5 text-gray-600" />}
+      accent="#e8a01c"
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={900}
+      minHeight={520}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <CrudToolbar
+            onNew={crud.openNew}
+            onEdit={() => selected && crud.openEdit(selected)}
+            onDelete={() => crud.remove()}
+            onRefresh={crud.refetch}
+            canEdit={!!selected}
+            canDelete={!!selected}
+            isFetching={crud.isFetching}
+            isBusy={crud.isBusy}
+          />
+          <div className="flex items-center gap-1 ml-2">
+            <Search className="w-3 h-3 text-gray-500" />
+            <ClassicInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Find code or name…"
+              className="w-44"
+            />
+          </div>
+          <label className="flex items-center gap-1 ml-2 text-[10.5px] text-gray-700">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            Show inactive
+          </label>
+          <StatusNote error={crud.error} status={crud.status} />
         </>
-      )}
-
-      {/* Title Bar */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="h-7 bg-[#e1e1e1] flex items-center justify-between px-2 cursor-default border-b border-[#ccc]"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] font-bold text-[#444]">Chart of Accounts</span>
-        </div>
-        <div className="flex items-center">
+      }
+      footer={
+        <>
+          <span>
+            {crud.rows.length} account{crud.rows.length === 1 ? '' : 's'} ·{' '}
+            {DRAWERS.find((d) => d.type === drawer)?.label}
+          </span>
+          <span>Chart of Accounts</span>
+        </>
+      }
+    >
+      {/* Drawer tabs */}
+      <div className="flex gap-[2px] px-2 pt-1 bg-[#ececec] shrink-0">
+        {DRAWERS.map((d) => (
           <button
-            onClick={(e) => { e.stopPropagation(); onUpdateState({ isMinimized: true }); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-gray-300 transition-colors"
+            key={d.type}
+            onClick={() => setDrawer(d.type)}
+            className={cn(
+              'px-4 py-0.5 text-[10.5px] border border-[#999] border-b-0 rounded-t-[3px]',
+              drawer === d.type
+                ? 'bg-white font-bold -mb-[1px] z-10 relative'
+                : 'bg-[#e1e1e1] hover:bg-gray-200',
+            )}
           >
-            <Minus className="w-3.5 h-3.5 text-[#555]" />
+            {d.label}
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpdateState({ isMaximized: !isMaximized }); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-gray-300 transition-colors"
-          >
-            <Square className="w-3 h-3 text-[#555]" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* Gold accent bar */}
-      <div className="h-1 bg-[#e8a01c] w-full" />
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden p-3 gap-3">
-
-        {/* Left Side: G/L Account Details */}
-        <div className="w-[380px] flex flex-col space-y-4">
-          <div className="space-y-2">
-            <span className="text-[11px] font-bold text-[#003399] underline decoration-blue-800 underline-offset-2 italic">G/L Account Details</span>
-
-            <div className="flex items-center gap-16 ml-1">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="radio" name="accType" className="w-3.5 h-3.5" />
-                <span className={sapLabelStyle}>Title</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="radio" name="accType" defaultChecked className="w-3.5 h-3.5" />
-                <span className={sapLabelStyle}>Active Account</span>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
-              <span className={sapLabelStyle}>G/L Account</span>
-              <input type="text" className={`${sapInputStyle} w-full bg-[#ffffe0] border-black/30 shadow-inner`} />
-
-              <span className={sapLabelStyle}>Name</span>
-              <input type="text" className={`${sapInputStyle} w-full`} />
-
-              <span className={sapLabelStyle}>Dev/Non-Dev</span>
-              <input type="text" className={`${sapInputStyle} w-full`} />
-
-              <span className={sapLabelStyle}>Currency</span>
-              <select className={`${sapInputStyle} w-full`}>
-                <option>Pakistani Rupee</option>
-              </select>
-            </div>
+      <div className="flex flex-1 min-h-0 border-t border-[#999]">
+        {/* Tree */}
+        <div className="flex-1 bg-white overflow-auto custom-scrollbar min-w-0">
+          <div className="flex items-center gap-1 px-2 py-1 bg-[#f0f0f0] border-b border-[#d4d0c8] sticky top-0 z-10 text-[10px] font-bold text-[#444]">
+            <span className="w-3.5" />
+            <span className="w-[90px]">G/L Acct</span>
+            <span className="flex-1">Name</span>
+            <span className="w-[100px] text-right">Balance</span>
           </div>
-
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" className={sapCheckboxStyle} />
-              <span className={sapLabelStyle}>Confidential</span>
-            </label>
-            <div className="flex items-center gap-2">
-              <span className={sapLabelStyle}>Level</span>
-              <input type="text" className={`${sapInputStyle} w-16 text-center bg-gray-100`} defaultValue="2" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
-            <span className={sapLabelStyle}>Balance</span>
-            <div className="flex items-center gap-1">
-              <input type="text" className={`${sapInputStyle} w-24 bg-gray-100 text-right`} defaultValue="0.00" />
-              <select className={`${sapInputStyle} w-16`}>
-                <option>PKR</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-1 pt-2">
-            <span className="text-[11px] font-bold text-[#003399] underline decoration-blue-800 underline-offset-2 italic">G/L Account Properties</span>
-
-            <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
-              <span className={sapLabelStyle}>Account Type</span>
-              <select className={`${sapInputStyle} w-full`}>
-                <option>Other</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-y-0.5 ml-1 pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Control Account</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Indexed</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Cash Account</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Reval. (Currency)</span>
-              </label>
-            </div>
-
-            <div className="space-y-0.5 pt-2 ml-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Block Manual Posting</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Cash Flow Relevant</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="space-y-1 pt-4">
-            <span className="text-[11px] font-bold text-gray-700">Relevant for Cost Accounting</span>
-            <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Project</span>
-              </label>
-              <input type="text" className={`${sapInputStyle} bg-[#ffffe0] w-32`} />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-[11px] font-bold text-gray-700">Distribution Rule</span>
-            <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Departments</span>
-              </label>
-              <input type="text" className={`${sapInputStyle} bg-[#ffffe0] w-32`} />
-            </div>
-          </div>
+          <ListPlaceholder
+            noCompany={crud.noCompany}
+            isLoading={treeLoading}
+            isEmpty={!treeLoading && tree.length === 0}
+            emptyText="No accounts in this drawer yet. Click New to add one."
+          />
+          {tree.map((n) => renderNode(n))}
         </div>
 
-        {/* Center Section: Tree View */}
-        <div className="flex-1 flex flex-col bg-white border border-gray-400 overflow-hidden relative shadow-inner">
-          <div className="bg-[#e4e4e4] px-2 py-1 flex items-center justify-between border-b border-gray-300">
-            <div className="flex items-center gap-2">
-              <ChevronDown className="w-3 h-3 text-gray-600" />
-              <span className="text-[11px] font-bold text-gray-800 underline decoration-gray-400">Assets</span>
-            </div>
+        {/* Detail / form */}
+        <div className="w-[320px] shrink-0 border-l border-[#d4d0c8] bg-white p-3 overflow-auto">
+          <div className="text-[11px] font-bold text-[#333] mb-2 border-b border-[#e0e0e0] pb-1">
+            {crud.mode === 'new'
+              ? 'New G/L Account'
+              : crud.mode === 'edit'
+                ? `Edit — ${selected?.code}`
+                : 'Account Details'}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 pt-1 font-mono text-[10.5px]">
-            <div className="flex flex-col space-y-1">
-              <div className="flex items-center gap-1.5 pl-0 cursor-pointer hover:bg-blue-50">
-                <ChevronDown className="w-3 h-3 text-blue-800" />
-                <span className="text-blue-800 font-bold underline">A1 - Non Current Assets</span>
+          {!isForm && !selected && (
+            <div className="text-[10.5px] text-gray-400 mt-6 text-center">
+              Select an account, or click New.
+            </div>
+          )}
+
+          {!isForm && selected && (
+            <>
+              <FieldRow label="G/L Account">{selected.code}</FieldRow>
+              <FieldRow label="Name">{selected.name}</FieldRow>
+              <FieldRow label="Type">{pretty(selected.type)}</FieldRow>
+              <FieldRow label="Subtype">{selected.subtype ? pretty(selected.subtype) : '—'}</FieldRow>
+              <FieldRow label="Parent">{selected.parent ? `${selected.parent.code} ${selected.parent.name}` : '— top level —'}</FieldRow>
+              <FieldRow label="Currency">{selected.currency}</FieldRow>
+              <FieldRow label="Account kind">
+                {selected.isTitle ? 'Title (grouping)' : 'Active (postable)'}
+                {selected.isControl && ' · Control'}
+              </FieldRow>
+              <FieldRow label="Balance">
+                <span className="font-mono">{balanceByAccount.get(selected.id) ?? '0.00'}</span>
+              </FieldRow>
+              <FieldRow label="Journal lines">{postedLines}</FieldRow>
+              <FieldRow label="Status">{selected.isActive ? 'Active' : 'Inactive'}</FieldRow>
+              {selected.description && (
+                <FieldRow label="Description">{selected.description}</FieldRow>
+              )}
+              {postedLines > 0 && (
+                <div className="mt-2 text-[9.5px] text-amber-700 bg-amber-50 border border-amber-200 p-1.5 rounded-[1px]">
+                  This account carries posted history, so it can be deactivated but not deleted.
+                </div>
+              )}
+              <div className="mt-3 flex gap-2">
+                <YellowBtn onClick={() => crud.openEdit(selected)}>Edit</YellowBtn>
+                <GreyBtn onClick={crud.openNew}>Add child</GreyBtn>
               </div>
-              <div className="flex flex-col space-y-1 pl-4">
-                <div className="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50">
-                  <ChevronDown className="w-3 h-3 text-blue-700" />
-                  <span className="text-blue-700 font-bold">A101 - "PROPERTY, PLANT & EQUIPMENT"</span>
-                </div>
-                <div className="flex flex-col space-y-1 pl-4">
-                  <div className="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50">
-                    <ChevronDown className="w-3 h-3 text-blue-600" />
-                    <span className="text-blue-600 font-bold">A10101 - OPERATING FIXED ASSETS</span>
-                  </div>
-                  <div className="flex flex-col space-y-0.5 pl-8 text-gray-700">
-                    <span className="hover:text-blue-600 cursor-pointer">A101010001 - Building</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010002 - Furniture & Fixture</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010003 - Tools & Equipment</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010004 - Office Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010005 - Electric Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010006 - Fire Equipment</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010007 - Vehicles</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010008 - Horticulture Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010009 - Security Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010010 - IT Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010011 - Electric Instalations</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010012 - Engineering Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010013 - Lab Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010014 - Containerized Offices</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010015 - New Office Complex</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010016 - Computer Equipment</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101010017 - Crockery & Cutlery</span>
-                  </div>
-                </div>
-                <div className="flex flex-col space-y-1 pl-4 pt-1">
-                  <div className="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50">
-                    <ChevronDown className="w-3 h-3 text-blue-600" />
-                    <span className="text-blue-600 font-bold">A10102 - meezan bank</span>
-                  </div>
-                  <div className="flex flex-col space-y-0.5 pl-8 text-gray-700">
-                    <span className="hover:text-blue-600 cursor-pointer">A101020001 - Acc Depn-Building</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020002 - Acc Depn-Furniture & Fixture</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020003 - Acc Depn-Tools & Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020004 - Acc Depn-Office Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020005 - Acc Depn-Electric Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020006 - Acc Depn-Fire Equipment</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020007 - Acc Depn-Vehicles</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020008 - Acc Depn-Horticulture Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020009 - Acc Depn-Security Equipments</span>
-                    <span className="hover:text-blue-600 cursor-pointer">A101020010 - Acc Depn-IT Equipments</span>
-                  </div>
-                </div>
+            </>
+          )}
+
+          {isForm && (
+            <>
+              <FieldRow label="G/L Account" required>
+                <ClassicInput
+                  value={form.code}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                  className="w-full font-mono"
+                  placeholder="1100"
+                  autoFocus
+                />
+              </FieldRow>
+              <FieldRow label="Name" required>
+                <ClassicInput
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Type" required>
+                <ClassicSel
+                  value={form.type}
+                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as AccountType }))}
+                  className="w-full"
+                >
+                  {DRAWERS.map((d) => (
+                    <option key={d.type} value={d.type}>{pretty(d.type)}</option>
+                  ))}
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Subtype">
+                <ClassicSel
+                  value={form.subtype}
+                  onChange={(e) => setForm((f) => ({ ...f, subtype: e.target.value }))}
+                  className="w-full"
+                >
+                  <option value="">— none —</option>
+                  {SUBTYPES.map((s) => (
+                    <option key={s} value={s}>{pretty(s)}</option>
+                  ))}
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Parent account">
+                <ClassicSel
+                  value={form.parentId}
+                  onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value }))}
+                  className="w-full"
+                >
+                  <option value="">— top level —</option>
+                  {crud.rows
+                    .filter((a) => a.type === form.type && a.id !== selected?.id)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+                    ))}
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Currency">
+                <ClassicInput
+                  value={form.currency}
+                  onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))}
+                  className="w-20"
+                  maxLength={3}
+                />
+              </FieldRow>
+
+              <div className="mt-2 mb-1 text-[10.5px] font-bold text-[#444]">Account kind</div>
+              <label className="flex items-start gap-2 mb-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isTitle}
+                  disabled={postedLines > 0}
+                  onChange={(e) => setForm((f) => ({ ...f, isTitle: e.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span className="text-[10px] text-gray-700">
+                  <b>Title account</b> — groups other accounts and cannot be posted to.
+                  {postedLines > 0 && (
+                    <em className="block text-amber-700">
+                      Locked: this account already has {postedLines} journal line(s).
+                    </em>
+                  )}
+                </span>
+              </label>
+              <label className="flex items-start gap-2 mb-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isControl}
+                  onChange={(e) => setForm((f) => ({ ...f, isControl: e.target.checked }))}
+                  className="mt-0.5"
+                />
+                <span className="text-[10px] text-gray-700">
+                  <b>Control account</b> — only accepts postings that name a business partner.
+                </span>
+              </label>
+              <label className="flex items-center gap-2 mb-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                />
+                <span className="text-[10px] text-gray-700">Active</span>
+              </label>
+
+              <FieldRow label="Description">
+                <ClassicInput
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+
+              <div className="flex gap-2 mt-4">
+                <YellowBtn onClick={handleSave} disabled={crud.isBusy}>
+                  {crud.isBusy ? 'Saving…' : 'Save'}
+                </YellowBtn>
+                <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
               </div>
-            </div>
-          </div>
-
-          <div className="bg-[#f0f0f0] border-t border-gray-300 p-2 flex items-center justify-end gap-2 text-[11px]">
-            <span className="text-gray-600">Level</span>
-            <input type="text" className={`${sapInputStyle} w-24 text-center`} defaultValue="10" />
-          </div>
-        </div>
-
-        {/* Right Section: Category Tabs */}
-        <div className="w-[110px] flex flex-col pt-1">
-          {categories.map((cat, idx) => (
-            <button
-              key={cat}
-              onClick={() => setActiveTab(cat)}
-              className={`
-                h-[45px] text-[10px] font-bold border border-gray-400 border-b-0
-                flex items-center justify-center text-center px-1 leading-tight
-                transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]
-                ${idx === categories.length - 1 ? 'border-b' : ''}
-                ${activeTab === cat
-                  ? 'bg-white text-black translate-x-[-2px] z-10 border-r-0'
-                  : 'bg-gradient-to-b from-[#f2f2f2] to-[#d0d0d0] text-gray-700 hover:from-gray-100'
-                }
-              `}
-            >
-              {cat}
-            </button>
-          ))}
+            </>
+          )}
         </div>
       </div>
-
-      {/* Footer Buttons */}
-      <div className="h-10 px-3 flex items-center gap-2 border-t border-gray-300 bg-[#f0f0f0]">
-        <button className={`${sapButtonStyle} bg-[#ffed99] hover:bg-[#e8a01c]`}>Find</button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className={`${sapButtonStyle} bg-[#ffed99] hover:bg-[#e8a01c]`}
-        >
-          Cancel
-        </button>
-        <button className="px-10 py-0.5 text-[11px] font-medium border border-gray-400 rounded-[1px] bg-[#e1e1e1] text-gray-500 cursor-not-allowed ml-8">
-          Account Details
-        </button>
-      </div>
-    </div>
+    </ClassicWindow>
   );
 };

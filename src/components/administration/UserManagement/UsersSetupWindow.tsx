@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { X, Minus, Square, Plus, Trash2, RefreshCw, Shield, User, AlertCircle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../../context/AuthContext';
-import { usersApi, User as ApiUser, CreateUserPayload, UpdateUserPayload } from '../../api/users.api';
-import { rolesApi } from '../../api/roles.api';
-import { departmentsApi } from '../../api/departments.api';
-import { systemModulesApi } from '../../api/system-modules.api';
-import { cn, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../ui/ClassicERPUI';
+import { useAuth } from '../../../context/AuthContext';
+import { usersApi, User as ApiUser, CreateUserPayload, UpdateUserPayload } from '../../../api/users.api';
+import { rolesApi } from '../../../api/roles.api';
+import { departmentsApi } from '../../../api/departments.api';
+import { systemModulesApi } from '../../../api/system-modules.api';
+import { cn, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../../ui/ClassicERPUI';
 
 interface WindowState {
   x: number; y: number; width: number; height: number;
@@ -37,7 +37,7 @@ export const UsersSetupWindow: React.FC<Props> = ({
     email: '',
     password: '',
     isActive: true,
-    roleType: 'NORMAL_USER',
+    roleType: 'EMPLOYEE',
     departmentId: '',
     roleIds: [] as string[],
     moduleIds: [] as string[]
@@ -103,7 +103,7 @@ export const UsersSetupWindow: React.FC<Props> = ({
   const openNew = () => {
     setForm({
       name: '', email: '', password: '', isActive: true,
-      roleType: 'NORMAL_USER', departmentId: '', roleIds: [], moduleIds: []
+      roleType: 'EMPLOYEE', departmentId: '', roleIds: [], moduleIds: []
     });
     setErr(''); setStatus(''); setMode('new');
   };
@@ -113,7 +113,7 @@ export const UsersSetupWindow: React.FC<Props> = ({
     setForm({
       name: u.name, email: u.email, password: '',
       isActive: u.isActive,
-      roleType: u.roleType || 'NORMAL_USER',
+      roleType: u.roleType || 'EMPLOYEE',
       departmentId: u.departmentId || '',
       roleIds: (u.userRoles ?? []).map(ur => ur.role.id),
       moduleIds: (u.userModules ?? []).map(um => um.module.id),
@@ -343,9 +343,9 @@ export const UsersSetupWindow: React.FC<Props> = ({
                 <select value={form.roleType} onChange={e => setForm(f => ({ ...f, roleType: e.target.value }))}
                   className="w-52 h-5 border border-gray-400 bg-white text-[11px] outline-none">
                   <option value="SUPER_ADMIN">Super Admin</option>
-                  <option value="SUB_ADMIN">Sub-Admin</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="NORMAL_USER">Normal User</option>
+                  <option value="COMPANY_ADMIN">Company Admin</option>
+                  <option value="DEPARTMENT_HEAD">Department Head</option>
+                  <option value="EMPLOYEE">Employee</option>
                 </select>
               </FieldRow>
               <FieldRow label="Department">

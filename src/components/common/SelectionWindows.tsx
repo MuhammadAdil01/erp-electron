@@ -1,12 +1,7 @@
 import React from 'react';
-<<<<<<< HEAD
-import { ChevronDown } from 'lucide-react';
-import { FixedAssetWindowShell, GoldBtn } from '../financials/FixedAssetShared';
-=======
 import { FixedAssetWindowShell, GoldBtn } from '../financials/FixedAssets/FixedAssetShared';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { ResizableCriteriaWindow } from '../ui/ResizableCriteriaWindow';
->>>>>>> 79f5e6e57eb1f46aa7f40d6ef9e2b948709ba14a
 
 interface WindowState { x:number;y:number;width:number;height:number;isMinimized:boolean;isMaximized:boolean;zIndex:number; }
 interface Props { windowState:WindowState; onClose:()=>void; onUpdateState:(s:Partial<WindowState>)=>void; onFocus:()=>void; }

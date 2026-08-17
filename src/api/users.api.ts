@@ -10,7 +10,10 @@ export interface User {
   email: string;
   isActive: boolean;
   createdAt: string;
-  roleType: 'SUPER_ADMIN' | 'SUB_ADMIN' | 'MANAGER' | 'NORMAL_USER';
+  // The four-tier hierarchy from the master spec. The database previously
+  // carried SAP-style labels (SUB_ADMIN / MANAGER / NORMAL_USER); the
+  // 20260817000000_admin_crm_financials migration maps those onto these.
+  roleType: 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'DEPARTMENT_HEAD' | 'EMPLOYEE';
   departmentId?: string;
   department?: { id: string; name: string };
   userRoles?: UserRole[];
