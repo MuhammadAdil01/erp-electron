@@ -580,15 +580,17 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
                       onClick={() => handleToggle(mod.id)}
                       disabled={busy}
                       className={cn(
-                        'relative w-9 h-5 rounded-full transition-colors focus:outline-none border',
-                        enabled ? 'bg-orange-400 border-orange-500' : 'bg-gray-200 border-gray-300',
-                        busy && 'opacity-50',
+                        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner',
+                        enabled ? 'bg-orange-500' : 'bg-gray-300',
+                        busy && 'opacity-50 cursor-not-allowed'
                       )}
                     >
-                      <span className={cn(
-                        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform',
-                        enabled ? 'translate-x-4' : 'translate-x-0.5',
-                      )} />
+                      <span
+                        className={cn(
+                          'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out',
+                          enabled ? 'translate-x-4' : 'translate-x-0'
+                        )}
+                      />
                     </button>
                   </div>
                   <div>
@@ -651,20 +653,60 @@ export const CompanyAdminWindow: React.FC<Props> = ({
     document.addEventListener('mouseup', onUp);
   }, [windowState.isMaximized, windowState.x, windowState.y, setWindowState]);
 
-  // ── resize ────────────────────────────────────────────────────────────────
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+  // ── resize (all edges & corners) ───────────────────────────────────────
+  const MIN_W = 760;
+  const MIN_H = 500;
+
+  const handleEdgeResize = useCallback((e: React.MouseEvent, direction: string) => {
+    if (windowState.isMaximized) return;
     e.preventDefault();
     e.stopPropagation();
-    const startX = e.clientX;
-    const startY = e.clientY;
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+    const startX = windowState.x;
+    const startY = windowState.y;
     const startW = windowState.width;
     const startH = windowState.height;
+
     const onMove = (me: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        width: Math.max(760, startW + me.clientX - startX),
-        height: Math.max(500, startH + me.clientY - startY),
-      }));
+      const dx = me.clientX - startMouseX;
+      const dy = me.clientY - startMouseY;
+      setWindowState(prev => {
+        let newX = startX, newY = startY, newW = startW, newH = startH;
+
+        // East (right edge)
+        if (direction.includes('e')) {
+          newW = Math.max(MIN_W, startW + dx);
+        }
+        // West (left edge)
+        if (direction.includes('w')) {
+          const proposedW = startW - dx;
+          if (proposedW >= MIN_W) {
+            newW = proposedW;
+            newX = startX + dx;
+          } else {
+            newW = MIN_W;
+            newX = startX + (startW - MIN_W);
+          }
+        }
+        // South (bottom edge)
+        if (direction.includes('s')) {
+          newH = Math.max(MIN_H, startH + dy);
+        }
+        // North (top edge)
+        if (direction.includes('n')) {
+          const proposedH = startH - dy;
+          if (proposedH >= MIN_H) {
+            newH = proposedH;
+            newY = startY + dy;
+          } else {
+            newH = MIN_H;
+            newY = startY + (startH - MIN_H);
+          }
+        }
+
+        return { ...prev, x: newX, y: newY, width: newW, height: newH };
+      });
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -672,7 +714,7 @@ export const CompanyAdminWindow: React.FC<Props> = ({
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [windowState.width, windowState.height, setWindowState]);
+  }, [windowState.isMaximized, windowState.x, windowState.y, windowState.width, windowState.height, setWindowState]);
 
   // ── maximize ──────────────────────────────────────────────────────────────
   const toggleMaximize = () => {
@@ -805,13 +847,22 @@ export const CompanyAdminWindow: React.FC<Props> = ({
         <span>Company Administration</span>
       </div>
 
-      {/* resize handle */}
+      {/* resize handles — all edges & corners */}
       {!isMaximized && (
-        <div
-          className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
-          onMouseDown={handleResizeMouseDown}
-          style={{ background: 'linear-gradient(135deg, transparent 50%, #b0b0b0 50%)' }}
-        />
+        <>
+          {/* edges */}
+          <div className="absolute top-0 left-2 right-2 h-[5px] cursor-n-resize" onMouseDown={e => handleEdgeResize(e, 'n')} />
+          <div className="absolute bottom-0 left-2 right-2 h-[5px] cursor-s-resize" onMouseDown={e => handleEdgeResize(e, 's')} />
+          <div className="absolute left-0 top-2 bottom-2 w-[5px] cursor-w-resize" onMouseDown={e => handleEdgeResize(e, 'w')} />
+          <div className="absolute right-0 top-2 bottom-2 w-[5px] cursor-e-resize" onMouseDown={e => handleEdgeResize(e, 'e')} />
+          {/* corners */}
+          <div className="absolute top-0 left-0 w-[10px] h-[10px] cursor-nw-resize" onMouseDown={e => handleEdgeResize(e, 'nw')} />
+          <div className="absolute top-0 right-0 w-[10px] h-[10px] cursor-ne-resize" onMouseDown={e => handleEdgeResize(e, 'ne')} />
+          <div className="absolute bottom-0 left-0 w-[10px] h-[10px] cursor-sw-resize" onMouseDown={e => handleEdgeResize(e, 'sw')} />
+          <div className="absolute bottom-0 right-0 w-[10px] h-[10px] cursor-se-resize" onMouseDown={e => handleEdgeResize(e, 'se')}
+            style={{ background: 'linear-gradient(135deg, transparent 50%, #b0b0b0 50%)' }}
+          />
+        </>
       )}
     </div>
   );

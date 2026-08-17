@@ -32,7 +32,7 @@ export const LoginScreen: React.FC = () => {
       <div className="w-[420px] bg-[#ececec] border border-[#a0a0a0] shadow-[4px_4px_16px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden">
         {/* Title Bar */}
         <div className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center px-3 border-b border-gray-400 shrink-0">
-          <span className="text-[11.5px] font-bold text-gray-800 tracking-tight">ERP System — Log On</span>
+          <span className="text-[11.5px] font-bold text-gray-800 tracking-tight">ERP System </span>
         </div>
 
         {/* Orange ribbon */}
