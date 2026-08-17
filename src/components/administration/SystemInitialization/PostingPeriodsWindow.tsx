@@ -1,394 +1,524 @@
-import React, { useState } from 'react';
-import { X, Minus, Square, ChevronRight } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { CalendarRange, Lock, LockOpen, Plus, RefreshCw, Wand2, Save } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  postingPeriodsApi,
+  type PostingPeriod,
+  type PeriodStatus,
+  type PostingArea,
+  type SubPeriodType,
+} from '../../../api/financials.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface PostingPeriodsWindowProps {
-  show: boolean;
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  windowState: WindowState; 
-  setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-export const PostingPeriodsWindow: React.FC<PostingPeriodsWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+const AREAS: { key: PostingArea; label: string; field: keyof PostingPeriod }[] = [
+  { key: 'general', label: 'General', field: 'generalStatus' },
+  { key: 'sales', label: 'Sales', field: 'salesStatus' },
+  { key: 'purchasing', label: 'Purchasing', field: 'purchasingStatus' },
+  { key: 'inventory', label: 'Inventory', field: 'inventoryStatus' },
+];
+
+const STATUS_STYLE: Record<PeriodStatus, string> = {
+  OPEN: 'bg-green-100 text-green-800',
+  CLOSING: 'bg-amber-100 text-amber-800',
+  CLOSED: 'bg-gray-200 text-gray-700',
+  LOCKED: 'bg-red-100 text-red-800',
+};
+
+const d = (v?: string | null) => (v ? new Date(v).toLocaleDateString() : '—');
+
+/** Date inputs need `yyyy-mm-dd`; the API returns full ISO timestamps. */
+const isoDay = (v?: string | null) => (v ? String(v).slice(0, 10) : '');
+
+const emptyPeriodForm = {
+  name: '',
+  displayName: '',
+  parentId: '',
+  startDate: '',
+  endDate: '',
+  activeFrom: '',
+  activeTo: '',
+  dueDateFrom: '',
+  dueDateTo: '',
+};
+
+export const PostingPeriodsWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const [showDetail, setShowDetail] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
-  
-  // Sample Data from screenshot
-  const periods = [
-    { id: 1, code: '2016-01', name: '2015-2016-01', status: 'Closing Period', postFrom: '01.07.15', postTo: '31.07.15', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 2, code: '2016-02', name: '2015-2016-02', status: 'Closing Period', postFrom: '01.08.15', postTo: '31.08.15', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 3, code: '2016-03', name: '2015-2016-03', status: 'Closing Period', postFrom: '01.09.15', postTo: '30.09.15', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 4, code: '2016-04', name: '2015-2016-04', status: 'Closing Period', postFrom: '01.10.15', postTo: '31.10.15', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 5, code: '2016-05', name: '2015-2016-05', status: 'Closing Period', postFrom: '01.11.15', postTo: '30.11.15', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 6, code: '2016-06', name: '2015-2016-06', status: 'Closing Period', postFrom: '01.12.15', postTo: '31.12.15', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 7, code: '2016-07', name: '2015-2016-07', status: 'Closing Period', postFrom: '01.01.16', postTo: '31.01.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 8, code: '2016-08', name: '2015-2016-08', status: 'Closing Period', postFrom: '01.02.16', postTo: '29.02.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 9, code: '2016-09', name: '2015-2016-09', status: 'Closing Period', postFrom: '01.03.16', postTo: '31.03.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 10, code: '2016-10', name: '2015-2016-10', status: 'Closing Period', postFrom: '01.04.16', postTo: '30.04.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 11, code: '2016-11', name: '2015-2016-11', status: 'Closing Period', postFrom: '01.05.16', postTo: '31.05.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 12, code: '2016-12', name: '2015-2016-12', status: 'Closing Period', postFrom: '01.06.16', postTo: '30.06.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 13, code: '2017-01', name: '2016-2017-01', status: 'Closing Period', postFrom: '01.07.16', postTo: '31.07.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 14, code: '2017-02', name: '2016-2017-02', status: 'Closing Period', postFrom: '01.08.16', postTo: '31.08.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 15, code: '2017-03', name: '2016-2017-03', status: 'Closing Period', postFrom: '01.09.16', postTo: '30.09.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 16, code: '2017-04', name: '2016-2017-04', status: 'Closing Period', postFrom: '01.10.16', postTo: '31.10.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 17, code: '2017-05', name: '2016-2017-05', status: 'Closing Period', postFrom: '01.11.16', postTo: '30.11.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 18, code: '2017-06', name: '2016-2017-06', status: 'Closing Period', postFrom: '01.12.16', postTo: '31.12.16', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 19, code: '2017-07', name: '2016-2017-07', status: 'Closing Period', postFrom: '01.01.17', postTo: '31.01.17', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-    { id: 20, code: '2017-08', name: '2016-2017-08', status: 'Closing Period', postFrom: '01.02.17', postTo: '28.02.17', dueFrom: '01.07.15', dueTo: '30.06.45', docFrom: '01.07.15', docTo: '30.06.45' },
-  ];
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const companyId = user?.companyId ?? null;
 
-  if (!show || windowState.isMinimized) return null;
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [gen, setGen] = useState({
+    fiscalYear: new Date().getFullYear(),
+    subPeriodType: 'MONTHS' as SubPeriodType,
+    startMonth: '',
+  });
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  // Generating a fiscal year covers the common case, but a company still needs
+  // to add a one-off period (a 13th adjustment period, a short first year) or
+  // correct a period's dates, so the window also carries a real edit form.
+  const [mode, setMode] = useState<'view' | 'new' | 'edit'>('view');
+  const [form, setForm] = useState(emptyPeriodForm);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
+  const { data: periods = [], isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['posting-periods', companyId],
+    queryFn: () => postingPeriodsApi.getAll({ take: 500 }),
+    enabled: !!companyId,
+  });
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
+  // The API returns a flat list; the window shows years with their sub-periods
+  // nested underneath, which is how the periods are actually reasoned about.
+  const { years, childrenByParent } = useMemo(() => {
+    const kids = new Map<string, PostingPeriod[]>();
+    const roots: PostingPeriod[] = [];
+    for (const p of periods) {
+      if (p.parentId) {
+        if (!kids.has(p.parentId)) kids.set(p.parentId, []);
+        kids.get(p.parentId)!.push(p);
+      } else {
+        roots.push(p);
+      }
+    }
+    for (const list of kids.values()) {
+      list.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    }
+    roots.sort((a, b) => b.startDate.localeCompare(a.startDate));
+    return { years: roots, childrenByParent: kids };
+  }, [periods]);
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const selected = periods.find((p) => p.id === selectedId) ?? null;
+
+  const onErr = (e: unknown) => {
+    setError(e instanceof Error ? e.message : 'The server rejected that change.');
+    setStatus('');
+  };
+  const invalidate = () => void qc.invalidateQueries({ queryKey: ['posting-periods'] });
+
+  const generateMut = useMutation({
+    mutationFn: () =>
+      postingPeriodsApi.generate({
+        fiscalYear: Number(gen.fiscalYear),
+        subPeriodType: gen.subPeriodType,
+        startMonth: gen.startMonth ? Number(gen.startMonth) : undefined,
+      }),
+    onSuccess: (year) => {
+      invalidate();
+      setShowGenerate(false);
+      setError('');
+      setStatus(`Fiscal year ${year?.name} created with its sub-periods.`);
+    },
+    onError: onErr,
+  });
+
+  const statusMut = useMutation({
+    mutationFn: ({ id, next, area }: { id: string; next: PeriodStatus; area?: PostingArea }) =>
+      postingPeriodsApi.setStatus(id, next, area),
+    onSuccess: (p) => {
+      invalidate();
+      setError('');
+      setStatus(`Period ${p.name} updated.`);
+    },
+    onError: onErr,
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => postingPeriodsApi.remove(id),
+    onSuccess: () => {
+      invalidate();
+      setSelectedId(null);
+      setError('');
+      setStatus('Period deleted.');
+    },
+    onError: onErr,
+  });
+
+  const buildPayload = () => ({
+    name: form.name.trim(),
+    displayName: form.displayName || undefined,
+    parentId: form.parentId || undefined,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    activeFrom: form.activeFrom || undefined,
+    activeTo: form.activeTo || undefined,
+    dueDateFrom: form.dueDateFrom || undefined,
+    dueDateTo: form.dueDateTo || undefined,
+  });
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      mode === 'new'
+        ? postingPeriodsApi.create(buildPayload())
+        : postingPeriodsApi.update(selectedId as string, buildPayload()),
+    onSuccess: (p) => {
+      invalidate();
+      setSelectedId(p.id);
+      setMode('view');
+      setError('');
+      setStatus(mode === 'new' ? `Period ${p.name} created.` : `Period ${p.name} saved.`);
+    },
+    onError: onErr,
+  });
+
+  const isBusy =
+    generateMut.isPending || statusMut.isPending || deleteMut.isPending || saveMut.isPending;
+
+  const openNew = () => {
+    setForm({ ...emptyPeriodForm, parentId: selected?.parentId ?? selected?.id ?? '' });
+    setMode('new');
+    setError(''); setStatus('');
   };
 
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        const minW = 900;
-        const minH = 600;
-
-        if (direction.includes('e')) {
-          newWidth = Math.max(minW, startWidth + deltaX);
-        }
-        if (direction.includes('s')) {
-          newHeight = Math.max(minH, startHeight + deltaY);
-        }
-        
-        if (direction.includes('w')) {
-          const possibleWidth = startWidth - deltaX;
-          if (possibleWidth > minW) {
-            newWidth = possibleWidth;
-            newX = startXPos + deltaX;
-          } else {
-            newWidth = minW;
-            newX = startXPos + (startWidth - minW);
-          }
-        }
-        
-        if (direction.includes('n')) {
-          const possibleHeight = startHeight - deltaY;
-          if (possibleHeight > minH) {
-            newHeight = possibleHeight;
-            newY = startYPos + deltaY;
-          } else {
-            newHeight = minH;
-            newY = startYPos + (startHeight - minH);
-          }
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
-      });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const openEdit = () => {
+    if (!selected) return;
+    setForm({
+      name: selected.name,
+      displayName: selected.displayName ?? '',
+      parentId: selected.parentId ?? '',
+      startDate: isoDay(selected.startDate),
+      endDate: isoDay(selected.endDate),
+      activeFrom: isoDay(selected.activeFrom),
+      activeTo: isoDay(selected.activeTo),
+      dueDateFrom: isoDay(selected.dueDateFrom),
+      dueDateTo: isoDay(selected.dueDateTo),
+    });
+    setMode('edit');
+    setError(''); setStatus('');
   };
 
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap leading-[18px]";
-  const sapInputStyle = "w-full h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400";
-  const sapButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner";
-  const sapCheckboxStyle = "w-3.5 h-3.5 mt-0.5 border-gray-400 border bg-white cursor-pointer";
-
-  const handleOpenDetail = (period: any) => {
-    setSelectedPeriod(period);
-    setShowDetail(true);
+  const handleSave = () => {
+    if (!form.name.trim()) { setError('Period code is required.'); return; }
+    if (!form.startDate || !form.endDate) { setError('Start and end dates are required.'); return; }
+    if (form.endDate < form.startDate) { setError('End date must be on or after the start date.'); return; }
+    setError('');
+    saveMut.mutate();
   };
+
+  const renderRow = (p: PostingPeriod, depth: number) => (
+    <tr
+      key={p.id}
+      onClick={() => { setSelectedId(p.id); setError(''); setStatus(''); }}
+      className={cn(
+        'border-b border-[#f0f0f0] cursor-default',
+        selectedId === p.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50/50',
+      )}
+    >
+      <td className="py-1 px-2 border-r border-[#f0f0f0]" style={{ paddingLeft: 8 + depth * 16 }}>
+        <span className={cn('font-mono', depth === 0 && 'font-bold')}>{p.name}</span>
+      </td>
+      <td className="py-1 px-2 border-r border-[#f0f0f0]">{p.displayName ?? ''}</td>
+      <td className="py-1 px-2 border-r border-[#f0f0f0]">{d(p.startDate)}</td>
+      <td className="py-1 px-2 border-r border-[#f0f0f0]">{d(p.endDate)}</td>
+      {AREAS.map((a) => {
+        const st = p[a.field] as PeriodStatus;
+        return (
+          <td key={a.key} className="py-1 px-1 border-r border-[#f0f0f0] text-center">
+            <span className={cn('text-[8.5px] px-1 rounded-[1px]', STATUS_STYLE[st])}>{st}</span>
+          </td>
+        );
+      })}
+      <td className="py-1 px-2 text-right text-gray-500">{p._count?.journals ?? 0}</td>
+    </tr>
+  );
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none text-[11px]"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Posting Periods"
+      icon={<CalendarRange className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={960}
+      minHeight={480}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('nw')} className="absolute top-0 left-0 w-2 h-2 cursor-nwse-resize z-[70]" />
-          <div onMouseDown={handleResize('ne')} className="absolute top-0 right-0 w-2 h-2 cursor-nesw-resize z-[70]" />
-          <div onMouseDown={handleResize('sw')} className="absolute bottom-0 left-0 w-2 h-2 cursor-nesw-resize z-[70]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <ToolBtn onClick={() => { setShowGenerate(true); setMode('view'); setError(''); setStatus(''); }} disabled={isBusy}>
+            <Wand2 className="w-3 h-3" /> New Fiscal Year
+          </ToolBtn>
+          <ToolBtn onClick={openNew} disabled={isBusy}>
+            <Plus className="w-3 h-3" /> New Period
+          </ToolBtn>
+          <ToolBtn onClick={openEdit} disabled={!selected || isBusy || selected.status === 'LOCKED'}>
+            Edit
+          </ToolBtn>
+          <ToolBtn
+            onClick={() => selected && statusMut.mutate({ id: selected.id, next: 'OPEN' })}
+            disabled={!selected || isBusy || selected.status === 'LOCKED'}
+            title={selected?.status === 'LOCKED' ? 'Locked periods can never be reopened' : 'Reopen period'}
+          >
+            <LockOpen className="w-3 h-3" /> Open
+          </ToolBtn>
+          <ToolBtn
+            onClick={() => selected && statusMut.mutate({ id: selected.id, next: 'CLOSED' })}
+            disabled={!selected || isBusy || selected.status === 'LOCKED'}
+          >
+            Close
+          </ToolBtn>
+          <ToolBtn
+            danger
+            onClick={() => {
+              if (!selected) return;
+              if (!window.confirm(
+                `Lock period ${selected.name}?\n\nLocking is permanent — it can never be reopened.`,
+              )) return;
+              statusMut.mutate({ id: selected.id, next: 'LOCKED' });
+            }}
+            disabled={!selected || isBusy || selected.status === 'LOCKED'}
+          >
+            <Lock className="w-3 h-3" /> Lock
+          </ToolBtn>
+          <ToolBtn
+            danger
+            onClick={() => {
+              if (!selected) return;
+              if (!window.confirm(`Delete period ${selected.name}?`)) return;
+              deleteMut.mutate(selected.id);
+            }}
+            disabled={!selected || isBusy}
+          >
+            Delete
+          </ToolBtn>
+          <ToolBtn onClick={() => refetch()} title="Refresh">
+            <RefreshCw className={cn('w-3 h-3', isFetching && 'animate-spin')} />
+          </ToolBtn>
+          <StatusNote error={error} status={status} />
         </>
-      )}
-
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[26px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[11.5px] tracking-tight">Posting Periods</span>
-        </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3 h-3 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-3.5 h-3.5 text-gray-600 group-hover:text-white" />
-           </div>
-        </div>
-      </div>
-
-      {/* Find Bar */}
-      <div className="p-2 flex items-center gap-4 bg-[#ececec] border-b border-gray-300">
-         <div className="flex items-center gap-2">
-            <span className={sapLabelStyle}>Find</span>
-            <input type="text" className={`${sapInputStyle} !w-160 bg-[#fffbd0]`} />
-         </div>
-      </div>
-
-      {/* Grid Container */}
-      <div className="flex-1 overflow-hidden flex flex-col bg-white mx-1.5 mt-1.5 border border-gray-400">
-         {/* Table Header */}
-         <div className="flex bg-[#f2f2f2] border-b border-gray-300 select-none sticky top-0 z-10">
-            <div className={`${sapLabelStyle} w-8 px-1 border-r border-gray-300 text-center font-bold`}>#</div>
-            <div className={`${sapLabelStyle} w-32 px-1 border-r border-gray-300 font-bold`}>Period Code</div>
-            <div className={`${sapLabelStyle} w-40 px-1 border-r border-gray-300 font-bold`}>Period Name</div>
-            <div className={`${sapLabelStyle} w-32 px-1 border-r border-gray-300 font-bold`}>Period Status</div>
-            
-            <div className="flex-1 flex flex-col">
-               <div className={`${sapLabelStyle} text-center border-b border-gray-300 font-bold bg-[#e8e8e8]`}>Posting Date</div>
-               <div className="flex">
-                  <div className={`${sapLabelStyle} flex-1 px-1 border-r border-gray-300 text-center`}>From</div>
-                  <div className={`${sapLabelStyle} flex-1 px-1 border-r border-gray-300 text-center`}>To</div>
-               </div>
-            </div>
-
-            <div className="flex-1 flex flex-col">
-               <div className={`${sapLabelStyle} text-center border-b border-gray-300 font-bold bg-[#e8e8e8]`}>Due Date</div>
-               <div className="flex">
-                  <div className={`${sapLabelStyle} flex-1 px-1 border-r border-gray-300 text-center`}>From</div>
-                  <div className={`${sapLabelStyle} flex-1 px-1 border-r border-gray-300 text-center`}>To</div>
-               </div>
-            </div>
-
-            <div className="flex-1 flex flex-col">
-               <div className={`${sapLabelStyle} text-center border-b border-gray-300 font-bold bg-[#e8e8e8]`}>Document Date</div>
-               <div className="flex">
-                  <div className={`${sapLabelStyle} flex-1 px-1 border-r border-gray-300 text-center`}>From</div>
-                  <div className={`${sapLabelStyle} flex-1 px-1 text-center`}>To</div>
-               </div>
-            </div>
-         </div>
-
-         {/* Multi-Level Header (General) */}
-         <div className="flex bg-[#e8e8e8] border-b border-gray-300 h-4 items-center">
-            <div className="w-8 border-r border-gray-300 h-full"></div>
-            <div className="flex-1 text-[10px] font-bold px-2 tracking-tight text-gray-500 uppercase">General</div>
-            <div className="flex-1 text-[10px] font-bold px-2 tracking-tight text-gray-500 uppercase">Dates</div>
-         </div>
-
-         {/* Table Body */}
-         <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
-            <div className="min-w-max">
-               {periods.map((p, idx) => (
-                  <div key={p.id} className={`flex border-b border-gray-100 items-center hover:bg-blue-50/50 cursor-default h-[18px] ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                     <div className={`${sapLabelStyle} w-8 px-1 border-r border-gray-200 text-center text-gray-500`}>{idx + 1}</div>
-                     <div className="w-32 px-1 border-r border-gray-200 flex items-center gap-1 group">
-                        <ChevronRight 
-                          onClick={() => handleOpenDetail(p)}
-                          className="w-3.5 h-3.5 text-orange-400 rotate-0 translate-y-[0px] cursor-pointer hover:scale-110 active:scale-95 transition-transform" 
-                        />
-                        <span className={`${sapLabelStyle} text-black font-medium`}>{p.code}</span>
-                     </div>
-                     <div className={`${sapLabelStyle} w-40 px-1 border-r border-gray-200`}>{p.name}</div>
-                     <div className={`${sapLabelStyle} w-32 px-1 border-r border-gray-200`}>{p.status}</div>
-                     
-                     <div className="w-[calc((100%-112px-28px)/3)] flex items-center border-r border-gray-200">
-                        <div className={`${sapLabelStyle} flex-1 px-1 text-center border-r border-gray-100`}>{p.postFrom}</div>
-                        <div className={`${sapLabelStyle} flex-1 px-1 text-center`}>{p.postTo}</div>
-                     </div>
-
-                     <div className="w-[calc((100%-112px-28px)/3)] flex items-center border-r border-gray-200">
-                        <div className={`${sapLabelStyle} flex-1 px-1 text-center border-r border-gray-100`}>{p.dueFrom}</div>
-                        <div className={`${sapLabelStyle} flex-1 px-1 text-center`}>{p.dueTo}</div>
-                     </div>
-
-                     <div className="w-[calc((100%-112px-28px)/3)] flex items-center">
-                        <div className={`${sapLabelStyle} flex-1 px-1 text-center border-r border-gray-100`}>{p.docFrom}</div>
-                        <div className={`${sapLabelStyle} flex-1 px-1 text-center`}>{p.docTo}</div>
-                     </div>
-                  </div>
-               ))}
-            </div>
-         </div>
-      </div>
-
-      {/* Bottom Checkboxes */}
-      <div className="px-3 py-2 space-y-1">
-         <div className="flex items-center gap-2">
-            <input type="checkbox" className={sapCheckboxStyle} />
-            <span className={sapLabelStyle}>Create New Periods with 'Due Date To' in Next Financial Year</span>
-         </div>
-         <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-               <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-               <span className={sapLabelStyle}>Automatically Update Period Status to 'Closing Period' for Existing Periods</span>
-            </div>
-         </div>
-         <div className="flex items-center gap-2 pl-5">
-            <span className={sapLabelStyle}>Days After New Period Starts</span>
-            <input type="text" className={`${sapInputStyle} !w-16 text-center`} defaultValue="1" />
-         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="h-[40px] px-3 bg-[#ececec] flex items-center justify-between border-t border-gray-300">
-        <div className="flex items-center gap-2">
-          <button className={sapButtonStyle}>OK</button>
-          <button onClick={onClose} className={sapButtonStyle}>Cancel</button>
-        </div>
-        <button className={sapButtonStyle}>New Period</button>
-      </div>
-
-      {/* Detail Window Overlay */}
-      {showDetail && selectedPeriod && (
-        <div className="absolute inset-0 bg-black/5 flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-           <div 
-             className="w-[450px] bg-[#ececec] border border-[#404040]/50 rounded-[2px] shadow-2xl flex flex-col overflow-hidden"
-             onMouseDown={(e) => e.stopPropagation()}
-           >
-              {/* Detail Title Bar */}
-              <div className="h-[22px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 border-b border-gray-400">
-                 <span className="text-black font-medium text-[11px]">Posting Period</span>
-                 <div onClick={() => setShowDetail(false)} className="w-4 h-4 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors cursor-pointer group">
-                    <X className="w-3 h-3 text-gray-600 group-hover:text-white" />
-                 </div>
-              </div>
-
-              {/* Detail Content */}
-              <div className="p-3 space-y-3 bg-white mx-1 mt-1 border border-gray-300 shadow-inner">
-                 <div className="space-y-1.5">
-                    <div className="grid grid-cols-[120px_1fr] gap-x-2 items-center">
-                       <span className={sapLabelStyle}>Period Code</span>
-                       <input type="text" className={`${sapInputStyle} bg-[#fffbd0]`} defaultValue={selectedPeriod.code} />
-                       
-                       <span className={sapLabelStyle}>Period Name</span>
-                       <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.name} />
-                       
-                       <span className={sapLabelStyle}>Sub-Periods</span>
-                       <input type="text" className={sapInputStyle} defaultValue="Months" readOnly />
-                       
-                       <span className={sapLabelStyle}>No. of Periods</span>
-                       <input type="text" className={sapInputStyle} defaultValue="12" readOnly />
-                       
-                       <span className={sapLabelStyle}>Period Indicator</span>
-                       <select className={sapInputStyle}><option>Default</option></select>
-                       
-                       <span className={sapLabelStyle}>Category</span>
-                       <input type="text" className={sapInputStyle} defaultValue="2016" />
-                       
-                       <span className={sapLabelStyle}>Period Status</span>
-                       <select className={sapInputStyle}><option>Closing Period</option></select>
-                    </div>
-                 </div>
-
-                 <div className="pt-2 border-t border-gray-100">
-                    <span className="text-[11px] font-bold text-gray-800 underline decoration-gray-400 underline-offset-2">Dates</span>
-                    <div className="pl-1 mt-1 space-y-1.5">
-                       <div className="grid grid-cols-[116px_100px_40px_100px] gap-x-2 items-center">
-                          <span className={sapLabelStyle}>Posting Date From</span>
-                          <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.postFrom} />
-                          <span className={sapLabelStyle}>To</span>
-                          <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.postTo} />
-                          
-                          <span className={sapLabelStyle}>Due Date From</span>
-                          <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.dueFrom} />
-                          <span className={sapLabelStyle}>To</span>
-                          <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.dueTo} />
-                          
-                          <span className={sapLabelStyle}>Document Date From</span>
-                          <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.docFrom} />
-                          <span className={sapLabelStyle}>To</span>
-                          <input type="text" className={sapInputStyle} defaultValue={selectedPeriod.docTo} />
-                       </div>
-                    </div>
-                 </div>
-
-                 <div className="pt-2 border-t border-gray-100">
-                    <div className="grid grid-cols-[120px_100px] gap-x-2 gap-y-1 items-center">
-                       <span className={sapLabelStyle}>Start of Fiscal Year</span>
-                       <input type="text" className={sapInputStyle} defaultValue="01.07.15" />
-                       <span className={sapLabelStyle}>Fiscal Year</span>
-                       <input type="text" className={sapInputStyle} defaultValue="2016" />
-                    </div>
-                 </div>
-              </div>
-
-              {/* Detail Footer */}
-              <div className="h-[36px] bg-[#ececec] flex items-center gap-2 px-3 border-t border-gray-300 shrink-0">
-                 <button onClick={() => setShowDetail(false)} className={sapButtonStyle}>OK</button>
-                 <button onClick={() => setShowDetail(false)} className={sapButtonStyle}>Cancel</button>
-              </div>
-           </div>
+      }
+      footer={
+        <>
+          <span>{periods.length} period{periods.length === 1 ? '' : 's'} across {years.length} fiscal year(s)</span>
+          <span>Posting Periods</span>
+        </>
+      }
+    >
+      {showGenerate && (
+        <div className="shrink-0 bg-[#fffbe6] border-b border-[#e0d090] p-3">
+          <div className="text-[11px] font-bold mb-2">Create a fiscal year and its sub-periods</div>
+          <div className="flex items-end gap-3 flex-wrap">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-gray-600">Fiscal Year</span>
+              <ClassicInput
+                type="number"
+                value={gen.fiscalYear}
+                onChange={(e) => setGen((g) => ({ ...g, fiscalYear: Number(e.target.value) }))}
+                className="w-24"
+              />
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-gray-600">Sub-periods</span>
+              <ClassicSel
+                value={gen.subPeriodType}
+                onChange={(e) => setGen((g) => ({ ...g, subPeriodType: e.target.value as SubPeriodType }))}
+                className="w-32"
+              >
+                <option value="MONTHS">12 months</option>
+                <option value="QUARTERS">4 quarters</option>
+                <option value="YEAR">Year only</option>
+              </ClassicSel>
+            </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-gray-600">Start month</span>
+              <ClassicSel
+                value={gen.startMonth}
+                onChange={(e) => setGen((g) => ({ ...g, startMonth: e.target.value }))}
+                className="w-36"
+              >
+                {/* Blank falls back to the company's configured fiscal year start. */}
+                <option value="">Company default</option>
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {new Date(Date.UTC(2000, i, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })}
+                  </option>
+                ))}
+              </ClassicSel>
+            </label>
+            <YellowBtn onClick={() => generateMut.mutate()} disabled={isBusy}>
+              {generateMut.isPending ? 'Creating…' : 'Create'}
+            </YellowBtn>
+            <GreyBtn onClick={() => setShowGenerate(false)}>Cancel</GreyBtn>
+          </div>
+          <div className="text-[9.5px] text-gray-600 mt-2">
+            A fiscal year starting in April runs April → March of the following calendar year.
+          </div>
         </div>
       )}
-    </div>
+
+      <div className="flex-1 min-h-0 overflow-auto bg-white custom-scrollbar">
+        <table className="w-full border-collapse text-[10.5px]">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
+              <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Period Code</th>
+              <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Name</th>
+              <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">From</th>
+              <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">To</th>
+              {AREAS.map((a) => (
+                <th key={a.key} className="py-1 px-1 border-r border-[#d4d0c8] font-bold text-[#444] text-center">
+                  {a.label}
+                </th>
+              ))}
+              <th className="py-1 px-2 font-bold text-[#444] text-right">Entries</th>
+            </tr>
+          </thead>
+          <tbody>
+            {years.map((y) => (
+              <React.Fragment key={y.id}>
+                {renderRow(y, 0)}
+                {(childrenByParent.get(y.id) ?? []).map((c) => renderRow(c, 1))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+        <ListPlaceholder
+          noCompany={!companyId}
+          isLoading={isLoading}
+          isEmpty={!isLoading && periods.length === 0}
+          emptyText="No posting periods yet. Click New Fiscal Year — journal entries cannot post without one."
+        />
+      </div>
+
+      {mode !== 'view' && (
+        <div className="shrink-0 border-t border-[#d4d0c8] bg-white p-3">
+          <div className="text-[11px] font-bold mb-2">
+            {mode === 'new' ? 'New Posting Period' : `Edit Period — ${selected?.name}`}
+          </div>
+          <div className="grid grid-cols-4 gap-x-4 gap-y-1">
+            <FieldRow label="Period Code" labelWidth="90px" required>
+              <ClassicInput
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full font-mono"
+                placeholder="2026-13"
+                autoFocus
+              />
+            </FieldRow>
+            <FieldRow label="Period Name" labelWidth="90px">
+              <ClassicInput
+                value={form.displayName}
+                onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
+                className="w-full"
+                placeholder="Adjustment Period"
+              />
+            </FieldRow>
+            <FieldRow label="Parent Year" labelWidth="90px">
+              <ClassicSel
+                value={form.parentId}
+                onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value }))}
+                className="w-full"
+              >
+                <option value="">— standalone —</option>
+                {years
+                  .filter((y) => y.id !== selectedId)
+                  .map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
+              </ClassicSel>
+            </FieldRow>
+            <div />
+
+            <FieldRow label="Start Date" labelWidth="90px" required>
+              <ClassicInput type="date" value={form.startDate}
+                onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="w-full" />
+            </FieldRow>
+            <FieldRow label="End Date" labelWidth="90px" required>
+              <ClassicInput type="date" value={form.endDate}
+                onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} className="w-full" />
+            </FieldRow>
+            <FieldRow label="Active From" labelWidth="90px">
+              <ClassicInput type="date" value={form.activeFrom}
+                onChange={(e) => setForm((f) => ({ ...f, activeFrom: e.target.value }))} className="w-full" />
+            </FieldRow>
+            <FieldRow label="Active To" labelWidth="90px">
+              <ClassicInput type="date" value={form.activeTo}
+                onChange={(e) => setForm((f) => ({ ...f, activeTo: e.target.value }))} className="w-full" />
+            </FieldRow>
+
+            <FieldRow label="Due From" labelWidth="90px">
+              <ClassicInput type="date" value={form.dueDateFrom}
+                onChange={(e) => setForm((f) => ({ ...f, dueDateFrom: e.target.value }))} className="w-full" />
+            </FieldRow>
+            <FieldRow label="Due To" labelWidth="90px">
+              <ClassicInput type="date" value={form.dueDateTo}
+                onChange={(e) => setForm((f) => ({ ...f, dueDateTo: e.target.value }))} className="w-full" />
+            </FieldRow>
+          </div>
+
+          <div className="flex items-center gap-2 mt-2">
+            <YellowBtn onClick={handleSave} disabled={isBusy}>
+              <span className="inline-flex items-center gap-1">
+                <Save className="w-3 h-3" />
+                {saveMut.isPending ? 'Saving…' : mode === 'new' ? 'Add Period' : 'Update Period'}
+              </span>
+            </YellowBtn>
+            <GreyBtn onClick={() => { setMode('view'); setError(''); }}>Cancel</GreyBtn>
+            <span className="text-[9.5px] text-gray-500 ml-1">
+              Sibling periods under the same parent may not overlap.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {mode === 'view' && selected && (
+        <div className="shrink-0 border-t border-[#d4d0c8] bg-[#f7f7f7] p-2">
+          <div className="text-[10.5px] font-bold mb-1">
+            {selected.name}
+            {selected.displayName ? ` — ${selected.displayName}` : ''}
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            {AREAS.map((a) => {
+              const st = selected[a.field] as PeriodStatus;
+              return (
+                <label key={a.key} className="flex items-center gap-1 text-[10px]">
+                  <span className="text-gray-600 w-[68px]">{a.label}</span>
+                  <ClassicSel
+                    value={st}
+                    disabled={selected.status === 'LOCKED' || isBusy}
+                    onChange={(e) =>
+                      statusMut.mutate({
+                        id: selected.id,
+                        next: e.target.value as PeriodStatus,
+                        area: a.key,
+                      })
+                    }
+                    className="w-24"
+                  >
+                    <option value="OPEN">Open</option>
+                    <option value="CLOSING">Closing</option>
+                    <option value="CLOSED">Closed</option>
+                    <option value="LOCKED">Locked</option>
+                  </ClassicSel>
+                </label>
+              );
+            })}
+          </div>
+          <div className="text-[9.5px] text-gray-600 mt-1">
+            Each area locks independently — a period can be closed for Sales while still open for General.
+            {selected.status === 'LOCKED' && (
+              <span className="text-red-700 font-medium"> This period is locked and cannot be changed.</span>
+            )}
+          </div>
+        </div>
+      )}
+    </ClassicWindow>
   );
 };
