@@ -12,7 +12,12 @@ release/
 .env.local
 .env.*.local
 .env.development
-.env.production
+
+# .env.production is deliberately NOT ignored. It holds only the public API
+# origin baked into the shipped .exe — no secrets. Ignoring it meant a fresh
+# clone had no production URL, so `vite build` fell through to the localhost
+# value in `.env` and produced an installer that could not reach the server.
+!.env.production
 
 # Logs
 logs/
