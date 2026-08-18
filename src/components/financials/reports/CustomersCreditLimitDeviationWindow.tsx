@@ -1,5 +1,5 @@
 import React from 'react';
-import { GoldBtn } from '../FixedAssetShared';
+import { GoldBtn } from '../FixedAssets/FixedAssetShared';
 import { ResizableCriteriaWindow } from '../../ui/ResizableCriteriaWindow';
 
 interface WindowState { x:number;y:number;width:number;height:number;isMinimized:boolean;isMaximized:boolean;zIndex:number; }

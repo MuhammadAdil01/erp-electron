@@ -6,18 +6,18 @@ interface WindowState { x: number; y: number; width: number; height: number; isM
 interface Props { windowState: WindowState; onClose: () => void; onUpdateState: (s: Partial<WindowState>) => void; onFocus: () => void; }
 
 
-const YellowArrow = () => (
-  <svg width="7" height="7" viewBox="0 0 7 7" fill="none" className="shrink-0">
-    <path d="M1 1l5 2.5L1 6V1z" fill="#e6a817" stroke="#c8920a" strokeWidth="0.5"/>
-  </svg>
-);
-
 const ListIcon = () => (
    <div className="w-[14px] h-full flex items-center justify-center bg-gray-200 border-l border-gray-400 cursor-pointer">
      <div className="w-[8px] h-[8px] rounded-full border border-gray-500 flex items-center justify-center">
        <div className="w-[4px] h-[1px] bg-gray-500" />
      </div>
    </div>
+);
+
+const YellowArrow = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+    <path d="M12 4L10.59 5.41L16.17 11H4V13H16.17L10.59 18.59L12 20L20 12L12 4Z" fill="#FFA000"/>
+  </svg>
 );
 
 export const DocumentJournalCriteriaWindow: React.FC<Props> = ({ windowState, onClose, onUpdateState, onFocus }) => {

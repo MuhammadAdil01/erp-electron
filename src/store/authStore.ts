@@ -6,7 +6,7 @@ export interface AuthUser {
   name: string;
   email: string;
   companyId: string | null;
-  roleType: 'SUPER_ADMIN' | 'SUB_ADMIN' | 'MANAGER' | 'NORMAL_USER';
+  roleType: 'SUPER_ADMIN' | 'COMPANY_ADMIN' | 'DEPARTMENT_HEAD' | 'EMPLOYEE';
   departmentId: string | null;
   isSuperAdmin: boolean;
   permissions: string[];       // "moduleSlug:ACTION" e.g. "hr:VIEW"
