@@ -8,9 +8,9 @@ export * from './departments.api';
 export * from './products.api';
 export * from './inventory.api';
 export * from './orders.api';
-export * from './invoices.api';
 
 // Administration, Financials & CRM
 export * from './administration.api';
 export * from './financials.api';
 export * from './crm.api';
+export * from './ar-ap.api';
