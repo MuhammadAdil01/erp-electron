@@ -6,6 +6,7 @@ import { usersApi, User as ApiUser, CreateUserPayload, UpdateUserPayload } from 
 import { rolesApi } from '../../../api/roles.api';
 import { departmentsApi } from '../../../api/departments.api';
 import { systemModulesApi } from '../../../api/system-modules.api';
+import { companiesApi } from '../../../api/companies.api';
 import { cn, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../../ui/ClassicERPUI';
 
 interface WindowState {
@@ -45,23 +46,44 @@ export const UsersSetupWindow: React.FC<Props> = ({
   const [err, setErr] = useState('');
   const [status, setStatus] = useState('');
 
-  const companyId = authUser?.companyId;
+  // A platform Super Admin belongs to no company, so there is no companyId to
+  // read off the logged-in user. Previously that meant `enabled: !!companyId`
+  // was false and none of these queries ever fired: no request, no error, no
+  // loading state, just an empty grid with nothing in the console to chase.
+  // The operator picks the company they are administering instead.
+  const isSuperAdmin = !!authUser?.isSuperAdmin;
+  const [pickedCompanyId, setPickedCompanyId] = useState('');
+  const companyId = isSuperAdmin ? pickedCompanyId : authUser?.companyId;
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies-for-user-admin'],
+    queryFn: () => companiesApi.getAll(),
+    enabled: isSuperAdmin,
+  });
+
+  // Distinguishes "nothing chosen yet" from "chosen, and genuinely empty". The
+  // grid renders a prompt for the first and an empty state for the second,
+  // rather than showing the same blank table for both.
+  const awaitingCompany = isSuperAdmin && !pickedCompanyId;
 
   const { data: users = [], isLoading, refetch } = useQuery({
     queryKey: ['users-setup', companyId],
-    queryFn: () => usersApi.getAll(),
+    // Passed explicitly. The backend requires a super admin to name a company
+    // and rejects the request otherwise, so omitting it here was a second way
+    // for this screen to fail even once the query did fire.
+    queryFn: () => usersApi.getAll(companyId || undefined),
     enabled: !!companyId,
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['roles-setup', companyId],
-    queryFn: () => rolesApi.getAll(),
+    queryFn: () => rolesApi.getAll(companyId || undefined),
     enabled: !!companyId,
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ['departments-setup', companyId],
-    queryFn: () => departmentsApi.getAll(),
+    queryFn: () => departmentsApi.getAll(companyId || undefined),
     enabled: !!companyId,
   });
 

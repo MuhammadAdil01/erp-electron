@@ -10,8 +10,11 @@ export interface CreateDepartmentPayload extends Omit<Department, 'id'> {}
 export interface UpdateDepartmentPayload extends Partial<Omit<Department, 'id'>> {}
 
 export const departmentsApi = {
-  getAll: () =>
-    api.get<Department[]>('/departments').then((r) => r.data),
+  // A platform operator names the company; a company user omits it and the
+  // backend uses their own.
+  getAll: (companyId?: string) =>
+    api.get<Department[]>('/departments', { params: companyId ? { companyId } : undefined })
+      .then((r) => r.data),
 
   getOne: (id: string) =>
     api.get<Department>(`/departments/${id}`).then((r) => r.data),
