@@ -61,8 +61,8 @@ const Section: React.FC<{ title: string; children: React.ReactNode; count?: numb
 export const Customer360Window: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const { user } = useAuth();
-  const companyId = user?.companyId ?? null;
+  const { activeCompanyId } = useAuth();
+  const companyId = activeCompanyId;
 
   const [search, setSearch] = useState('');
   const [cardType, setCardType] = useState<'' | BpCardType>('');

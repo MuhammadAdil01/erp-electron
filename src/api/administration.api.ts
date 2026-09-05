@@ -330,3 +330,316 @@ export interface SubstituteAuthorizer extends Auditable {
 }
 export const substituteAuthorizersApi =
   createCrudApi<SubstituteAuthorizer>('/administration/substitute-authorizers');
+
+// ─── MODULE ACCESS GRANTS ─────────────────────────────────────────────────────
+/**
+ * Giving a user a module is a *request*, not a write.
+ *
+ * A row in `user_modules` means effective access and nothing else, so a pending
+ * grant lives in the approval queue rather than there — that way no permission
+ * check anywhere can mistake "asked for" for "has".
+ */
+export interface ModuleGrantRequest {
+  id: string;
+  companyId: string;
+  documentType: string;
+  documentId: string | null;
+  status: ApprovalRequestStatus;
+  remarks: string | null;
+  createdAt: string;
+  documentSnapshot?: {
+    userId: string; moduleId: string; userEmail: string; moduleSlug: string;
+  } | null;
+  originator: { id: string; name: string; email: string };
+  company?: { id: string; name: string; slug: string };
+}
+
+export const moduleGrantsApi = {
+  /** Asks for a user to be given a module. Auto-approved for a platform operator. */
+  request: (payload: { userId: string; moduleId: string; remarks?: string }) =>
+    api.post<{ autoApproved: boolean; required: boolean; requests: unknown[] }>(
+      '/administration/module-grants', payload,
+    ).then((r) => r.data),
+
+  /** Grants awaiting approval. `scope: 'all'` spans tenants for an operator. */
+  pending: (scope?: 'all') =>
+    api.get<ModuleGrantRequest[]>('/administration/module-grants/pending', {
+      params: scope ? { scope } : undefined,
+    }).then((r) => r.data),
+
+  /** Removes access immediately — a revocation never waits on approval. */
+  revoke: (userId: string, moduleId: string) =>
+    api.delete<{ userId: string; moduleId: string; message: string }>(
+      `/administration/module-grants/${userId}/${moduleId}`,
+    ).then((r) => r.data),
+};
+
+// ─── INDEXES (Exchange Rates & Indexes → Indexes tab) ─────────────────────────
+export interface FinancialIndex extends Auditable {
+  code: string;
+  name: string;
+  description?: string | null;
+  baseYear?: number | null;
+  isActive: boolean;
+  _count?: { values: number };
+}
+
+export interface IndexGridRow {
+  month: number;
+  monthName: string;
+  /** indexId → value, or null where the month has no published value. */
+  values: Record<string, string | null>;
+}
+
+export interface IndexGrid {
+  year: number;
+  indexes: { id: string; code: string; name: string; baseYear: number | null }[];
+  rows: IndexGridRow[];
+}
+
+/** A cell edit. `value: null` clears the cell — a gap, deliberately not a zero. */
+export interface IndexGridCell {
+  indexId: string;
+  month: number;
+  value: number | string | null;
+}
+
+const indexesBase = createCrudApi<FinancialIndex>('/administration/indexes');
+export const indexesApi = {
+  ...indexesBase,
+  years: () => api.get<number[]>('/administration/indexes/years').then((r) => r.data),
+  grid: (year: number) =>
+    api.get<IndexGrid>('/administration/indexes/grid', { params: { year } }).then((r) => r.data),
+  saveGrid: (year: number, cells: IndexGridCell[]) =>
+    api.put<IndexGrid>('/administration/indexes/grid', { year, cells }).then((r) => r.data),
+  history: (id: string) =>
+    api.get<FinancialIndex & { values: { year: number; month: number; value: string }[] }>(
+      `/administration/indexes/${id}/history`,
+    ).then((r) => r.data),
+};
+
+// ─── LICENSE ──────────────────────────────────────────────────────────────────
+export type AddOnType = 'DEVELOPMENT' | 'IMPLEMENTATION' | 'SOLUTION';
+
+export interface LicenseComponent {
+  id: string;
+  licenseId: string;
+  code: string;
+  name: string;
+  totalCount: number;
+  /** Counted from assignments, never stored — the two can never disagree. */
+  used: number;
+  available: number;
+}
+
+export interface CompanyLicense extends Auditable {
+  licenseKey: string;
+  licenseServer?: string | null;
+  port?: number | null;
+  hardwareKey?: string | null;
+  installationNumber?: string | null;
+  systemNumber?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  isActive: boolean;
+  importedAt: string;
+  importedFileName?: string | null;
+  components?: LicenseComponent[];
+}
+
+export interface LicenseAssignment {
+  id: string;
+  companyId: string;
+  licenseId: string;
+  componentId: string;
+  userId: string;
+  assignedAt: string;
+  user: { id: string; name: string; email: string };
+  component: { id: string; code: string; name: string };
+}
+
+export interface LicenseAllocation {
+  license: CompanyLicense | null;
+  components: LicenseComponent[];
+  users: {
+    id: string; name: string; email: string; roleType: string; isActive: boolean;
+  }[];
+  assignments: LicenseAssignment[];
+}
+
+export interface AddOnIdentifier {
+  id: string;
+  addOnName: string;
+  addOnType: AddOnType;
+  partnerNamespace?: string | null;
+  identifier: string;
+  createdAt: string;
+  generatedBy?: { id: string; name: string; email: string } | null;
+}
+
+export interface SupportLogEntry {
+  id: string;
+  action: string;
+  detail?: string | null;
+  occurredAt: string;
+  user?: { id: string; name: string; email: string } | null;
+}
+
+export interface ImportLicensePayload {
+  licenseKey: string;
+  licenseServer?: string;
+  port?: number;
+  hardwareKey?: string;
+  installationNumber?: string;
+  systemNumber?: string;
+  validFrom?: string;
+  validTo?: string;
+  importedFileName?: string;
+  components?: { code: string; name: string; totalCount: number }[];
+}
+
+export const licenseApi = {
+  list: () => api.get<CompanyLicense[]>('/administration/license').then((r) => r.data),
+  allocation: () =>
+    api.get<LicenseAllocation>('/administration/license/allocation').then((r) => r.data),
+  information: () =>
+    api.get<{
+      license: CompanyLicense | null;
+      totalSeats: number; usedSeats: number; availableSeats: number;
+      components: LicenseComponent[];
+      expiresAt: string | null; daysRemaining: number | null;
+    }>('/administration/license/information').then((r) => r.data),
+  import: (payload: ImportLicensePayload) =>
+    api.post<CompanyLicense>('/administration/license/import', payload).then((r) => r.data),
+  assign: (componentId: string, userId: string) =>
+    api.post<LicenseAssignment>('/administration/license/assignments', { componentId, userId })
+      .then((r) => r.data),
+  unassign: (assignmentId: string) =>
+    api.delete<{ id: string; message: string }>(
+      `/administration/license/assignments/${assignmentId}`,
+    ).then((r) => r.data),
+
+  listAddOns: () =>
+    api.get<AddOnIdentifier[]>('/administration/license/add-ons').then((r) => r.data),
+  generateAddOn: (payload: { addOnName: string; addOnType?: AddOnType; partnerNamespace?: string }) =>
+    api.post<AddOnIdentifier>('/administration/license/add-ons', payload).then((r) => r.data),
+  removeAddOn: (id: string) =>
+    api.delete<{ id: string; message: string }>(`/administration/license/add-ons/${id}`)
+      .then((r) => r.data),
+
+  supportLog: (params?: { from?: string; to?: string; userId?: string; take?: number }) =>
+    api.get<SupportLogEntry[]>('/administration/license/support-log', { params })
+      .then((r) => r.data),
+};
+
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+export interface ClosingLine {
+  accountId: string;
+  code: string;
+  name: string;
+  type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE';
+  debit: string;
+  credit: string;
+  balance: string;
+}
+
+export interface PeriodEndClosingPreview {
+  from: { id: string; name: string; startDate: string };
+  to: { id: string; name: string; endDate: string };
+  retainedEarnings: { id: string; code: string; name: string };
+  lines: ClosingLine[];
+  totalDebit: string;
+  totalCredit: string;
+  netResult: string;
+  willPost: boolean;
+}
+
+export interface PeriodEndClosingRun {
+  id: string;
+  fromPeriodId: string;
+  toPeriodId: string;
+  retainedEarningsAccountId: string;
+  status: 'PREVIEW' | 'EXECUTED' | 'FAILED';
+  lines: ClosingLine[];
+  totalDebit: string;
+  totalCredit: string;
+  journalEntryId?: string | null;
+  executedAt?: string | null;
+  createdAt: string;
+  executedBy?: { id: string; name: string; email: string } | null;
+}
+
+export interface PeriodEndClosingPayload {
+  fromPeriodId: string;
+  toPeriodId: string;
+  retainedEarningsAccountId: string;
+  closingAccountId?: string;
+  usePrimaryClosingAccount?: boolean;
+  postingDate?: string;
+}
+
+export interface NumberingCheckResult {
+  checkedDocuments: number;
+  seriesIssues: { seriesId: string; name: string; documentType: string; issue: string }[];
+  duplicates: string[];
+  gaps: { after: number; before: number; missing: number }[];
+  isClean: boolean;
+}
+
+export interface ConnectedClient {
+  user: { id: string; name: string; email: string; roleType: string; lastLoginAt: string | null };
+  sessionCount: number;
+  lastSeenAt: string;
+  sessions: {
+    id: string; createdAt: string; expiresAt: string;
+    ipAddress: string | null; userAgent: string | null;
+  }[];
+}
+
+export const utilitiesApi = {
+  previewClosing: (payload: PeriodEndClosingPayload) =>
+    api.post<PeriodEndClosingPreview>(
+      '/administration/utilities/period-end-closing/preview', payload,
+    ).then((r) => r.data),
+  executeClosing: (payload: PeriodEndClosingPayload) =>
+    api.post<PeriodEndClosingRun>(
+      '/administration/utilities/period-end-closing/execute', payload,
+    ).then((r) => r.data),
+  closingRuns: (take?: number) =>
+    api.get<PeriodEndClosingRun[]>('/administration/utilities/period-end-closing/runs', {
+      params: { take },
+    }).then((r) => r.data),
+  closingRun: (id: string) =>
+    api.get<PeriodEndClosingRun>(`/administration/utilities/period-end-closing/runs/${id}`)
+      .then((r) => r.data),
+
+  checkDocumentNumbering: (payload: { documentTypes?: string[]; from?: string; to?: string }) =>
+    api.post<NumberingCheckResult>(
+      '/administration/utilities/check-document-numbering', payload,
+    ).then((r) => r.data),
+
+  previewChangeLogCleanup: (olderThan: string) =>
+    api.post<{ olderThan: string; activityLogs: number; auditEvents: number; total: number }>(
+      '/administration/utilities/change-logs/preview', { olderThan },
+    ).then((r) => r.data),
+  runChangeLogCleanup: (olderThan: string) =>
+    api.post<{ removedActivityLogs: number; keptAuditEvents: boolean; message: string }>(
+      '/administration/utilities/change-logs/cleanup', { olderThan },
+    ).then((r) => r.data),
+
+  connectedClients: () =>
+    api.get<ConnectedClient[]>('/administration/utilities/connected-clients').then((r) => r.data),
+  disconnectClient: (userId: string) =>
+    api.post<{ userId: string; revokedSessions: number; message: string }>(
+      `/administration/utilities/connected-clients/${userId}/disconnect`,
+    ).then((r) => r.data),
+
+  masterDataCleanup: () =>
+    api.get<{
+      businessPartners: { id: string; cardCode: string; cardName: string; cardType: string; updatedAt: string }[];
+      products: { id: string; sku: string | null; name: string; updatedAt: string }[];
+      predefinedTexts: { id: string; code: string; name: string | null; updatedAt: string }[];
+      total: number;
+      note: string;
+    }>('/administration/utilities/master-data-cleanup').then((r) => r.data),
+};

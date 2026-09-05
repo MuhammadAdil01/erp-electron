@@ -1,633 +1,472 @@
-import React, { useState } from 'react';
-import { X, Minus, Square } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { FileCog, RefreshCw, RotateCcw, Save } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import { settingsApi, numberingApi } from '../../../api/administration.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  StatusNote,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface DocumentSettingsWindowProps {
-  show: boolean;
+interface Props {
+  show?: boolean;
   onClose: () => void;
   windowState: WindowState;
-  setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-export const DocumentSettingsWindow: React.FC<DocumentSettingsWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+type Tab = 'general' | 'perDocument' | 'electronic';
+type Values = Record<string, string | number | boolean>;
+
+interface Spec {
+  key: string;
+  label: string;
+  type: 'checkbox' | 'select' | 'number' | 'text';
+  default: string | number | boolean;
+  options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  hint?: string;
+  dependsOn?: string;
+}
+
+/**
+ * The General tab applies to every document type.
+ *
+ * It is stored as a document-settings row with a null document type, which is
+ * the shape the backend already uses for "applies to all". A per-type row then
+ * overrides only the keys it names.
+ */
+const GENERAL: { title: string; fields: Spec[] }[] = [
+  {
+    title: 'Gross Profit',
+    fields: [
+      { key: 'calculateGrossProfit', label: 'Calculate Gross Profit', type: 'checkbox', default: true },
+      {
+        key: 'basePriceOrigin', label: 'Base Price Origin', type: 'select', default: 'lastPurchase',
+        options: [
+          { value: 'lastPurchase', label: 'Last Purchase Price' },
+          { value: 'lastEvaluated', label: 'Last Evaluated Price' },
+          { value: 'itemCost', label: 'Item Cost' },
+          { value: 'priceList', label: 'Price List' },
+        ],
+        dependsOn: 'calculateGrossProfit',
+      },
+      {
+        key: 'defaultGrossProfitPercent', label: 'Default Gross Profit % for Service Documents',
+        type: 'number', default: 0, min: 0, max: 100, dependsOn: 'calculateGrossProfit',
+      },
+      {
+        key: 'grossProfitBasis', label: 'Calculate % Gross Profit As', type: 'select', default: 'salesPrice',
+        options: [
+          { value: 'salesPrice', label: 'Profit / Sales Price' },
+          { value: 'basePrice', label: 'Profit / Base Price' },
+        ],
+        dependsOn: 'calculateGrossProfit',
+      },
+    ],
+  },
+  {
+    title: 'Remarks & Display',
+    fields: [
+      {
+        key: 'documentRemarksInclude', label: 'Document Remarks Include', type: 'select', default: 'baseDocumentNumber',
+        options: [
+          { value: 'baseDocumentNumber', label: 'Base Document Number' },
+          { value: 'manualOnly', label: 'Manual Remarks Only' },
+          { value: 'bpReference', label: 'BP Reference Number' },
+        ],
+      },
+      {
+        key: 'salesBomDisplay', label: 'For a Sales BOM in Documents, Display', type: 'select', default: 'parentOnly',
+        options: [
+          { value: 'parentOnly', label: 'Price and Total for Parent Item Only' },
+          { value: 'components', label: 'Price for Component Items' },
+        ],
+      },
+      { key: 'displayRoundingRemark', label: 'Display Rounding Remark', type: 'checkbox', default: false },
+      { key: 'useWarehouseAddress', label: 'Use Warehouse Address', type: 'checkbox', default: false },
+      { key: 'manageFreightInDocuments', label: 'Manage Freight in Documents', type: 'checkbox', default: false },
+      {
+        key: 'displayCancelledInReports',
+        label: 'Display Cancelled and Cancellation Documents in Reports',
+        type: 'checkbox', default: true,
+      },
+    ],
+  },
+  {
+    title: 'Controls',
+    fields: [
+      {
+        key: 'glBalanceOutsideRange', label: 'G/L Account Balance Outside Allowed Range',
+        type: 'select', default: 'warning',
+        options: [
+          { value: 'ignore', label: 'Without Warning' },
+          { value: 'warning', label: 'Warning Only' },
+          { value: 'block', label: 'Block Posting' },
+        ],
+      },
+      {
+        key: 'inventoryOutsideRange', label: 'Release / Receipt of Inventory Outside Defined Range',
+        type: 'select', default: 'warning',
+        options: [
+          { value: 'ignore', label: 'Without Warning' },
+          { value: 'warning', label: 'Warning Only' },
+          { value: 'block', label: 'Block Release / Receipt' },
+        ],
+      },
+      {
+        key: 'blockNegativeInventoryBy', label: 'Block Negative Inventory By',
+        type: 'select', default: 'document',
+        options: [
+          { value: 'document', label: 'By Document' },
+          { value: 'currency', label: 'By Currency' },
+        ],
+      },
+      {
+        key: 'blockEarlierPostingDate', label: 'Block Documents with an Earlier Posting Date',
+        type: 'checkbox', default: false,
+      },
+      {
+        key: 'allowFuturePostingDate', label: 'Allow a Future Posting Date',
+        type: 'checkbox', default: true,
+      },
+      {
+        key: 'maxDaysForCancelling',
+        label: 'Max. Days for Cancelling Documents Before or After Posting',
+        type: 'number', default: 0, min: 0, max: 3650,
+        hint: '0 means no limit.',
+      },
+    ],
+  },
+  {
+    title: 'Exchange Rate & Journals',
+    fields: [
+      {
+        key: 'apExchangeRateBaseDate', label: 'Exchange Rate Base Date (A/P Documents)',
+        type: 'select', default: 'postingDate',
+        options: [
+          { value: 'postingDate', label: 'Posting Date' },
+          { value: 'documentDate', label: 'Document Date' },
+        ],
+      },
+      {
+        key: 'splitJournalByDocumentLines', label: 'Split Journal Entry Posting by Document Lines',
+        type: 'checkbox', default: false,
+      },
+      {
+        key: 'useDocumentRateWhenCopying',
+        label: 'Use Document Exchange Rate When Copying to a Target Document',
+        type: 'checkbox', default: true,
+      },
+    ],
+  },
+  {
+    title: 'Attachments',
+    fields: [
+      { key: 'copyAttachmentsToTarget', label: 'Copy Attachments from Base to Target Document', type: 'checkbox', default: true },
+      { key: 'copyAttachmentsFromBom', label: 'Copy Attachments from BOM to Production Order', type: 'checkbox', default: false },
+      { key: 'doNotOverwriteSameFileName', label: 'Do Not Overwrite Attachments with the Same File Name', type: 'checkbox', default: true },
+    ],
+  },
+];
+
+/** Per-document-type overrides. */
+const PER_DOCUMENT: Spec[] = [
+  { key: 'blockUnbalancedFcJournalEntry', label: 'Block Unbalanced FC Journal Entry', type: 'checkbox', default: true },
+  { key: 'blockMultipleCurrencyTransactions', label: 'Block Multiple Currency Transactions', type: 'checkbox', default: false },
+  { key: 'blockEditingTotalsInSystemCurrency', label: 'Block Editing of Totals in System Currency', type: 'checkbox', default: false },
+  { key: 'blockPostingDateEditingPerRow', label: 'Block Posting Date Editing per Row', type: 'checkbox', default: false },
+  { key: 'blockDocDateUpdateAfterPosting', label: 'Block Updating of Doc. Date After Posting per Row', type: 'checkbox', default: false },
+  { key: 'useAutomaticTax', label: 'Use Automatic Tax', type: 'checkbox', default: true },
+  { key: 'blockEarlierPostingDate', label: 'Block Documents with an Earlier Posting Date', type: 'checkbox', default: false },
+  { key: 'mandatoryRemarks', label: 'Mandatory Remarks', type: 'checkbox', default: false },
+  { key: 'approvalRequired', label: 'Require Approval Before Posting', type: 'checkbox', default: false },
+];
+
+const ELECTRONIC: Spec[] = [
+  { key: 'enableElectronicDocuments', label: 'Enable Electronic Documents', type: 'checkbox', default: false },
+  {
+    key: 'electronicFormat', label: 'Electronic Format', type: 'select', default: 'ubl',
+    options: [
+      { value: 'ubl', label: 'UBL 2.1' },
+      { value: 'facturae', label: 'Facturae' },
+      { value: 'custom', label: 'Custom' },
+    ],
+    dependsOn: 'enableElectronicDocuments',
+  },
+  { key: 'electronicExportFolder', label: 'Export Folder', type: 'text', default: '', dependsOn: 'enableElectronicDocuments' },
+  { key: 'signElectronicDocuments', label: 'Digitally Sign Electronic Documents', type: 'checkbox', default: false, dependsOn: 'enableElectronicDocuments' },
+  { key: 'certificateAlias', label: 'Certificate Alias', type: 'text', default: '', dependsOn: 'signElectronicDocuments' },
+];
+
+const seed = (specs: Spec[], stored: Record<string, unknown> | undefined): Values => {
+  const out: Values = {};
+  for (const s of specs) {
+    const v = stored?.[s.key];
+    out[s.key] = v === undefined || v === null
+      ? s.default
+      : s.type === 'checkbox' ? Boolean(v)
+      : s.type === 'number' ? Number(v)
+      : String(v);
+  }
+  return out;
+};
+
+const ALL_GENERAL_SPECS = GENERAL.flatMap((s) => s.fields);
+
+export const DocumentSettingsWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const [activeTab, setActiveTab] = useState('General');
+  const { activeCompanyId } = useAuth();
+  const qc = useQueryClient();
+  const companyId = activeCompanyId;
 
-  if (!show || windowState.isMinimized) return null;
+  const [tab, setTab] = useState<Tab>('general');
+  const [documentType, setDocumentType] = useState('');
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [edits, setEdits] = useState<Values | null>(null);
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  const docTypesQuery = useQuery({
+    queryKey: ['numbering-document-types', companyId],
+    queryFn: () => numberingApi.documentTypes(),
+    enabled: !!companyId,
+  });
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
+  // The General tab reads the null-documentType row; the other two read the row
+  // for the selected type. Same endpoint either way.
+  const scope = tab === 'general' ? undefined : documentType || undefined;
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
+  const settingsQuery = useQuery({
+    queryKey: ['document-settings', companyId, scope ?? '__general__'],
+    queryFn: () => settingsApi.getDocumentSettings(scope),
+    enabled: !!companyId && (tab === 'general' || !!documentType),
+  });
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const specs = tab === 'general' ? ALL_GENERAL_SPECS
+    : tab === 'perDocument' ? PER_DOCUMENT
+    : ELECTRONIC;
+
+  const stored = useMemo(() => seed(specs, settingsQuery.data), [specs, settingsQuery.data]);
+  const values = edits ?? stored;
+  const dirty = !!edits && Object.keys(edits).some((k) => edits[k] !== stored[k]);
+
+  const setValue = (key: string, value: string | number | boolean) =>
+    setEdits((prev) => ({ ...(prev ?? stored), [key]: value }));
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      if (!edits) return Promise.resolve({});
+      if (tab !== 'general' && !documentType) {
+        return Promise.reject(new Error('Pick a document type first.'));
+      }
+      const changed: Values = {};
+      for (const k of Object.keys(edits)) {
+        if (edits[k] !== stored[k]) changed[k] = edits[k];
+      }
+      if (!Object.keys(changed).length) return Promise.resolve({});
+      // The backend merges into the existing row, so only the changed keys go
+      // over the wire and nothing another tab owns is disturbed.
+      return settingsApi.saveDocumentSettings(changed, scope);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['document-settings'] });
+      setEdits(null);
+      setError('');
+      setStatus('Document settings saved.');
+    },
+    onError: (e: unknown) => {
+      setError(e instanceof Error ? e.message : 'The server rejected those settings.');
+      setStatus('');
+    },
+  });
+
+  const renderField = (s: Spec) => {
+    if (s.dependsOn && !values[s.dependsOn]) return null;
+    const value = values[s.key];
+
+    if (s.type === 'checkbox') {
+      return (
+        <div key={s.key}>
+          <label className="flex items-start gap-2 text-[11px] cursor-pointer py-0.5">
+            <input
+              type="checkbox"
+              className="w-3.5 h-3.5 mt-[1px]"
+              checked={Boolean(value)}
+              onChange={(e) => setValue(s.key, e.target.checked)}
+            />
+            <span>{s.label}</span>
+          </label>
+          {s.hint && <div className="text-[9.5px] text-gray-500 pl-[22px]">{s.hint}</div>}
+        </div>
+      );
+    }
+
+    return (
+      <div key={s.key}>
+        <div className="grid grid-cols-[minmax(180px,1fr)_200px] items-center gap-2 py-0.5">
+          <span className="text-[11px] text-gray-700">{s.label}</span>
+          {s.type === 'select' ? (
+            <ClassicSel
+              value={String(value ?? '')}
+              onChange={(e) => setValue(s.key, e.target.value)}
+              className="w-full"
+            >
+              {s.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </ClassicSel>
+          ) : (
+            <ClassicInput
+              type={s.type === 'number' ? 'number' : 'text'}
+              min={s.min}
+              max={s.max}
+              value={String(value ?? '')}
+              onChange={(e) =>
+                setValue(s.key, s.type === 'number'
+                  ? (e.target.value === '' ? '' : Number(e.target.value))
+                  : e.target.value)
+              }
+              className={cn('w-full', s.type === 'number' && 'text-right')}
+            />
+          )}
+        </div>
+        {s.hint && <div className="text-[9.5px] text-gray-500">{s.hint}</div>}
+      </div>
+    );
   };
 
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        const minW = 800;
-        const minH = 500;
-
-        if (direction.includes('e')) {
-          newWidth = Math.max(minW, startWidth + deltaX);
-        }
-        if (direction.includes('s')) {
-          newHeight = Math.max(minH, startHeight + deltaY);
-        }
-        
-        if (direction.includes('w')) {
-          const possibleWidth = startWidth - deltaX;
-          if (possibleWidth > minW) {
-            newWidth = possibleWidth;
-            newX = startXPos + deltaX;
-          } else {
-            newWidth = minW;
-            newX = startXPos + (startWidth - minW);
-          }
-        }
-        
-        if (direction.includes('n')) {
-          const possibleHeight = startHeight - deltaY;
-          if (possibleHeight > minH) {
-            newHeight = possibleHeight;
-            newY = startYPos + deltaY;
-          } else {
-            newHeight = minH;
-            newY = startYPos + (startHeight - minH);
-          }
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
-      });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  const sapLabelStyle = "text-[11px] text-gray-800 whitespace-nowrap leading-[18px]";
-  const sapInputStyle = "h-[18px] border border-gray-400 px-1 text-[11px] outline-none bg-white focus:border-orange-400";
-  const sapCheckboxStyle = "w-3.5 h-3.5 mt-0.5 border-gray-400 border bg-white cursor-pointer accent-orange-500";
-  const sapButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner";
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'general', label: 'General' },
+    { key: 'perDocument', label: 'Per Document' },
+    { key: 'electronic', label: 'Electronic Documents' },
+  ];
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none text-[11px] border-t-2 border-[#e8a01c]"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Document Settings"
+      icon={<FileCog className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={820}
+      minHeight={580}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('nw')} className="absolute top-0 left-0 w-2 h-2 cursor-nwse-resize z-[70]" />
-          <div onMouseDown={handleResize('ne')} className="absolute top-0 right-0 w-2 h-2 cursor-nesw-resize z-[70]" />
-          <div onMouseDown={handleResize('sw')} className="absolute bottom-0 left-0 w-2 h-2 cursor-nesw-resize z-[70]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <ToolBtn onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty}>
+            <Save className="w-3 h-3" /> {saveMut.isPending ? 'Saving…' : 'Save'}
+          </ToolBtn>
+          <ToolBtn onClick={() => { setEdits(null); setError(''); }} disabled={!dirty}>
+            <RotateCcw className="w-3 h-3" /> Discard
+          </ToolBtn>
+          <ToolBtn onClick={() => settingsQuery.refetch()} title="Reload">
+            <RefreshCw className={cn('w-3 h-3', settingsQuery.isFetching && 'animate-spin')} />
+          </ToolBtn>
+          <StatusNote error={error} status={status} />
         </>
+      }
+      footer={
+        <>
+          <span>
+            {tab === 'general' ? 'Applies to every document type' : documentType || 'No document type selected'}
+            {dirty ? ' · unsaved changes' : ''}
+          </span>
+          <span>Document Settings</span>
+        </>
+      }
+    >
+      <div className="shrink-0 flex px-2 pt-1.5 bg-[#ececec] border-b border-[#d4d0c8]">
+        {TABS.map(({ key, label }) => {
+          const active = tab === key;
+          return (
+            <div
+              key={key}
+              onClick={() => { setTab(key); setEdits(null); setError(''); setStatus(''); }}
+              style={{ marginBottom: active ? '-1px' : 0 }}
+              className={cn(
+                'relative px-5 py-1 text-[11px] font-medium cursor-default rounded-t-[3px] border-l border-t border-r',
+                active
+                  ? 'bg-white border-[#d4d0c8] text-black z-10'
+                  : 'bg-gradient-to-b from-[#f0f0f0] to-[#e0e0e0] border-gray-300 text-gray-600',
+              )}
+            >
+              {active && <div className="absolute top-0 left-0 right-0 h-[2px] bg-[#ffd700] rounded-t-[3px]" />}
+              {label}
+            </div>
+          );
+        })}
+      </div>
+
+      {tab !== 'general' && (
+        <div className="shrink-0 bg-[#f7f7f7] border-b border-[#d4d0c8] px-3 py-2">
+          <div className="grid grid-cols-[100px_260px] items-center gap-2">
+            <span className="text-[11px] text-gray-700">Document</span>
+            <ClassicSel
+              value={documentType}
+              onChange={(e) => { setDocumentType(e.target.value); setEdits(null); }}
+              className="w-full"
+            >
+              <option value="">— pick a document type —</option>
+              {(docTypesQuery.data ?? []).map((d) => (
+                <option key={d.documentType} value={d.documentType}>{d.documentType}</option>
+              ))}
+            </ClassicSel>
+          </div>
+        </div>
       )}
 
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[26px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5 pt-0.5">
-          <span className="text-black font-semibold text-[11.5px] tracking-tight">Document Settings</span>
-        </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3 h-3 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-3.5 h-3.5 text-gray-600 group-hover:text-white" />
-           </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex px-1.5 pt-1.5 bg-[#ececec] gap-[2px]">
-        {['General', 'Per Document', 'Electronic Documents'].map((tab) => (
-          <div 
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-0.5 text-[11px] cursor-default rounded-t-[3px] border border-gray-400 relative transition-all
-              ${activeTab === tab 
-                ? 'bg-white border-b-white z-10 -mb-[1px] shadow-sm font-medium' 
-                : 'bg-gradient-to-b from-[#f0f0f0] to-[#e4e4e4] text-gray-600 hover:from-[#f5f5f5] hover:to-[#ebebeb]'}`}
-          >
-            {tab}
+      <div className="flex-1 min-h-0 overflow-auto bg-white p-3 custom-scrollbar">
+        {!companyId ? (
+          <div className="text-[10px] text-gray-500 italic">
+            No company selected. Open{' '}
+            <span className="font-medium not-italic">Administration → Choose Company</span> first.
           </div>
-        ))}
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 bg-white mx-1.5 mb-1.5 border border-gray-400 shadow-inner overflow-y-auto custom-scrollbar p-3">
-        {activeTab === 'General' && (
-          <div className="space-y-1.5">
-            {/* Calculate Gross Profit Section */}
-            <div className="flex items-start gap-2">
-              <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-              <div className="space-y-1">
-                <span className={sapLabelStyle}>Calculate Gross Profit</span>
-                <div className="grid grid-cols-[180px_1fr] gap-x-4 items-center pl-4">
-                  <span className={sapLabelStyle}>Base Price Origin</span>
-                  <select className={`${sapInputStyle} w-40`}><option>Item Cost</option></select>
-                  <span className={sapLabelStyle}>Default Gross Profit % for Service Documents</span>
-                  <div className="flex items-center gap-1">
-                    <input type="text" className={`${sapInputStyle} w-16 text-right`} defaultValue="0.00" />
-                    <div className="w-4 h-[18px] bg-yellow-100 border border-gray-400"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-2"></div>
-
-            {/* Calculate % Gross Profit as */}
-            <div className="flex items-center gap-8 pl-6">
-              <span className={sapLabelStyle}>Calculate % Gross Profit as:</span>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="grossProfitCalc" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Profit/Sales Price</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="grossProfitCalc" className="w-3.5 h-3.5" defaultChecked />
-                  <span className={sapLabelStyle}>Profit/Base Price</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Document Remarks Include */}
-            <div className="flex items-center gap-8 pl-6">
-              <span className={sapLabelStyle}>Document Remarks Include:</span>
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="docRemarks" className="w-3.5 h-3.5" defaultChecked />
-                  <span className={sapLabelStyle}>Base Document Number</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="docRemarks" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Manual Remarks Only</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="docRemarks" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>BP Reference Number</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Sales BOM Display */}
-            <div className="flex items-center gap-8 pl-6">
-              <span className={sapLabelStyle}>For a Sales BOM in Documents, Display:</span>
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="bomDisplay" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Price and Total for Parent Item Only</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="bomDisplay" className="w-3.5 h-3.5" defaultChecked />
-                  <span className={sapLabelStyle}>Price for Component Items</span>
-                </label>
-              </div>
-            </div>
-
-            {/* G/L Account Range Response */}
-            <div className="flex items-center gap-8 pl-6">
-              <span className={sapLabelStyle}>Response to G/L Account Balance Outside Allowed Range:</span>
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="glRange" className="w-3.5 h-3.5" defaultChecked />
-                  <span className={sapLabelStyle}>Without Warning</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="glRange" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Warning Only</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="glRange" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Block Posting</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Inventory Range Response */}
-            <div className="flex items-center gap-8 pl-6 relative">
-              <span className={sapLabelStyle}>Response to Release / Receipt of Inventory Outside Defined Range:</span>
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="invRange" className="w-3.5 h-3.5" defaultChecked />
-                  <span className={sapLabelStyle}>Without Warning</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="invRange" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Warning Only</span>
-                </label>
-                <label className="flex items-center cursor-pointer">
-                  <input type="radio" name="invRange" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>Block Release / Receipt</span>
-                </label>
-              </div>
-              
-              {/* Block Negative Inventory - Right Side */}
-                {/* <div className="absolute right-0 flex items-center gap-3 ml-40px">
-                  <div className="flex items-center gap-2">
-                      <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                      <span className={sapLabelStyle}>Block Negative Inventory By</span>
-                  </div>
-                  <select className={`${sapInputStyle} w-32`}><option>Item Setting</option></select>
-                </div> */}
-            </div>
-
-            {/* <div className="h-4"></div>  */}
-
-            {/* Rounding Method */}
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-gray-800 underline underline-offset-2">Rounding Method</span>
-              <div className="pl-4 space-y-0.5">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="rounding" className="w-3.5 h-3.5" />
-                  <span className={sapLabelStyle}>By Currency</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="rounding" className="w-3.5 h-3.5" defaultChecked />
-                  <span className={sapLabelStyle}>By Document</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-[180px_1fr] gap-x-4 gap-y-1 items-center pt-1">
-              <span className={sapLabelStyle}>Exchange Rate Base Date (A/P Documents)</span>
-              <select className={`${sapInputStyle} w-44`}><option>Posting Date</option></select>
-              
-              <span className={sapLabelStyle}>Split Journal Entry Posting by Document Lines</span>
-              <select className={`${sapInputStyle} w-60`}><option>No Split</option></select>
-            </div>
-
-            <div className="h-2"></div>
-
-            {/* Checkboxes List */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Display Rounding Remark</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Use Warehouse Address</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                  <span className={sapLabelStyle}>Manage Freight in Documents</span>
-                </div>
-                <button className={`bg-[#ffd700]/70 border border-gray-500 px-3 h-[20px] text-[10.5px] font-medium shadow-sm hover:brightness-95 active:shadow-inner rotate-0`}>Freight - Setup</button>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Block documents with earlier Posting Date</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Allow Future Posting Date</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Use Document Exchange Rate When Copying to Target Document</span>
-              </div>
-            </div>
-
-            <div className="h-2"></div>
-
-            {/* Attachments Section */}
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-gray-800 underline underline-offset-2">Attachments</span>
-              <div className="pl-4 space-y-0.5 pt-1">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className={sapCheckboxStyle} />
-                  <span className={sapLabelStyle}>Copy Attachments from Base Document to Target Document</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className={sapCheckboxStyle} />
-                  <span className={sapLabelStyle}>Copy Attachments from BOM to Production Order</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className={sapCheckboxStyle} />
-                  <span className={sapLabelStyle}>Do Not Overwrite Attachments with the Same File Name</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-4"></div>
-
-            <div className="flex items-center gap-2">
-              <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-              <span className={sapLabelStyle}>Manage Inventory by Warehouse</span>
-            </div>
-
-            <div className="h-8"></div>
-
-            <div className="flex items-center gap-2">
-              <input type="checkbox" className={sapCheckboxStyle} />
-              <span className={sapLabelStyle}>Display Canceled and Cancelation Marketing Documents in Reports</span>
-            </div>
-            
-            <div className="flex items-center gap-2">
-               <span className={sapLabelStyle}>Max. No. of Days for Canceling Marketing Documents Before or After Posting</span>
-               <input type="text" className={`${sapInputStyle} w-20 text-right`} defaultValue="50000" />
-            </div>
+        ) : tab !== 'general' && !documentType ? (
+          <div className="text-[10.5px] text-gray-400">
+            Pick a document type above. Each type stores its own overrides, and only the fields you
+            change are written — the rest keep following the General tab.
           </div>
-        )}
-
-        {activeTab === 'Per Document' && (
-          <div className="flex flex-col h-full space-y-4">
-            <div className="flex items-center gap-12">
-              <span className={sapLabelStyle}>Document</span>
-              <select className={`${sapInputStyle} w-96`}>
-                <option>Journal Entry</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col space-y-2 pt-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Block <span className="underline">U</span>nbalanced FC Journal Entry</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Block Multiple Currency Transactions</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Block Editing of Totals in System Currency</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Block Posting Date Editing per Row</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} defaultChecked />
-                <span className={sapLabelStyle}>Block <span className="underline">U</span>pdating of Doc. Date After Posting per Row</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Use Automatic Tax</span>
-              </label>
-            </div>
-
-            <div className="flex-1" />
-
-            <div className="space-y-2">
-               <label className="flex items-center gap-2 cursor-pointer opacity-40">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Block documents with earlier Posting Date</span>
-              </label>
-            </div>
-
-            <div className="pt-8">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className={sapCheckboxStyle} />
-                <span className={sapLabelStyle}>Mandatory Remarks</span>
-              </label>
-            </div>
+        ) : settingsQuery.isLoading ? (
+          <div className="text-[10.5px] text-gray-400">Loading…</div>
+        ) : tab === 'general' ? (
+          <div className="space-y-4 max-w-[860px]">
+            {GENERAL.map((section) => (
+              <div key={section.title}>
+                <div className="text-[11px] font-bold text-gray-800 border-b border-[#e5e5e5] pb-0.5 mb-1.5">
+                  {section.title}
+                </div>
+                <div className="grid grid-cols-2 gap-x-8">
+                  {section.fields.map(renderField)}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-
-        {activeTab === 'Electronic Documents' && (
-          <div className="space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-            {/* Generic eDoc Protocol */}
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-gray-800 underline underline-offset-2">Generic eDoc Protocol</span>
-              <div className="border border-gray-300 relative mt-1 overflow-hidden rounded-[1px]">
-                <table className="w-full text-[11px]">
-                  <tbody>
-                    <tr className="border-b border-gray-100">
-                      <td className="w-[300px] bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Enable Protocol</td>
-                      <td className="px-1 py-0.5"><div className="flex justify-center w-full sm:w-[500px]"><input type="checkbox" className={sapCheckboxStyle} /></div></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Default eDoc Generation Type</td>
-                      <td className="px-1 py-0.5">
-                        <select className={`${sapInputStyle} w-full sm:w-[500px]`}>
-                          <option>Not Relevant</option>
-                        </select>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Processing Target Setup</td>
-                      <td className="px-2 py-0.5 text-blue-700 cursor-pointer hover:underline">Double-click to open</td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Document Import Source Path</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Processed Imported Documents Path</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Documents Mapping Determination</td>
-                      <td className="px-2 py-0.5 text-blue-700 cursor-pointer hover:underline">Double-click to open</td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">User Query Category</td>
-                      <td className="px-1 py-0.5">
-                        <select className={`${sapInputStyle} w-full sm:w-[500px]`} />
-                      </td>
-                    </tr>
-                    
-                    {/* Sender Details Sub-section */}
-                    <tr className="bg-gray-50/50 italic border-b border-gray-200">
-                      <td colSpan={2} className="px-2 py-0.5 underline">Sender Details</td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Sender Name</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-200">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Sender E-Mail</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-
-                    {/* User Notifications Sub-section */}
-                    <tr className="bg-gray-50/50 italic border-b border-gray-200">
-                      <td colSpan={2} className="px-2 py-0.5 underline">User Notifications</td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Notification by System Alert</td>
-                      <td className="px-1 py-0.5"><div className="flex justify-center w-full sm:w-[500px]"><input type="checkbox" className={sapCheckboxStyle} /></div></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Notification by E-Mail</td>
-                      <td className="px-1 py-0.5"><div className="flex justify-center w-full sm:w-[500px]"><input type="checkbox" className={sapCheckboxStyle} /></div></td>
-                    </tr>
-                    <tr>
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Keep Datasource File</td>
-                      <td className="px-1 py-0.5"><div className="flex justify-center w-full sm:w-[500px]"><input type="checkbox" className={sapCheckboxStyle} /></div></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* PEPPOL Section */}
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-gray-800 underline underline-offset-2">PEPPOL</span>
-              <div className="border border-gray-300 relative mt-1 overflow-hidden rounded-[1px]">
-                <table className="w-full text-[11px]">
-                  <tbody>
-                    <tr className="border-b border-gray-100">
-                      <td className="w-[300px] bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Enable Protocol</td>
-                      <td className="px-1 py-0.5"><div className="flex justify-center w-full sm:w-[500px]"><input type="checkbox" className={sapCheckboxStyle} /></div></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">PEPPOL VAT Structure</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Participant ID</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    {/* ... truncated PEPPOL fields as they match Generic eDoc layout ... */}
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Default eDoc Generation Type</td>
-                      <td className="px-1 py-0.5">
-                        <select className={`${sapInputStyle} w-full sm:w-[500px]`}>
-                          <option>Not Relevant</option>
-                        </select>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Processing Target Setup</td>
-                      <td className="px-2 py-0.5 text-blue-700 cursor-pointer hover:underline">Double-click to open</td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Document Import Source Path</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
-            <div className="space-y-0.5">
-              <span className="text-[11px] font-bold text-gray-800 underline underline-offset-2">Document Information Extraction</span>
-              <div className="border border-gray-300 relative mt-1 overflow-hidden rounded-[1px]">
-                <table className="w-full text-[11px]">
-                  <tbody>
-                    <tr className="border-b border-gray-100">
-                      <td className="w-[300px] bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Enable Protocol</td>
-                      <td className="px-1 py-0.5"><div className="flex justify-center w-full sm:w-[500px]"><input type="checkbox" className={sapCheckboxStyle} /></div></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Service URL</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">UAA URL</td>
-                      <td className="px-1 py-0.5">
-                        <div className="flex items-center gap-1">
-                          <div className="w-4 h-4 flex items-center justify-center text-yellow-600 font-bold">➜</div>
-                          <input type="text" className={`${sapInputStyle} flex-1 sm:w-[500px]`} />
-                        </div>
-                      </td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Client ID</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">Client Secret</td>
-                      <td className="px-1 py-0.5"><input type="password" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr className="border-b border-gray-100">
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">PDF Folder for Extraction</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                    <tr>
-                      <td className="bg-[#f9f9f9] px-2 py-0.5 border-r border-gray-200">PDF Folder for Extraction (Windows)</td>
-                      <td className="px-1 py-0.5"><input type="text" className={`${sapInputStyle} w-full sm:w-[500px]`} /></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        ) : (
+          <div className="max-w-[700px] space-y-0.5">
+            {specs.map(renderField)}
           </div>
         )}
       </div>
 
-      {/* Footer */}
-      <div className="h-[40px] px-3 bg-[#ececec] flex items-center gap-2 shrink-0 border-t border-gray-300">
-        <button onClick={onClose} className={sapButtonStyle}>OK</button>
-        <button onClick={onClose} className={sapButtonStyle}>Cancel</button>
+      <div className="shrink-0 border-t border-[#d4d0c8] bg-[#f0f0f0] px-3 py-2 flex items-center gap-2">
+        <YellowBtn
+          onClick={() => {
+            if (!dirty) { onClose(); return; }
+            saveMut.mutate(undefined, { onSuccess: () => onClose() });
+          }}
+          disabled={saveMut.isPending || !companyId}
+        >
+          {saveMut.isPending ? 'Saving…' : 'Update'}
+        </YellowBtn>
+        <GreyBtn onClick={onClose}>Cancel</GreyBtn>
       </div>
-
-       {/* Diagonal Resize Icon Placeholder */}
-       <div className="absolute bottom-0 right-0 w-3 h-3 flex items-center justify-center opacity-30 select-none pointer-events-none">
-          <div className="w-1.5 h-[1px] bg-gray-600 rotate-45 translate-x-1 translate-y-1"></div>
-          <div className="w-1.5 h-[1px] bg-gray-600 rotate-45 translate-x-[2px] translate-y-[2px]"></div>
-       </div>
-    </div>
+    </ClassicWindow>
   );
 };

@@ -1,259 +1,541 @@
-import React from 'react';
-import { X, Minus, Square, ChevronRight } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Building2, Check, Plus, RefreshCw, UserCog } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  companiesApi,
+  type AvailableCompany,
+  type OnboardCompanyPayload,
+} from '../../../api/companies.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  StatusNote,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface ChooseCompanyWindowProps {
-  show: boolean;
+interface Props {
+  show?: boolean;
   onClose: () => void;
   windowState: WindowState;
-  setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-export const ChooseCompanyWindow: React.FC<ChooseCompanyWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+type FindBy = 'name' | 'database';
+
+const emptyNewCompany = {
+  name: '',
+  slug: '',
+  industry: 'generic',
+  country: '',
+  currency: 'USD',
+  locale: 'en-US',
+  timezone: 'UTC',
+  fiscalYearStart: 1,
+  planKey: '',
+  adminName: '',
+  adminEmail: '',
+  adminPassword: '',
+};
+
+/** A slug is the tenant's stable key, so it is derived rather than hand-typed. */
+const slugify = (s: string) =>
+  s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+
+/**
+ * Choose Company.
+ *
+ * This window decides which tenant the session acts in. That matters most for a
+ * platform operator, whose token carries no company at all: until they pick one
+ * here, every company-scoped window queries a null tenant — reads come back
+ * empty and writes fail. Picking a company records it in the auth store, from
+ * where the axios layer sends it as `X-Company-Id` on every request.
+ */
+export const ChooseCompanyWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  if (!show || windowState.isMinimized) return null;
+  const { user, isSuperAdmin, activeCompanyId, setActiveCompany, login, logout } = useAuth();
+  const qc = useQueryClient();
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  const [selectedId, setSelectedId] = useState<string | null>(activeCompanyId);
+  const [findBy, setFindBy] = useState<FindBy>('name');
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
+  const [pane, setPane] = useState<'list' | 'new' | 'changeUser'>('list');
+  const [form, setForm] = useState(emptyNewCompany);
+  const [creds, setCreds] = useState({ email: '', password: '', companySlug: '' });
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
+  const {
+    data: companies = [], isLoading, isFetching, refetch,
+  } = useQuery({
+    queryKey: ['choose-company', user?.id],
+    queryFn: () => companiesApi.available(),
+    enabled: !!user,
+  });
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return companies;
+    return companies.filter((c) =>
+      (findBy === 'name' ? c.name : c.databaseName).toLowerCase().includes(q),
+    );
+  }, [companies, search, findBy]);
+
+  const selected = companies.find((c) => c.id === selectedId) ?? null;
+
+  const onErr = (e: unknown) => {
+    setError(e instanceof Error ? e.message : 'The server rejected that request.');
+    setStatus('');
   };
 
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
+  const createMut = useMutation({
+    mutationFn: () => {
+      const payload: OnboardCompanyPayload = {
+        name: form.name.trim(),
+        slug: form.slug.trim() || slugify(form.name),
+        industry: form.industry || undefined,
+        country: form.country || undefined,
+        currency: form.currency || undefined,
+        locale: form.locale || undefined,
+        timezone: form.timezone || undefined,
+        fiscalYearStart: Number(form.fiscalYearStart) || undefined,
+        planKey: form.planKey.trim(),
+        adminName: form.adminName.trim(),
+        adminEmail: form.adminEmail.trim(),
+        adminPassword: form.adminPassword.trim() || undefined,
+      };
+      return companiesApi.onboard(payload);
+    },
+    onSuccess: (res) => {
+      void qc.invalidateQueries({ queryKey: ['choose-company'] });
+      setPane('list');
+      setForm(emptyNewCompany);
+      setError('');
+      // Shown once and never stored: the server generates a password when none
+      // was supplied, and there is no second chance to read it back.
+      setGeneratedPassword(res.adminPassword ?? null);
+      setStatus(
+        res.adminPassword
+          ? 'Company created. Copy the admin password below — it is not shown again.'
+          : 'Company created.',
+      );
+    },
+    onError: onErr,
+  });
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
+  const changeUserMut = useMutation({
+    mutationFn: () => login(creds.email.trim(), creds.password, creds.companySlug.trim() || undefined),
+    onSuccess: () => {
+      void qc.invalidateQueries();
+      setPane('list');
+      setCreds({ email: '', password: '', companySlug: '' });
+      setError('');
+      setStatus('Signed in as a different user.');
+    },
+    onError: onErr,
+  });
 
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
+  const isBusy = createMut.isPending || changeUserMut.isPending;
 
-        const minW = 700;
-        const minH = 500;
+  const handleOk = () => {
+    if (!selected) {
+      setError('Select a company first.');
+      return;
+    }
+    if (!selected.isActive) {
+      setError(`${selected.name} is deactivated and cannot be opened.`);
+      return;
+    }
 
-        if (direction.includes('e')) {
-          newWidth = Math.max(minW, startWidth + deltaX);
-        }
-        if (direction.includes('s')) {
-          newHeight = Math.max(minH, startHeight + deltaY);
-        }
-        
-        if (direction.includes('w')) {
-          const possibleWidth = startWidth - deltaX;
-          if (possibleWidth > minW) {
-            newWidth = possibleWidth;
-            newX = startXPos + deltaX;
-          } else {
-            newWidth = minW;
-            newX = startXPos + (startWidth - minW);
-          }
-        }
-        
-        if (direction.includes('n')) {
-          const possibleHeight = startHeight - deltaY;
-          if (possibleHeight > minH) {
-            newHeight = possibleHeight;
-            newY = startYPos + deltaY;
-          } else {
-            newHeight = minH;
-            newY = startYPos + (startHeight - minH);
-          }
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
-      });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    setActiveCompany({ id: selected.id, name: selected.name, slug: selected.slug });
+    // Every cached list is scoped to the old company. Clearing rather than
+    // refetching is deliberate: a stale row from the previous tenant rendering
+    // for even one frame under the new one is worse than a moment of loading.
+    void qc.clear();
+    setError('');
+    setStatus(`Now working in ${selected.name}.`);
+    onClose();
   };
 
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap";
-  const sapButtonStyle = "px-4 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[100px] hover:brightness-95 active:shadow-inner";
+  const handleCreateSubmit = () => {
+    if (!form.name.trim()) { setError('Company name is required.'); return; }
+    if (!form.planKey.trim()) { setError('A subscription plan key is required.'); return; }
+    if (!form.adminName.trim()) { setError('The first administrator needs a name.'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(form.adminEmail.trim())) {
+      setError('Enter a valid email address for the first administrator.');
+      return;
+    }
+    if (form.adminPassword && form.adminPassword.length < 8) {
+      setError('The administrator password must be at least 8 characters, or leave it blank.');
+      return;
+    }
+    setError('');
+    createMut.mutate();
+  };
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Choose Company"
+      icon={<Building2 className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={860}
+      minHeight={520}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('nw')} className="absolute top-0 left-0 w-2 h-2 cursor-nwse-resize z-[70]" />
-          <div onMouseDown={handleResize('ne')} className="absolute top-0 right-0 w-2 h-2 cursor-nesw-resize z-[70]" />
-          <div onMouseDown={handleResize('sw')} className="absolute bottom-0 left-0 w-2 h-2 cursor-nesw-resize z-[70]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <ToolBtn onClick={() => { setPane('new'); setError(''); setStatus(''); setGeneratedPassword(null); }} disabled={!isSuperAdmin || isBusy}
+            title={isSuperAdmin ? 'Create a new company' : 'Only a platform operator can create a company'}>
+            <Plus className="w-3 h-3" /> New
+          </ToolBtn>
+          <ToolBtn onClick={() => refetch()} disabled={isBusy} title="Refresh">
+            <RefreshCw className={cn('w-3 h-3', isFetching && 'animate-spin')} /> Refresh
+          </ToolBtn>
+          <ToolBtn onClick={() => { setPane('changeUser'); setError(''); setStatus(''); }} disabled={isBusy}>
+            <UserCog className="w-3 h-3" /> Change User
+          </ToolBtn>
+          <StatusNote error={error} status={status} />
         </>
+      }
+      footer={
+        <>
+          <span>
+            {companies.length} compan{companies.length === 1 ? 'y' : 'ies'} available
+            {activeCompanyId ? ` · working in ${companies.find((c) => c.id === activeCompanyId)?.name ?? activeCompanyId}` : ' · none selected'}
+          </span>
+          <span>Choose Company</span>
+        </>
+      }
+    >
+      {/* ── Signed-in identity ── */}
+      <div className="shrink-0 bg-[#f7f7f7] border-b border-[#d4d0c8] px-3 py-2">
+        <div className="grid grid-cols-[90px_1fr_110px_1fr] items-center gap-2">
+          <span className="text-[11px] text-gray-700">User ID</span>
+          <ClassicInput value={user?.email ?? ''} readOnly className="w-full bg-[#f0f0f0]" />
+          <span className="text-[11px] text-gray-700">Role</span>
+          <ClassicInput
+            value={isSuperAdmin ? 'Platform Super Admin' : (user?.roleType ?? '')}
+            readOnly
+            className="w-full bg-[#f0f0f0]"
+          />
+        </div>
+        {isSuperAdmin && !activeCompanyId && (
+          <div className="text-[10px] text-amber-800 mt-1.5">
+            You are signed in as a platform operator and are not inside a company. Pick one below —
+            the Administration windows are company-scoped and stay empty until you do.
+          </div>
+        )}
+      </div>
+
+      {/* ── New company ── */}
+      {pane === 'new' && (
+        <div className="shrink-0 bg-[#fffbe6] border-b border-[#e0d090] p-3">
+          <div className="text-[11px] font-bold mb-2">New Company</div>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-1">
+            <FieldRow label="Company Name" labelWidth="110px" required>
+              <ClassicInput
+                value={form.name}
+                onChange={(e) => setForm((f) => ({
+                  ...f,
+                  name: e.target.value,
+                  // Kept in step until the operator edits the slug themselves.
+                  slug: f.slug === slugify(f.name) ? slugify(e.target.value) : f.slug,
+                }))}
+                className="w-full"
+                autoFocus
+              />
+            </FieldRow>
+            <FieldRow label="Database Name" labelWidth="110px" required>
+              <ClassicInput
+                value={form.slug}
+                onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
+                className="w-full font-mono"
+                placeholder="acme-corp"
+              />
+            </FieldRow>
+            <FieldRow label="Plan Key" labelWidth="110px" required>
+              <ClassicInput
+                value={form.planKey}
+                onChange={(e) => setForm((f) => ({ ...f, planKey: e.target.value }))}
+                className="w-full font-mono"
+                placeholder="starter"
+              />
+            </FieldRow>
+
+            <FieldRow label="Localization" labelWidth="110px">
+              <ClassicInput
+                value={form.country}
+                onChange={(e) => setForm((f) => ({ ...f, country: e.target.value.toUpperCase().slice(0, 2) }))}
+                className="w-full"
+                placeholder="PK"
+              />
+            </FieldRow>
+            <FieldRow label="Currency" labelWidth="110px">
+              <ClassicInput
+                value={form.currency}
+                onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toUpperCase().slice(0, 3) }))}
+                className="w-full"
+              />
+            </FieldRow>
+            <FieldRow label="Fiscal Year Starts" labelWidth="110px">
+              <ClassicSel
+                value={String(form.fiscalYearStart)}
+                onChange={(e) => setForm((f) => ({ ...f, fiscalYearStart: Number(e.target.value) }))}
+                className="w-full"
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {new Date(Date.UTC(2000, i, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })}
+                  </option>
+                ))}
+              </ClassicSel>
+            </FieldRow>
+
+            <FieldRow label="Admin Name" labelWidth="110px" required>
+              <ClassicInput
+                value={form.adminName}
+                onChange={(e) => setForm((f) => ({ ...f, adminName: e.target.value }))}
+                className="w-full"
+              />
+            </FieldRow>
+            <FieldRow label="Admin Email" labelWidth="110px" required>
+              <ClassicInput
+                type="email"
+                value={form.adminEmail}
+                onChange={(e) => setForm((f) => ({ ...f, adminEmail: e.target.value }))}
+                className="w-full"
+              />
+            </FieldRow>
+            <FieldRow label="Admin Password" labelWidth="110px">
+              <ClassicInput
+                type="password"
+                value={form.adminPassword}
+                onChange={(e) => setForm((f) => ({ ...f, adminPassword: e.target.value }))}
+                className="w-full"
+                placeholder="blank = server generates one"
+              />
+            </FieldRow>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <YellowBtn onClick={handleCreateSubmit} disabled={isBusy}>
+              {createMut.isPending ? 'Creating…' : 'Create Company'}
+            </YellowBtn>
+            <GreyBtn onClick={() => { setPane('list'); setError(''); }}>Cancel</GreyBtn>
+            <span className="text-[9.5px] text-gray-600 ml-1">
+              Creates the company, its subscription and its first administrator in one step.
+            </span>
+          </div>
+        </div>
       )}
 
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[12px] tracking-tight">Choose Company</span>
+      {generatedPassword && (
+        <div className="shrink-0 bg-green-50 border-b border-green-300 px-3 py-2">
+          <div className="text-[10.5px] text-green-900">
+            First administrator password (shown once):{' '}
+            <span className="font-mono font-bold select-all">{generatedPassword}</span>
+          </div>
+          <button
+            className="text-[9.5px] underline text-green-800 mt-0.5"
+            onClick={() => setGeneratedPassword(null)}
+          >
+            Dismiss
+          </button>
         </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-4 h-4 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-4 h-4 text-gray-600 group-hover:text-white" />
-           </div>
+      )}
+
+      {/* ── Change user ── */}
+      {pane === 'changeUser' && (
+        <div className="shrink-0 bg-[#eef4ff] border-b border-[#b9cdf0] p-3">
+          <div className="text-[11px] font-bold mb-2">Change User</div>
+          <div className="grid grid-cols-3 gap-x-4 gap-y-1">
+            <FieldRow label="User ID" labelWidth="90px" required>
+              <ClassicInput
+                type="email"
+                value={creds.email}
+                onChange={(e) => setCreds((c) => ({ ...c, email: e.target.value }))}
+                className="w-full"
+                autoFocus
+              />
+            </FieldRow>
+            <FieldRow label="Password" labelWidth="90px" required>
+              <ClassicInput
+                type="password"
+                value={creds.password}
+                onChange={(e) => setCreds((c) => ({ ...c, password: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter') changeUserMut.mutate(); }}
+                className="w-full"
+              />
+            </FieldRow>
+            <FieldRow label="Database" labelWidth="90px">
+              <ClassicInput
+                value={creds.companySlug}
+                onChange={(e) => setCreds((c) => ({ ...c, companySlug: e.target.value }))}
+                className="w-full font-mono"
+                placeholder="blank = platform operator"
+              />
+            </FieldRow>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <YellowBtn
+              onClick={() => {
+                if (!creds.email.trim() || !creds.password) {
+                  setError('Enter both a user ID and a password.');
+                  return;
+                }
+                setError('');
+                changeUserMut.mutate();
+              }}
+              disabled={isBusy}
+            >
+              {changeUserMut.isPending ? 'Signing in…' : 'Sign In'}
+            </YellowBtn>
+            <GreyBtn onClick={() => { setPane('list'); setError(''); }}>Cancel</GreyBtn>
+            <GreyBtn onClick={() => { logout(); onClose(); }}>Log Out</GreyBtn>
+            <span className="text-[9.5px] text-gray-600 ml-1">
+              Signing in as another user replaces the current session.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Companies grid ── */}
+      <div className="flex-1 min-h-0 flex gap-3 p-2 overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="text-[11px] font-bold text-gray-700 mb-1">Companies on Current Server</div>
+          <div className="flex-1 min-h-0 overflow-auto border border-[#d4d0c8] bg-white custom-scrollbar">
+            <table className="w-full border-collapse text-[10.5px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+                  <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Company Name</th>
+                  <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Database Name</th>
+                  <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Localization</th>
+                  <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Currency</th>
+                  <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444] text-right">Users</th>
+                  <th className="px-2 py-1 font-bold text-[#444] text-right">Modules</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c: AvailableCompany) => (
+                  <tr
+                    key={c.id}
+                    onClick={() => { setSelectedId(c.id); setError(''); }}
+                    onDoubleClick={() => { setSelectedId(c.id); handleOk(); }}
+                    className={cn(
+                      'border-b border-[#f0f0f0] cursor-default',
+                      selectedId === c.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50/50',
+                      !c.isActive && 'text-gray-400 italic',
+                    )}
+                  >
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">
+                      <span className="inline-flex items-center gap-1">
+                        {c.id === activeCompanyId && <Check className="w-3 h-3 text-green-700" />}
+                        {c.name}
+                        {!c.isActive && <span className="text-[9px]">(inactive)</span>}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">{c.databaseName}</td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">{c.localization}</td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">{c.currency ?? '—'}</td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0] text-right">{c._count.users}</td>
+                    <td className="px-2 py-1 text-right">{c.moduleCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {isLoading && <div className="p-3 text-[10.5px] text-gray-400">Loading companies…</div>}
+            {!isLoading && companies.length === 0 && (
+              <div className="p-3 text-[10.5px] text-gray-400">
+                No companies yet.{isSuperAdmin ? ' Click New to create the first one.' : ''}
+              </div>
+            )}
+            {!isLoading && companies.length > 0 && filtered.length === 0 && (
+              <div className="p-3 text-[10.5px] text-gray-400">
+                No company matches “{search}”.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Find By ── */}
+        <div className="w-[190px] shrink-0 flex flex-col gap-2 pt-5">
+          <span className="text-[11px] font-bold text-gray-700">Find By:</span>
+          <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+            <input
+              type="radio"
+              name="chooseCompanyFindBy"
+              className="w-3 h-3"
+              checked={findBy === 'name'}
+              onChange={() => setFindBy('name')}
+            />
+            Company Name
+          </label>
+          <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+            <input
+              type="radio"
+              name="chooseCompanyFindBy"
+              className="w-3 h-3"
+              checked={findBy === 'database'}
+              onChange={() => setFindBy('database')}
+            />
+            Database Name
+          </label>
+          <ClassicInput
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full"
+            placeholder="Type to filter…"
+          />
+
+          {selected && (
+            <div className="mt-3 border border-[#d4d0c8] bg-[#f7f7f7] p-2 text-[10px] space-y-0.5">
+              <div className="font-bold text-[10.5px]">{selected.name}</div>
+              <div>Branches: {selected._count.branches}</div>
+              <div>Industry: {selected.industry ?? '—'}</div>
+              <div>Timezone: {selected.timezone ?? '—'}</div>
+              <div>
+                FY starts:{' '}
+                {selected.fiscalYearStart
+                  ? new Date(Date.UTC(2000, selected.fiscalYearStart - 1, 1))
+                      .toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })
+                  : '—'}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col p-3 overflow-hidden bg-white m-1.5 border border-gray-400 shadow-inner">
-        <div className="flex-1 flex flex-col overflow-hidden space-y-3">
-           
-           {/* Top Info Section */}
-           <div className="grid grid-cols-[1fr_200px] gap-4 items-start">
-              <div className="space-y-1.5 flex-1">
-                 <div className="grid grid-cols-[80px_1fr_80px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>User ID</span>
-                    <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px] bg-[#f0f0f0]" />
-                    <span className={sapLabelStyle}>Password</span>
-                    <input type="password" className="w-full h-[18px] border border-gray-400 px-1 text-[11px] bg-[#f0f0f0]" />
-                 </div>
-                 <div className="flex items-center gap-2">
-                    <input type="checkbox" className="w-3.5 h-3.5" />
-                    <span className="text-[11px] text-gray-500 italic">Log on with Current Domain User</span>
-                 </div>
-                 <div className="grid grid-cols-[100px_150px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Current Server</span>
-                    <select className="h-[18px] border border-gray-400 px-1 text-[11px] bg-[#fffbd0]"><option value="HANADB">HANADB</option></select>
-                    <select className="h-[18px] border border-gray-400 px-1 text-[11px]"><option value="NDB@192.168.">NDB@192.168.</option></select>
-                 </div>
-                 <div className="grid grid-cols-[100px_1fr] items-center gap-2 pr-20">
-                    <span className={sapLabelStyle}>Database</span>
-                    <input type="text" className="h-[18px] border border-gray-400 px-1 text-[11px] bg-[#f0f0f0]" />
-                 </div>
-              </div>
-              <div className="flex flex-col justify-start items-end">
-                 <button className={sapButtonStyle}>Change User</button>
-              </div>
-           </div>
-
-           {/* Companies Section */}
-           <div className="flex-1 flex flex-col space-y-1 overflow-hidden min-h-0">
-              <span className="text-[11px] text-gray-700 font-bold">Companies on Current Server</span>
-              <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
-                 <div className="flex-1 border border-gray-400 overflow-auto custom-scrollbar bg-white">
-                    <table className="w-full border-collapse">
-                       <thead className="sticky top-0 z-10 bg-[#f0f0f0]">
-                          <tr className="border-b border-gray-400 text-left">
-                             <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[200px]">Company Name</th>
-                             <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[150px]">Database Name</th>
-                             <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[100px]">Localization</th>
-                             <th className="group/head relative border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[100px]">
-                                Version
-                                <div className="absolute right-1 top-1.5 opacity-40"><ChevronRight className="w-3 h-3 rotate-[-45deg]" /></div>
-                             </th>
-                          </tr>
-                       </thead>
-                       <tbody>
-                          {[...Array(10)].map((_, i) => (
-                            <tr key={i} className="border-b border-gray-100 h-6 hover:bg-orange-50 cursor-default">
-                               <td className="border-r border-gray-100 px-1"></td>
-                               <td className="border-r border-gray-100 px-1"></td>
-                               <td className="border-r border-gray-100 px-1"></td>
-                               <td className="border-r border-gray-100 px-1"></td>
-                            </tr>
-                          ))}
-                       </tbody>
-                    </table>
-                 </div>
-                 <div className="w-[120px] flex flex-col gap-2 shrink-0">
-                    <div className="flex h-[18px] border border-gray-400 rounded-sm overflow-hidden shadow-sm">
-                       <button className="flex-1 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border-r border-gray-400 text-[10px] font-bold">New</button>
-                       <button className="px-1 bg-[#f0f0f0] hover:bg-gray-200 transition-colors"><ChevronRight className="w-2.5 h-2.5 rotate-90" /></button>
-                    </div>
-                    <button className={sapButtonStyle}>Refresh</button>
-                    
-                    <div className="mt-8 space-y-2">
-                       <span className="text-[11px] font-bold text-gray-700 block">Find By:</span>
-                       <div className="space-y-1">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                             <input type="radio" name="findby" className="w-3 h-3" defaultChecked />
-                             <span className="text-[11px]">Company Name</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                             <input type="radio" name="findby" className="w-3 h-3" />
-                             <span className="text-[11px]">Database Name</span>
-                          </label>
-                       </div>
-                       <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           {/* Footer Buttons */}
-           <div className="flex gap-2 pt-2 border-t border-gray-200 shrink-0">
-              <button onClick={onClose} className={sapButtonStyle}>OK</button>
-              <button onClick={onClose} className={sapButtonStyle}>Cancel</button>
-           </div>
-        </div>
+      {/* ── OK / Cancel ── */}
+      <div className="shrink-0 border-t border-[#d4d0c8] bg-[#f0f0f0] px-3 py-2 flex items-center gap-2">
+        <YellowBtn onClick={handleOk} disabled={!selected || isBusy}>OK</YellowBtn>
+        <GreyBtn onClick={onClose}>Cancel</GreyBtn>
+        {activeCompanyId && (
+          <GreyBtn
+            onClick={() => {
+              setActiveCompany(null);
+              void qc.clear();
+              setSelectedId(null);
+              setStatus('Company context cleared.');
+            }}
+            disabled={!isSuperAdmin}
+            title={isSuperAdmin ? 'Leave the company' : 'A company user always works in their own company'}
+          >
+            Clear Selection
+          </GreyBtn>
+        )}
+        <span className="text-[9.5px] text-gray-600 ml-1">
+          Double-click a row to open it. The choice applies to every window and survives a restart.
+        </span>
       </div>
-    </div>
+    </ClassicWindow>
   );
 };

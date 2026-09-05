@@ -1,167 +1,383 @@
-import React from 'react';
-import { ResizableCriteriaWindow, WindowState } from '../../ui/ResizableCriteriaWindow';
+import React, { useState } from 'react';
+import { FileClock, Check, RefreshCw, X } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  approvalsApi,
+  numberingApi,
+  type ApprovalRequest,
+  type ApprovalRequestStatus,
+} from '../../../api/administration.api';
+import { usersApi } from '../../../api/users.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface ApprovalStatusReportWindowProps {
-  windowState: WindowState;
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  onUpdateState: (s: Partial<WindowState>) => void;
-  onFocus: () => void;
-  onOpenSelectionUsers: () => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
+  /** Opens the shared user-picker. Kept so the workspace can keep passing it. */
+  onOpenSelectionUsers?: () => void;
 }
 
-const sapLabelStyle = "text-[11px] text-[#333] whitespace-nowrap leading-[18px]";
-const sapInputStyle = "h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-white w-full";
-const sapButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[80px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-const sapGreyButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[80px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
+const STATUS_STYLE: Record<ApprovalRequestStatus, string> = {
+  PENDING: 'bg-amber-100 text-amber-800',
+  APPROVED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-800',
+  CANCELLED: 'bg-gray-200 text-gray-700',
+  GENERATED: 'bg-blue-100 text-blue-800',
+};
 
-export const ApprovalStatusReportWindow: React.FC<ApprovalStatusReportWindowProps> = ({
-  windowState,
-  onClose,
-  onUpdateState,
-  onFocus,
-  onOpenSelectionUsers
+const when = (v?: string | null) => (v ? new Date(v).toLocaleString() : '—');
+
+/**
+ * Approval Status Report, and the queue the signed-in user acts on.
+ *
+ * Deciding happens here rather than in a separate window: the report is where an
+ * authorizer already is when they see something waiting on them, and making them
+ * navigate elsewhere to approve it is how queues get ignored.
+ */
+export const ApprovalStatusReportWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const salesDocs = ['Sales Quotation', 'Sales Order', 'Delivery', 'Return Request', 'Return', 'A/R Down Payment', 'A/R Invoice', 'A/R Credit Memo'];
-  const purchaseDocs = ['Purchase Request', 'Purchase Quotation', 'Purchase Order', 'Goods Receipt PO', 'Goods Return Request', 'Goods Returns', 'A/P Down Payment', 'A/P Invoice', 'A/P Credit Memo'];
-  const inventoryDocs = ['Goods Receipt', 'Goods Issue', 'Inventory Transfer Request', 'Inventory Transfer', 'Inventory Opening Balance'];
-  const blanketDocs = ['Sales Blanket Agreements', 'Purchase Blanket Agreements'];
-  const countingDocs = ['Inventory Counting', 'Inventory Posting'];
+  const { activeCompanyId, user } = useAuth();
+  const qc = useQueryClient();
+  const companyId = activeCompanyId;
+
+  const [scope, setScope] = useState<'all' | 'mine'>('all');
+  const [statusFilter, setStatusFilter] = useState<ApprovalRequestStatus | ''>('');
+  const [documentType, setDocumentType] = useState('');
+  const [originatorId, setOriginatorId] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [remarks, setRemarks] = useState('');
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+
+  const requestsQuery = useQuery({
+    queryKey: ['approval-requests', companyId, scope, statusFilter, documentType, originatorId],
+    queryFn: () =>
+      scope === 'mine'
+        ? approvalsApi.myQueue()
+        : approvalsApi.listRequests({
+            status: statusFilter || undefined,
+            documentType: documentType || undefined,
+            originatorId: originatorId || undefined,
+          }),
+    enabled: !!companyId,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ['users', companyId],
+    queryFn: () => usersApi.getAll(companyId ?? undefined),
+    enabled: !!companyId,
+  });
+
+  const docTypesQuery = useQuery({
+    queryKey: ['numbering-document-types', companyId],
+    queryFn: () => numberingApi.documentTypes(),
+    enabled: !!companyId,
+  });
+
+  const requests = requestsQuery.data ?? [];
+  const selected = requests.find((r) => r.id === selectedId) ?? null;
+
+  const onErr = (e: unknown) => {
+    setError(e instanceof Error ? e.message : 'The server rejected that decision.');
+    setStatus('');
+  };
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['approval-requests'] });
+    void qc.invalidateQueries({ queryKey: ['approval-decisions'] });
+  };
+
+  const decideMut = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'APPROVED' | 'REJECTED' }) =>
+      approvalsApi.decide(id, decision, remarks.trim() || undefined),
+    onSuccess: (row) => {
+      invalidate();
+      setRemarks('');
+      setError('');
+      setStatus(`Request ${row.documentNumber ?? row.id.slice(0, 8)} is now ${row.status}.`);
+    },
+    onError: onErr,
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: (id: string) => approvalsApi.cancel(id),
+    onSuccess: () => {
+      invalidate();
+      setError('');
+      setStatus('Request withdrawn.');
+    },
+    onError: onErr,
+  });
+
+  const isBusy = decideMut.isPending || cancelMut.isPending;
+
+  /** The stage a decision would land on — the one currently in play. */
+  const currentStage = (r: ApprovalRequest) =>
+    r.stages.find((s) => s.ordering === r.currentStageOrder) ?? null;
+
+  const canDecide = (r: ApprovalRequest | null) => {
+    if (!r || r.status !== 'PENDING' || !user) return false;
+    const stage = currentStage(r);
+    if (!stage) return false;
+    // Only an authorizer named on the live stage can decide, and only once.
+    const isAuthorizer = stage.stage.approvers.some((a) => a.userId === user.id);
+    const alreadyDecided = stage.decisions.some((d) => d.approverId === user.id);
+    return isAuthorizer && !alreadyDecided;
+  };
 
   return (
-    <ResizableCriteriaWindow
-      title="Approval Status Report - Selection Criteria"
-      windowState={windowState}
+    <ClassicWindow
+      title="Approval Status Report"
+      icon={<FileClock className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
       onClose={onClose}
-      onUpdateState={onUpdateState}
       onFocus={onFocus}
-      minWidth={600}
-      minHeight={650}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={980}
+      minHeight={560}
+      toolbar={
+        <>
+          <ToolBtn
+            onClick={() => { setScope('all'); setSelectedId(null); }}
+            className={cn(scope === 'all' && 'bg-[#ffed99] font-bold')}
+          >
+            All Requests
+          </ToolBtn>
+          <ToolBtn
+            onClick={() => { setScope('mine'); setSelectedId(null); }}
+            className={cn(scope === 'mine' && 'bg-[#ffed99] font-bold')}
+          >
+            Waiting On Me
+          </ToolBtn>
+          <ToolBtn onClick={() => requestsQuery.refetch()} title="Refresh">
+            <RefreshCw className={cn('w-3 h-3', requestsQuery.isFetching && 'animate-spin')} />
+          </ToolBtn>
+          <StatusNote error={error} status={status} />
+        </>
+      }
+      footer={
+        <>
+          <span>{requests.length} request(s)</span>
+          <span>Approval Status Report</span>
+        </>
+      }
     >
-      <div className="flex-1 p-4 bg-[#f0f0f0] flex flex-col gap-4 overflow-y-auto custom-scrollbar">
-        
-        {/* Document Status */}
-        <div className="flex flex-col border border-gray-400 p-3 relative pt-3">
-          <span className="absolute -top-2 left-2 bg-[#f0f0f0] px-1 text-[11px] font-bold text-[#333] underline">Document Status</span>
-          <div className="grid grid-cols-3 gap-2 mt-1">
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Pending</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Approved</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Rejected</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Generated</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Generated by Authorizer</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Canceled</span></label>
+      {scope === 'all' && (
+        <div className="shrink-0 bg-[#f7f7f7] border-b border-[#d4d0c8] px-3 py-2 flex items-end gap-3 flex-wrap">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-gray-600">Status</span>
+            <ClassicSel
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as ApprovalRequestStatus | '')}
+              className="w-32"
+            >
+              <option value="">All</option>
+              <option value="PENDING">Pending</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="GENERATED">Generated</option>
+            </ClassicSel>
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-gray-600">Document Type</span>
+            <ClassicSel
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="w-44"
+            >
+              <option value="">All</option>
+              {(docTypesQuery.data ?? []).map((d) => (
+                <option key={d.documentType} value={d.documentType}>{d.documentType}</option>
+              ))}
+            </ClassicSel>
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[10px] text-gray-600">Originator</span>
+            <ClassicSel
+              value={originatorId}
+              onChange={(e) => setOriginatorId(e.target.value)}
+              className="w-44"
+            >
+              <option value="">Anyone</option>
+              {(usersQuery.data ?? []).map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </ClassicSel>
+          </label>
+          <GreyBtn onClick={() => { setStatusFilter(''); setDocumentType(''); setOriginatorId(''); }}>
+            Clear
+          </GreyBtn>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-auto bg-white custom-scrollbar">
+          <table className="w-full border-collapse text-[10.5px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Document</th>
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Type</th>
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Originator</th>
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Template</th>
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Stage</th>
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Status</th>
+                <th className="px-2 py-1 font-bold text-[#444]">Raised</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r: ApprovalRequest) => {
+                const stage = currentStage(r);
+                return (
+                  <tr
+                    key={r.id}
+                    onClick={() => { setSelectedId(r.id); setRemarks(''); setError(''); setStatus(''); }}
+                    className={cn(
+                      'border-b border-[#f0f0f0] cursor-default',
+                      selectedId === r.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50/50',
+                    )}
+                  >
+                    <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">
+                      {r.documentNumber ?? r.id.slice(0, 8)}
+                    </td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">{r.documentType}</td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">{r.originator.name}</td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">{r.template.name}</td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">
+                      {stage ? `${stage.ordering + 1}. ${stage.stage.name}` : '—'}
+                    </td>
+                    <td className="px-2 py-1 border-r border-[#f0f0f0]">
+                      <span className={cn('text-[9px] px-1 rounded-[1px]', STATUS_STYLE[r.status])}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-2 py-1">{when(r.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <ListPlaceholder
+            noCompany={!companyId}
+            isLoading={requestsQuery.isLoading}
+            isEmpty={!requestsQuery.isLoading && !requests.length}
+            emptyText={
+              scope === 'mine'
+                ? 'Nothing is waiting on you.'
+                : 'No approval requests match those filters.'
+            }
+          />
+        </div>
+
+        {selected && (
+          <div className="w-[340px] shrink-0 border-l border-[#d4d0c8] bg-[#f7f7f7] p-2 overflow-auto custom-scrollbar">
+            <div className="text-[11px] font-bold mb-1">
+              {selected.documentNumber ?? selected.id.slice(0, 8)} — {selected.documentType}
+            </div>
+            <div className="text-[10px] text-gray-600 mb-2">
+              Raised by {selected.originator.name} · {when(selected.createdAt)}
+              {selected.resolvedAt && <> · resolved {when(selected.resolvedAt)}</>}
+            </div>
+            {selected.remarks && (
+              <div className="text-[10px] mb-2">Originator remarks: {selected.remarks}</div>
+            )}
+
+            <div className="text-[10.5px] font-bold mb-1">Stages</div>
+            {[...selected.stages].sort((a, b) => a.ordering - b.ordering).map((s) => (
+              <div key={s.id} className="border border-[#e0e0e0] bg-white p-1.5 mb-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-medium">
+                    {s.ordering + 1}. {s.stage.name}
+                  </span>
+                  <span className={cn('text-[9px] px-1 rounded-[1px]', STATUS_STYLE[s.status])}>
+                    {s.status}
+                  </span>
+                </div>
+                <div className="text-[9.5px] text-gray-600">
+                  {s.decisions.length} of {s.stage.requiredApprovals} approval(s)
+                </div>
+                {s.decisions.map((d) => (
+                  <div key={d.id} className="text-[9.5px] mt-0.5">
+                    <span className={d.decision === 'APPROVED' ? 'text-green-800' : 'text-red-800'}>
+                      {d.decision === 'APPROVED' ? '✓' : '✗'} {d.approver.name}
+                    </span>
+                    {d.remarks && <span className="text-gray-600"> — {d.remarks}</span>}
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            {selected.status === 'PENDING' && (
+              <div className="mt-2 border-t border-[#d4d0c8] pt-2">
+                <div className="text-[10px] text-gray-600 mb-1">Remarks (optional)</div>
+                <ClassicInput
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full mb-1.5"
+                  placeholder="Why you approved or rejected"
+                />
+                {canDecide(selected) ? (
+                  <div className="flex gap-1.5">
+                    <YellowBtn
+                      onClick={() => decideMut.mutate({ id: selected.id, decision: 'APPROVED' })}
+                      disabled={isBusy}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Approve
+                      </span>
+                    </YellowBtn>
+                    <GreyBtn
+                      onClick={() => {
+                        if (!window.confirm('Reject this request? The document will not post.')) return;
+                        decideMut.mutate({ id: selected.id, decision: 'REJECTED' });
+                      }}
+                      disabled={isBusy}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <X className="w-3 h-3" /> Reject
+                      </span>
+                    </GreyBtn>
+                  </div>
+                ) : (
+                  <div className="text-[9.5px] text-gray-600">
+                    {selected.originator.id === user?.id
+                      ? 'You raised this request, so you cannot decide it.'
+                      : 'You are not an authorizer on the stage this request is waiting at.'}
+                  </div>
+                )}
+
+                {selected.originator.id === user?.id && (
+                  <GreyBtn
+                    className="mt-1.5"
+                    onClick={() => {
+                      if (!window.confirm('Withdraw this request?')) return;
+                      cancelMut.mutate(selected.id);
+                    }}
+                    disabled={isBusy}
+                  >
+                    Withdraw
+                  </GreyBtn>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Inputs */}
-        <div className="grid grid-cols-[140px_1fr] gap-x-4 gap-y-1 items-center px-1">
-           <span className={sapLabelStyle}>Originator From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-1">
-                 <input type="text" className={`${sapInputStyle} !bg-[#fffbd0]`} />
-                 <div onClick={onOpenSelectionUsers} className="w-5 h-[18px] bg-[#e8e8e8] border border-gray-400 flex items-center justify-center cursor-pointer hover:bg-gray-200">
-                    <div className="w-1.5 h-1.5 bg-gray-600 rounded-full" />
-                 </div>
-              </div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Authorizer From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Template From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Request Date From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>BP Code From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Total (LC) From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-        </div>
-
-        {/* Documents Grid */}
-        <div className="flex-1 overflow-auto custom-scrollbar mt-2 border-t border-gray-300 pt-4">
-           <div className="grid grid-cols-2 gap-x-12 gap-y-6">
-              <div className="space-y-1">
-                 <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Sales - A/R</h4>
-                 {salesDocs.map(doc => (
-                    <label key={doc} className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 pr-4">
-                       <span className={sapLabelStyle}>{doc}</span>
-                       <input type="checkbox" className="w-3.5 h-3.5" />
-                    </label>
-                 ))}
-              </div>
-              <div className="space-y-1">
-                 <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Purchasing - A/P</h4>
-                 {purchaseDocs.map(doc => (
-                    <label key={doc} className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 pr-4">
-                       <span className={sapLabelStyle}>{doc}</span>
-                       <input type="checkbox" className="w-3.5 h-3.5" />
-                    </label>
-                 ))}
-              </div>
-              <div className="space-y-1">
-                 <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Inventory</h4>
-                 {inventoryDocs.map(doc => (
-                    <label key={doc} className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 pr-4">
-                       <span className={sapLabelStyle}>{doc}</span>
-                       <input type="checkbox" className="w-3.5 h-3.5" />
-                    </label>
-                 ))}
-                 <h4 className="text-[11px] font-bold text-[#333] underline mt-4 mb-1">Blanket Agreement</h4>
-                 {blanketDocs.map(doc => (
-                    <label key={doc} className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 pr-4">
-                       <span className={sapLabelStyle}>{doc}</span>
-                       <input type="checkbox" className="w-3.5 h-3.5" />
-                    </label>
-                 ))}
-              </div>
-              <div className="space-y-1">
-                 <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Payment</h4>
-                 <label className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 pr-4">
-                    <span className={sapLabelStyle}>Outgoing Payment</span>
-                    <input type="checkbox" className="w-3.5 h-3.5" />
-                 </label>
-                 <h4 className="text-[11px] font-bold text-[#333] underline mt-12 mb-1">Inventory Counting Transactions</h4>
-                 {countingDocs.map(doc => (
-                    <label key={doc} className="flex items-center justify-between gap-2 cursor-pointer hover:bg-gray-50 pr-4">
-                       <span className={sapLabelStyle}>{doc}</span>
-                       <input type="checkbox" className="w-3.5 h-3.5" />
-                    </label>
-                 ))}
-              </div>
-           </div>
-        </div>
-
-        <div className="flex gap-2 shrink-0 pt-2">
-           <button className={sapButtonStyle}>OK</button>
-           <button onClick={onClose} className={sapGreyButtonStyle}>Cancel</button>
-        </div>
-
+        )}
       </div>
-    </ResizableCriteriaWindow>
+    </ClassicWindow>
   );
 };

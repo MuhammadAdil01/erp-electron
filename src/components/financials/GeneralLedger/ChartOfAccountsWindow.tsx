@@ -56,7 +56,7 @@ const pretty = (s: string) => s.replace(/_/g, ' ').toLowerCase().replace(/^./, (
 export const ChartOfAccountsWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const { user } = useAuth();
+  const { activeCompanyId } = useAuth();
   const [drawer, setDrawer] = useState<AccountType>('ASSET');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -71,15 +71,15 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
   // The tree endpoint drives the left pane. Keying on the row count and the
   // last write keeps it in step with the flat list after every save.
   const { data: tree = [], isLoading: treeLoading } = useQuery({
-    queryKey: ['accounts-tree', user?.companyId, drawer, showInactive, crud.rows.length, crud.status],
+    queryKey: ['accounts-tree', activeCompanyId, drawer, showInactive, crud.rows.length, crud.status],
     queryFn: () => accountsApi.tree({ type: drawer, includeInactive: showInactive }),
-    enabled: !!user?.companyId,
+    enabled: !!activeCompanyId,
   });
 
   const { data: balances = [] } = useQuery({
-    queryKey: ['account-balances', user?.companyId, crud.status],
+    queryKey: ['account-balances', activeCompanyId, crud.status],
     queryFn: () => accountsApi.balances(),
-    enabled: !!user?.companyId,
+    enabled: !!activeCompanyId,
   });
 
   const balanceByAccount = useMemo(

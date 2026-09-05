@@ -50,9 +50,9 @@ const preview = (f: typeof emptyForm) => {
 export const DocumentNumberingWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const { user } = useAuth();
+  const { activeCompanyId } = useAuth();
   const qc = useQueryClient();
-  const companyId = user?.companyId ?? null;
+  const companyId = activeCompanyId;
 
   const [form, setForm] = useState(emptyForm);
   const [typeFilter, setTypeFilter] = useState('');

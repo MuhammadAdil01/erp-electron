@@ -57,9 +57,12 @@ export function useCrudResource<T extends { id: string }, TCreate = Partial<T>, 
     enabled?: boolean;
   } = {},
 ): UseCrudResourceResult<T, TCreate, TUpdate> {
-  const { user } = useAuth();
+  const { activeCompanyId } = useAuth();
   const qc = useQueryClient();
-  const companyId = user?.companyId ?? null;
+  // The company the session is acting in, not the one on the user record: a
+  // platform operator's own `companyId` is null even while they administer a
+  // tenant, and gating on it left every setup window empty for them.
+  const companyId = activeCompanyId;
 
   const [selected, setSelected] = useState<T | null>(null);
   const [mode, setMode] = useState<CrudMode>('view');

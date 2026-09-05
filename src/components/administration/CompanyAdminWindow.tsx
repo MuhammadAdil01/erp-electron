@@ -6,7 +6,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { usersApi, User, CreateUserPayload, UpdateUserPayload } from '../../api/users.api';
-import { rolesApi, Role, CreateRolePayload, Permission } from '../../api/roles.api';
+import { rolesApi, Role, CreateRolePayload, Permission, PermissionScope } from '../../api/roles.api';
 import { companiesApi, systemModulesApi, SystemModule, Company, CompanyListItem } from '../../api/companies.api';
 import { WindowState } from '../../types/window';
 import { cn, ClassicTab, ClassicInput, YellowBtn, GreyBtn, FieldRow } from '../ui/ClassicERPUI';
@@ -20,8 +20,6 @@ interface Props {
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
   onFocus?: () => void;
 }
-
-const ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'MANAGE'] as const;
 
 // ─── Users Tab ────────────────────────────────────────────────────────────────
 
@@ -228,13 +226,74 @@ const UsersTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 
 // ─── Roles Tab ────────────────────────────────────────────────────────────────
 
+/**
+ * The permission catalog is flat: 300-odd rows of
+ * `{ moduleSlug, resource, action }`. It is *not* a five-column
+ * VIEW/CREATE/UPDATE/DELETE/MANAGE grid — there are 27 distinct actions, and
+ * the ones this screen exists to hand out (`administration.approval.decide`,
+ * `tenancy.module.activate`) are among the ones a fixed grid cannot show.
+ * So group module → resource and render whatever actions each resource has.
+ */
+type ResourceGroup = { resource: string; perms: Permission[] };
+type ModuleGroup = { moduleSlug: string; resources: ResourceGroup[]; perms: Permission[] };
+
+function groupPermissions(perms: Permission[]): ModuleGroup[] {
+  const byModule = new Map<string, Map<string, Permission[]>>();
+  for (const p of perms) {
+    if (!byModule.has(p.moduleSlug)) byModule.set(p.moduleSlug, new Map());
+    const byResource = byModule.get(p.moduleSlug)!;
+    if (!byResource.has(p.resource)) byResource.set(p.resource, []);
+    byResource.get(p.resource)!.push(p);
+  }
+  return [...byModule.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([moduleSlug, byResource]) => {
+      const resources = [...byResource.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([resource, list]) => ({
+          resource,
+          perms: [...list].sort((x, y) => x.action.localeCompare(y.action)),
+        }));
+      return { moduleSlug, resources, perms: resources.flatMap((r) => r.perms) };
+    });
+}
+
+/**
+ * The three grants this screen was opened for. Named explicitly because
+ * finding `tenancy.module.activate` by scrolling a 300-row catalog is the kind
+ * of thing that gets given up on and replaced by "just make them a super admin".
+ */
+const PRESETS: { label: string; title: string; keys: string[] }[] = [
+  {
+    label: 'Admin User Create/Update',
+    title: 'List, create and update users in this company',
+    keys: ['administration.view', 'administration.create', 'administration.update'],
+  },
+  {
+    label: 'Module Assignment',
+    title: 'Assign modules to users and activate modules for the company',
+    keys: ['administration.view', 'administration.update', 'tenancy.module.activate'],
+  },
+  {
+    label: 'Module Approval',
+    title: 'See and decide pending module-access requests',
+    keys: ['administration.approval.view', 'administration.approval.decide'],
+  },
+];
+
 const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Role | null>(null);
   const [mode, setMode] = useState<'view' | 'new' | 'edit'>('view');
-  const [form, setForm] = useState<{ name: string; description: string; isDefault: boolean; permissionIds: string[] }>({
-    name: '', description: '', isDefault: false, permissionIds: [],
+  const [form, setForm] = useState<{ name: string; description: string; isDefault: boolean; permissionKeys: string[] }>({
+    name: '', description: '', isDefault: false, permissionKeys: [],
   });
+  // Scopes carried over from the role as loaded. A permission the user did not
+  // touch must go back at the scope it had — rewriting every assignment to ALL
+  // would silently widen a DEPARTMENT-scoped grant on an unrelated edit.
+  const [scopes, setScopes] = useState<Record<string, PermissionScope>>({});
+  const [filter, setFilter] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState('');
   const [err, setErr] = useState('');
 
@@ -243,38 +302,56 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
     queryFn: () => rolesApi.getAll(companyId),
   });
 
-  const { data: availablePerms = [] } = useQuery({
+  const { data: availablePerms = [], isLoading: loadingPerms, error: permsError } = useQuery({
     queryKey: ['available-permissions', companyId],
     queryFn: () => rolesApi.getAvailablePermissions(companyId),
   });
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['company-roles', companyId] });
+    // A role edit changes what its members may do, so the user list (which
+    // renders role chips) goes stale with it.
+    qc.invalidateQueries({ queryKey: ['company-users', companyId] });
+  };
+
   const createMut = useMutation({
     mutationFn: (p: CreateRolePayload) => rolesApi.create(p, companyId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles', companyId] }); setMode('view'); setStatus('Role created.'); },
+    onSuccess: () => { invalidate(); setMode('view'); setStatus('Role created.'); },
     onError: (e: any) => setErr(e.message ?? 'Failed to create role'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, p }: { id: string; p: Partial<CreateRolePayload> }) => rolesApi.update(id, p, companyId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles', companyId] }); setMode('view'); setStatus('Role updated.'); },
+    onSuccess: (updated) => { invalidate(); if (updated) setSelected(updated); setMode('view'); setStatus('Role updated.'); },
     onError: (e: any) => setErr(e.message ?? 'Failed to update role'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => rolesApi.remove(id, companyId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['company-roles', companyId] }); setSelected(null); setStatus('Role deleted.'); },
+    onSuccess: () => { invalidate(); setSelected(null); setStatus('Role deleted.'); },
     onError: (e: any) => setErr(e.message ?? 'Failed to delete role'),
   });
 
-  // Group permissions by module for the matrix
-  const permsByModule = availablePerms.reduce<Record<string, { module: Permission['module']; perms: Permission[] }>>((acc, p) => {
-    if (!acc[p.moduleId]) acc[p.moduleId] = { module: p.module, perms: [] };
-    acc[p.moduleId].perms.push(p);
-    return acc;
-  }, {});
+  const groups = React.useMemo(() => groupPermissions(availablePerms), [availablePerms]);
+
+  const visibleGroups = React.useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return groups;
+    return groups
+      .map(g => ({
+        ...g,
+        resources: g.resources
+          .map(r => ({ ...r, perms: r.perms.filter(p => p.key.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q)) }))
+          .filter(r => r.perms.length > 0),
+      }))
+      .filter(g => g.resources.length > 0);
+  }, [groups, filter]);
+
+  const grantedKeys = (r: Role) => (r.rolePermissions ?? []).map(rp => rp.permission.key);
 
   const openNew = () => {
-    setForm({ name: '', description: '', isDefault: false, permissionIds: [] });
+    setForm({ name: '', description: '', isDefault: false, permissionKeys: [] });
+    setScopes({});
     setErr(''); setStatus('');
     setMode('new');
   };
@@ -285,8 +362,11 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
       name: r.name,
       description: r.description ?? '',
       isDefault: r.isDefault,
-      permissionIds: r.rolePermissions.map(rp => rp.permission.id),
+      permissionKeys: grantedKeys(r),
     });
+    setScopes(Object.fromEntries(
+      (r.rolePermissions ?? []).map(rp => [rp.permission.key, rp.scope ?? 'ALL'] as const),
+    ));
     setErr(''); setStatus('');
     setMode('edit');
   };
@@ -294,7 +374,15 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
   const handleSave = () => {
     setErr('');
     if (!form.name.trim()) { setErr('Role name is required.'); return; }
-    const payload: CreateRolePayload = { name: form.name, description: form.description || undefined, isDefault: form.isDefault, permissionIds: form.permissionIds };
+    // The backend takes `permissions: [{ permissionKey, scope }]`, and its
+    // ValidationPipe runs with forbidNonWhitelisted — an unknown field such as
+    // the `permissionIds` this screen used to send is rejected outright.
+    const payload: CreateRolePayload = {
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      isDefault: form.isDefault,
+      permissions: form.permissionKeys.map(k => ({ permissionKey: k, scope: scopes[k] ?? 'ALL' })),
+    };
     if (mode === 'new') {
       createMut.mutate(payload);
     } else if (mode === 'edit' && selected) {
@@ -308,26 +396,108 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
     deleteMut.mutate(selected.id);
   };
 
-  const togglePerm = (permId: string) => {
+  const togglePerm = (key: string) => {
     setForm(f => ({
       ...f,
-      permissionIds: f.permissionIds.includes(permId) ? f.permissionIds.filter(id => id !== permId) : [...f.permissionIds, permId],
+      permissionKeys: f.permissionKeys.includes(key)
+        ? f.permissionKeys.filter(k => k !== key)
+        : [...f.permissionKeys, key],
     }));
   };
 
-  const toggleModuleAll = (moduleId: string) => {
-    const modulePerms = permsByModule[moduleId]?.perms ?? [];
-    const allSelected = modulePerms.every(p => form.permissionIds.includes(p.id));
-    const modulePermIds = modulePerms.map(p => p.id);
+  const setMany = (keys: string[], on: boolean) => {
     setForm(f => ({
       ...f,
-      permissionIds: allSelected
-        ? f.permissionIds.filter(id => !modulePermIds.includes(id))
-        : [...new Set([...f.permissionIds, ...modulePermIds])],
+      permissionKeys: on
+        ? [...new Set([...f.permissionKeys, ...keys])]
+        : f.permissionKeys.filter(k => !keys.includes(k)),
     }));
+  };
+
+  const applyPreset = (keys: string[]) => {
+    const known = new Set(availablePerms.map(p => p.key));
+    const grantable = keys.filter(k => known.has(k));
+    const missing = keys.filter(k => !known.has(k));
+    setMany(grantable, true);
+    setErr(missing.length
+      ? `Not available for this company (module disabled): ${missing.join(', ')}`
+      : '');
   };
 
   const isBusy = createMut.isPending || updateMut.isPending || deleteMut.isPending;
+  const editing = mode === 'new' || mode === 'edit';
+
+  const permissionMatrix = (
+    <div className="border border-[#d4d0c8] rounded-[1px] flex-1 overflow-auto bg-white min-h-[160px]">
+      {loadingPerms ? (
+        <div className="text-[10px] text-gray-400 p-3">Loading permissions…</div>
+      ) : permsError ? (
+        <div className="text-[10px] text-red-600 p-3 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />{(permsError as Error).message}
+        </div>
+      ) : availablePerms.length === 0 ? (
+        <div className="text-[10px] text-gray-400 p-3">
+          No modules enabled for this company — enable modules in the Modules tab first.
+        </div>
+      ) : visibleGroups.length === 0 ? (
+        <div className="text-[10px] text-gray-400 p-3">No permission matches that filter.</div>
+      ) : visibleGroups.map(group => {
+        const keys = group.perms.map(p => p.key);
+        const allOn = keys.every(k => form.permissionKeys.includes(k));
+        const isCollapsed = collapsed[group.moduleSlug] && !filter;
+        return (
+          <div key={group.moduleSlug} className="border-b border-[#e8e8e8] last:border-b-0">
+            <div className="flex items-center gap-2 px-2 py-1 bg-[#f4f4f4] border-b border-[#e0e0e0]">
+              <button
+                type="button"
+                onClick={() => setCollapsed(c => ({ ...c, [group.moduleSlug]: !c[group.moduleSlug] }))}
+                className="text-[10px] w-3 text-gray-500"
+              >{isCollapsed ? '▸' : '▾'}</button>
+              <span className="text-[10.5px] font-bold text-[#333] capitalize">{group.moduleSlug.replace(/-/g, ' ')}</span>
+              <span className="text-[9px] text-gray-400">
+                {keys.filter(k => form.permissionKeys.includes(k)).length}/{keys.length}
+              </span>
+              {editing && (
+                <label className="ml-auto flex items-center gap-1 text-[9px] text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={allOn} onChange={() => setMany(keys, !allOn)} />
+                  all
+                </label>
+              )}
+            </div>
+            {!isCollapsed && group.resources.map(res => (
+              <div key={res.resource} className="flex items-start gap-2 px-2 py-1 border-b border-[#f4f4f4] last:border-b-0 hover:bg-[#fafafa]">
+                <div className="w-48 shrink-0 text-[10px] font-medium text-[#444] pt-[1px] break-words">{res.resource}</div>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  {res.perms.map(p => {
+                    const on = form.permissionKeys.includes(p.key);
+                    return (
+                      <label
+                        key={p.id}
+                        title={p.description ? `${p.key} — ${p.description}` : p.key}
+                        className={cn(
+                          'flex items-center gap-1 text-[10px]',
+                          editing ? 'cursor-pointer' : 'cursor-default',
+                          on ? 'text-[#222]' : 'text-gray-500',
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          disabled={!editing}
+                          onChange={() => togglePerm(p.key)}
+                        />
+                        {p.action}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -353,7 +523,7 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* roles list */}
-        <div className="w-56 flex flex-col border-r border-[#d4d0c8] bg-white overflow-auto">
+        <div className="w-56 flex flex-col border-r border-[#d4d0c8] bg-white overflow-auto shrink-0">
           {loadingRoles ? (
             <div className="text-[10.5px] text-gray-500 p-3">Loading…</div>
           ) : roles.length === 0 ? (
@@ -361,7 +531,7 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
           ) : roles.map(r => (
             <div
               key={r.id}
-              onClick={() => { setSelected(r); setMode('view'); setErr(''); setStatus(''); }}
+              onClick={() => { setSelected(r); setMode('view'); setForm(f => ({ ...f, permissionKeys: grantedKeys(r) })); setErr(''); setStatus(''); }}
               onDoubleClick={() => openEdit(r)}
               className={cn(
                 'px-3 py-1.5 text-[10.5px] cursor-pointer border-b border-[#f0f0f0] select-none',
@@ -372,56 +542,42 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
                 {r.name}
                 {r.isDefault && <span className="text-[8px] bg-blue-100 text-blue-600 px-1 rounded-[1px]">default</span>}
               </div>
-              <div className="text-[#666]">{r._count.userRoles} user{r._count.userRoles !== 1 ? 's' : ''}</div>
+              <div className="text-[#666]">
+                {r._count?.userRoles ?? 0} user{(r._count?.userRoles ?? 0) !== 1 ? 's' : ''}
+                {' · '}{(r.rolePermissions ?? []).length} perm{(r.rolePermissions ?? []).length !== 1 ? 's' : ''}
+              </div>
             </div>
           ))}
         </div>
 
         {/* role detail */}
-        <div className="flex-1 p-3 overflow-auto">
+        <div className="flex-1 p-3 overflow-hidden flex flex-col min-w-0">
           {mode === 'view' && !selected && (
             <div className="text-[11px] text-gray-400 mt-8 text-center">Select a role or click New</div>
           )}
 
           {mode === 'view' && selected && (
-            <div>
-              <div className="text-[11px] font-bold text-[#333] mb-2 border-b border-[#e0e0e0] pb-1">{selected.name}</div>
-              {selected.description && <div className="text-[10.5px] text-gray-500 mb-3">{selected.description}</div>}
-              <div className="text-[10.5px] font-bold text-[#444] mb-1">Permissions</div>
-              <div className="overflow-auto max-h-80">
-                <table className="w-full border-collapse text-[10px]">
-                  <thead>
-                    <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
-                      <th className="text-left px-2 py-1 border-r border-[#d4d0c8] w-32">Module</th>
-                      {ACTIONS.map(a => <th key={a} className="px-2 py-1 border-r border-[#d4d0c8] w-16 text-center">{a}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(permsByModule).map(({ module, perms }) => (
-                      <tr key={module.id} className="border-b border-[#f0f0f0]">
-                        <td className="px-2 py-1 border-r border-[#f0f0f0] font-medium">{module.name}</td>
-                        {ACTIONS.map(action => {
-                          const perm = perms.find(p => p.action === action);
-                          const has = perm && selected.rolePermissions.some(rp => rp.permission.id === perm.id);
-                          return (
-                            <td key={action} className="px-2 py-1 border-r border-[#f0f0f0] text-center">
-                              {has ? <Check className="w-3 h-3 text-green-600 inline" /> : <span className="text-gray-300">—</span>}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="flex flex-col h-full min-h-0">
+              <div className="text-[11px] font-bold text-[#333] mb-1 border-b border-[#e0e0e0] pb-1">{selected.name}</div>
+              {selected.description && <div className="text-[10.5px] text-gray-500 mb-2">{selected.description}</div>}
+              <div className="flex items-center gap-2 mb-1 shrink-0">
+                <span className="text-[10.5px] font-bold text-[#444]">Permissions</span>
+                <ClassicInput
+                  value={filter}
+                  onChange={e => setFilter(e.target.value)}
+                  placeholder="filter…"
+                  className="w-40 ml-auto"
+                />
               </div>
-              <div className="mt-3">
+              {permissionMatrix}
+              <div className="mt-2 shrink-0">
                 <YellowBtn onClick={() => openEdit(selected)}>Edit</YellowBtn>
               </div>
             </div>
           )}
 
-          {(mode === 'new' || mode === 'edit') && (
-            <div className="flex flex-col h-full">
+          {editing && (
+            <div className="flex flex-col h-full min-h-0">
               <div className="text-[11px] font-bold text-[#333] mb-2 border-b border-[#e0e0e0] pb-1">
                 {mode === 'new' ? 'New Role' : `Edit — ${selected?.name}`}
               </div>
@@ -435,58 +591,32 @@ const RolesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
                 <input type="checkbox" checked={form.isDefault} onChange={e => setForm(f => ({ ...f, isDefault: e.target.checked }))} />
               </FieldRow>
 
-              <div className="mt-2 mb-1 text-[10.5px] font-bold text-[#444]">Permissions</div>
-              <div className="border border-[#d4d0c8] rounded-[1px] flex-1 overflow-auto bg-white">
-                {availablePerms.length === 0 ? (
-                  <div className="text-[10px] text-gray-400 p-3">No modules enabled for this company — enable modules in the Modules tab first.</div>
-                ) : (
-                  <table className="w-full border-collapse text-[10px]">
-                    <thead className="sticky top-0">
-                      <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
-                        <th className="text-left px-2 py-1 border-r border-[#d4d0c8] w-32">Module</th>
-                        {ACTIONS.map(a => <th key={a} className="px-2 py-1 border-r border-[#d4d0c8] w-16 text-center">{a}</th>)}
-                        <th className="px-2 py-1 text-center w-12">All</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.values(permsByModule).map(({ module, perms }) => {
-                        const allSelected = perms.every(p => form.permissionIds.includes(p.id));
-                        return (
-                          <tr key={module.id} className="border-b border-[#f0f0f0] hover:bg-[#fafafa]">
-                            <td className="px-2 py-1 border-r border-[#f0f0f0] font-medium">{module.name}</td>
-                            {ACTIONS.map(action => {
-                              const perm = perms.find(p => p.action === action);
-                              return (
-                                <td key={action} className="px-2 py-1 border-r border-[#f0f0f0] text-center">
-                                  {perm ? (
-                                    <input
-                                      type="checkbox"
-                                      checked={form.permissionIds.includes(perm.id)}
-                                      onChange={() => togglePerm(perm.id)}
-                                    />
-                                  ) : <span className="text-gray-200">—</span>}
-                                </td>
-                              );
-                            })}
-                            <td className="px-2 py-1 text-center">
-                              <input
-                                type="checkbox"
-                                checked={allSelected}
-                                onChange={() => toggleModuleAll(module.id)}
-                                title="Toggle all for this module"
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
+              <div className="flex items-center gap-2 mt-2 mb-1 flex-wrap shrink-0">
+                <span className="text-[10.5px] font-bold text-[#444]">Permissions</span>
+                <span className="text-[9.5px] text-gray-500">Grant:</span>
+                {PRESETS.map(p => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    title={p.title}
+                    onClick={() => applyPreset(p.keys)}
+                    className="px-1.5 py-0.5 text-[9.5px] border border-[#d4a020] bg-[#fff8e6] hover:bg-[#ffed99] rounded-[1px]"
+                  >{p.label}</button>
+                ))}
+                <ClassicInput
+                  value={filter}
+                  onChange={e => setFilter(e.target.value)}
+                  placeholder="filter permissions…"
+                  className="w-44 ml-auto"
+                />
+                <span className="text-[9.5px] text-gray-500">{form.permissionKeys.length} selected</span>
               </div>
 
-              <div className="flex gap-2 mt-3">
+              {permissionMatrix}
+
+              <div className="flex gap-2 mt-3 shrink-0">
                 <YellowBtn onClick={handleSave} disabled={isBusy}>{isBusy ? 'Saving…' : 'Save'}</YellowBtn>
-                <GreyBtn onClick={() => { setMode('view'); setErr(''); }}>Cancel</GreyBtn>
+                <GreyBtn onClick={() => { setMode('view'); setErr(''); if (selected) setForm(f => ({ ...f, permissionKeys: grantedKeys(selected) })); }}>Cancel</GreyBtn>
               </div>
             </div>
           )}
@@ -502,6 +632,7 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
   const qc = useQueryClient();
   const [toggling, setToggling] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [err, setErr] = useState('');
 
   const { data: company, isLoading: loadingCompany } = useQuery<Company>({
     queryKey: ['company-detail', companyId],
@@ -518,19 +649,24 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
       companiesApi.toggleModule(companyId, moduleId, isEnabled),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['company-detail', companyId] });
+      // The role editor only offers permissions belonging to enabled modules,
+      // so a toggle changes what that catalog contains.
+      qc.invalidateQueries({ queryKey: ['available-permissions', companyId] });
       setToggling(null);
+      setErr('');
       setStatus(`Module ${vars.isEnabled ? 'enabled' : 'disabled'}.`);
     },
-    onError: () => setToggling(null),
+    onError: (e: any) => { setToggling(null); setStatus(''); setErr(e?.message ?? 'Failed to change module'); },
   });
 
   const isEnabled = (moduleId: string) =>
-    company?.companyModules.find(cm => cm.moduleId === moduleId)?.isEnabled ?? false;
+    company?.companyModules?.find(cm => cm.moduleId === moduleId)?.isEnabled ?? false;
 
   const handleToggle = (moduleId: string) => {
     const current = isEnabled(moduleId);
     setToggling(moduleId);
     setStatus('');
+    setErr('');
     toggleMut.mutate({ moduleId, isEnabled: !current });
   };
 
@@ -553,6 +689,7 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
       <div className="flex items-center px-3 py-1.5 bg-[#f0f0f0] border-b border-[#d4d0c8] text-[10.5px]">
         <span className="text-gray-600">Toggle which modules are available in this company.</span>
         {status && <span className="ml-4 text-green-700">{status}</span>}
+        {err && <span className="ml-4 text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{err}</span>}
       </div>
 
       <div className="flex-1 overflow-auto p-3">
@@ -615,9 +752,12 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
 export const CompanyAdminWindow: React.FC<Props> = ({
   show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, activeCompanyId } = useAuth();
   const [activeTab, setActiveTab] = useState<'Users' | 'Roles' | 'Modules'>('Users');
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  // Seeded from the company chosen in Choose Company, so this window opens on
+  // the tenant the operator is already working in rather than on whichever one
+  // happens to sort first.
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(activeCompanyId ?? '');
 
   // Super admin: fetch all companies so they can pick one
   const { data: allCompanies = [], isLoading: loadingCompanies } = useQuery<CompanyListItem[]>({
@@ -634,7 +774,9 @@ export const CompanyAdminWindow: React.FC<Props> = ({
   }, [isSuperAdmin, allCompanies, selectedCompanyId]);
 
   // The company ID to actually operate on
-  const effectiveCompanyId = isSuperAdmin ? selectedCompanyId : (user?.companyId ?? '');
+  const effectiveCompanyId = isSuperAdmin
+    ? selectedCompanyId
+    : (user?.companyId ?? activeCompanyId ?? '');
 
   // ── drag ──────────────────────────────────────────────────────────────────
   const handleTitleMouseDown = useCallback((e: React.MouseEvent) => {

@@ -4,6 +4,7 @@ import { WorkspaceWindows } from './components/layout/workspace/WorkspaceWindows
 import { useWindowManager } from './hooks/useWindowManager';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function MainApp() {
   const wm = useWindowManager();
@@ -35,7 +36,12 @@ function MainApp() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar onOpen={wm.openWindow} />
         <div className="flex-1 relative bg-white overflow-hidden">
-          <WorkspaceWindows wm={wm} />
+          {/* Backstop: a render error in any window used to unmount the whole
+              app to a white screen. Contain it to the workspace so the shell —
+              and the Log Out button — stay usable. */}
+          <ErrorBoundary label="This window">
+            <WorkspaceWindows wm={wm} />
+          </ErrorBoundary>
         </div>
       </div>
     </div>

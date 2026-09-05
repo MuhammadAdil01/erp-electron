@@ -26,7 +26,7 @@ const emptyForm = { name: '', parentId: '', isActive: true };
 export const TerritoriesSetupWindow: React.FC<Props> = ({
   show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  const { user } = useAuth();
+  const { activeCompanyId } = useAuth();
   const [form, setForm] = useState(emptyForm);
   const [showInactive, setShowInactive] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -38,9 +38,9 @@ export const TerritoriesSetupWindow: React.FC<Props> = ({
   // The tree is a separate endpoint; it re-fetches whenever the flat list does
   // so the two panes never disagree after a save.
   const { data: tree = [] } = useQuery({
-    queryKey: ['territories-tree', user?.companyId, crud.rows.length, crud.status],
+    queryKey: ['territories-tree', activeCompanyId, crud.rows.length, crud.status],
     queryFn: () => territoriesApi.tree(),
-    enabled: !!user?.companyId,
+    enabled: !!activeCompanyId,
   });
 
   useEffect(() => {

@@ -61,9 +61,9 @@ const STATUS_STYLE: Record<JournalStatus, string> = {
 export const JournalEntryWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const { user } = useAuth();
+  const { activeCompanyId } = useAuth();
   const qc = useQueryClient();
-  const companyId = user?.companyId ?? null;
+  const companyId = activeCompanyId;
 
   const [mode, setMode] = useState<'browse' | 'new'>('browse');
   const [selectedId, setSelectedId] = useState<string | null>(null);

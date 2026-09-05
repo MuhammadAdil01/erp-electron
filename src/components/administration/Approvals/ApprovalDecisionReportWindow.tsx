@@ -1,90 +1,175 @@
-import React from 'react';
-import { ResizableCriteriaWindow, WindowState } from '../../ui/ResizableCriteriaWindow';
+import React, { useMemo, useState } from 'react';
+import { Gavel, RefreshCw } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import { approvalsApi } from '../../../api/administration.api';
+import { usersApi } from '../../../api/users.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface ApprovalDecisionReportWindowProps {
-  windowState: WindowState;
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  onUpdateState: (s: Partial<WindowState>) => void;
-  onFocus: () => void;
-  onOpenSelectionUsers: () => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
+  /** Opens the shared user-picker. Kept so the workspace can keep passing it. */
+  onOpenSelectionUsers?: () => void;
 }
 
-const sapLabelStyle = "text-[11px] text-[#333] whitespace-nowrap leading-[18px]";
-const sapInputStyle = "h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-white w-full";
-const sapButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[80px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-const sapGreyButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[80px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
+const when = (v: string) => new Date(v).toLocaleString();
 
-export const ApprovalDecisionReportWindow: React.FC<ApprovalDecisionReportWindowProps> = ({
-  windowState,
-  onClose,
-  onUpdateState,
-  onFocus,
-  onOpenSelectionUsers
+/**
+ * Approval Decision Report — who decided what, and when.
+ *
+ * This is the audit view of the approval process, so it lists decisions rather
+ * than requests: a request that went through three authorizers is three rows
+ * here, which is the question this report is asked.
+ */
+export const ApprovalDecisionReportWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
+  const { activeCompanyId } = useAuth();
+  const companyId = activeCompanyId;
+
+  const [approverId, setApproverId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [error, setError] = useState('');
+
+  const decisionsQuery = useQuery({
+    queryKey: ['approval-decisions', companyId, approverId, from, to],
+    queryFn: () =>
+      approvalsApi.decisionReport({
+        approverId: approverId || undefined,
+        from: from || undefined,
+        to: to || undefined,
+      }),
+    enabled: !!companyId,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ['users', companyId],
+    queryFn: () => usersApi.getAll(companyId ?? undefined),
+    enabled: !!companyId,
+  });
+
+  const rows = decisionsQuery.data ?? [];
+
+  const summary = useMemo(() => {
+    const approved = rows.filter((r) => r.decision === 'APPROVED').length;
+    return { approved, rejected: rows.length - approved };
+  }, [rows]);
+
   return (
-    <ResizableCriteriaWindow
-      title="Approval Decision Report - Selection Criteria"
-      windowState={windowState}
+    <ClassicWindow
+      title="Approval Decision Report"
+      icon={<Gavel className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
       onClose={onClose}
-      onUpdateState={onUpdateState}
       onFocus={onFocus}
-      minWidth={500}
-      minHeight={350}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={940}
+      minHeight={500}
+      toolbar={
+        <>
+          <ToolBtn onClick={() => decisionsQuery.refetch()} title="Refresh">
+            <RefreshCw className={cn('w-3 h-3', decisionsQuery.isFetching && 'animate-spin')} /> Refresh
+          </ToolBtn>
+          <StatusNote
+            error={error}
+            status={rows.length ? `${summary.approved} approved · ${summary.rejected} rejected` : ''}
+          />
+        </>
+      }
+      footer={
+        <>
+          <span>{rows.length} decision(s)</span>
+          <span>Approval Decision Report</span>
+        </>
+      }
     >
-      <div className="flex-1 p-4 bg-[#f0f0f0] flex flex-col gap-4 overflow-hidden">
-        
-        {/* Decision Section */}
-        <div className="flex flex-col border border-gray-400 p-3 relative pt-3">
-          <span className="absolute -top-2 left-2 bg-[#f0f0f0] px-1 text-[11px] font-bold text-[#333] underline">Decision</span>
-          <div className="flex flex-col gap-1 mt-1">
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>No Decision Yet</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Approved</span></label>
-             <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked className="w-3.5 h-3.5" /><span className={sapLabelStyle}>Rejected</span></label>
-          </div>
-        </div>
-
-        {/* Inputs */}
-        <div className="grid grid-cols-[140px_1fr] gap-x-4 gap-y-1 items-center px-1">
-           <span className={sapLabelStyle}>Originator From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-1">
-                 <input type="text" className={`${sapInputStyle} !bg-[#fffbd0]`} />
-                 <div onClick={onOpenSelectionUsers} className="w-5 h-[18px] bg-[#e8e8e8] border border-gray-400 flex items-center justify-center cursor-pointer hover:bg-gray-200">
-                    <div className="w-1.5 h-1.5 bg-gray-600 rounded-full" />
-                 </div>
-              </div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Authorizer From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Template From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-
-           <span className={sapLabelStyle}>Request Date From</span>
-           <div className="flex items-center gap-2">
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-              <span className={sapLabelStyle}>To</span>
-              <div className="flex-1"><input type="text" className={sapInputStyle} /></div>
-           </div>
-        </div>
-
-        <div className="flex gap-2 shrink-0 pt-4 mt-auto">
-           <button className={sapButtonStyle}>OK</button>
-           <button onClick={onClose} className={sapGreyButtonStyle}>Cancel</button>
-        </div>
-
+      <div className="shrink-0 bg-[#f7f7f7] border-b border-[#d4d0c8] px-3 py-2 flex items-end gap-3 flex-wrap">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-600">Authorizer</span>
+          <ClassicSel
+            value={approverId}
+            onChange={(e) => setApproverId(e.target.value)}
+            className="w-48"
+          >
+            <option value="">Anyone</option>
+            {(usersQuery.data ?? []).map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </ClassicSel>
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-600">Decided From</span>
+          <ClassicInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-36" />
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-600">To</span>
+          <ClassicInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-36" />
+        </label>
+        <GreyBtn onClick={() => { setApproverId(''); setFrom(''); setTo(''); setError(''); }}>
+          Clear
+        </GreyBtn>
       </div>
-    </ResizableCriteriaWindow>
+
+      <div className="flex-1 min-h-0 overflow-auto bg-white custom-scrollbar">
+        <table className="w-full border-collapse text-[10.5px]">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Decided</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Authorizer</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Decision</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Stage</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Document</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Originator</th>
+              <th className="px-2 py-1 font-bold text-[#444]">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((d) => (
+              <tr key={d.id} className="border-b border-[#f0f0f0]">
+                <td className="px-2 py-1 border-r border-[#f0f0f0]">{when(d.decidedAt)}</td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0]">{d.approver.name}</td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0]">
+                  <span className={cn(
+                    'text-[9px] px-1 rounded-[1px]',
+                    d.decision === 'APPROVED' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800',
+                  )}>
+                    {d.decision}
+                  </span>
+                </td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0]">{d.requestStage.stage.name}</td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">
+                  {d.request.documentNumber ?? d.request.id.slice(0, 8)}
+                  <span className="text-gray-500 font-sans"> · {d.request.documentType}</span>
+                </td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0]">{d.request.originator.name}</td>
+                <td className="px-2 py-1 text-gray-600">{d.remarks ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <ListPlaceholder
+          noCompany={!companyId}
+          isLoading={decisionsQuery.isLoading}
+          isEmpty={!decisionsQuery.isLoading && !rows.length}
+          emptyText="No approval decisions recorded for those filters."
+        />
+      </div>
+    </ClassicWindow>
   );
 };

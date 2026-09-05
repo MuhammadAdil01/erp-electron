@@ -1,173 +1,264 @@
 import React, { useState } from 'react';
-import { ResizableCriteriaWindow, WindowState } from '../../ui/ResizableCriteriaWindow';
-import { ChevronDown, MoreHorizontal, Calendar } from 'lucide-react';
+import { ListChecks, Search } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  utilitiesApi,
+  numberingApi,
+  type NumberingCheckResult,
+} from '../../../api/administration.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  StatusNote,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface CheckDocumentNumberingWindowProps {
-  windowState: WindowState;
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  onUpdateState: (s: Partial<WindowState>) => void;
-  onFocus: () => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-const sapLabelStyle = "text-[11px] text-[#333] whitespace-nowrap leading-[18px]";
-const sapInputStyle = "h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-white";
-const sapButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-const sapGreyButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[80px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-
-export const CheckDocumentNumberingWindow: React.FC<CheckDocumentNumberingWindowProps> = ({
-  windowState,
-  onClose,
-  onUpdateState,
-  onFocus
+/**
+ * Check Document Numbering.
+ *
+ * Reports and never repairs. A gap in a posted document series is a fact about
+ * what happened — a number was allocated and the document was never kept — and
+ * renumbering posted documents to tidy the report would rewrite history to hide
+ * it. The window says what is wrong and leaves the fixing to a human.
+ */
+export const CheckDocumentNumberingWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const [activeTab, setActiveTab] = useState<'Documents' | 'FixedAssetDocuments'>('Documents');
+  const { activeCompanyId } = useAuth();
+  const companyId = activeCompanyId;
 
-  const documentsCol1 = ['Sales Quotation', 'Sales Order', 'Delivery', 'Return Request', 'Return', 'A/R Invoice', 'A/R Credit Memo', 'A/R Down Payment'];
-  const documentsCol2 = ['Purchase Quotation', 'Purchase Order', 'Goods Receipt PO', 'Goods Return Request', 'Goods Return', 'A/P Credit Memo', 'A/P Invoice', 'A/P Down Payment', 'Purchase Request'];
-  const documentsCol3 = ['Goods Receipt', 'Goods Issue', 'Inventory Transfer Request', 'Inventory Transfer', 'Landed Costs', 'Service Call', 'Inventory Counting', 'Inventory Posting', 'Inventory Opening Balance', 'Blanket Agreement - Customer', 'Blanket Agreement - Vendor'];
-  const documentsCol4 = ['Incoming Payment', 'Outgoing Payment', 'Deposit', 'Checks for Payment'];
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [result, setResult] = useState<NumberingCheckResult | null>(null);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
 
-  const fixedAssetDocuments = ['Fixed Asset Capitalization', 'Fixed Asset Capitalization Credit Memo', 'Fixed Asset Retirement', 'Fixed Asset Transfer', 'Fixed Asset Manual Depreciation', 'Fixed Asset Revaluation'];
+  const typesQuery = useQuery({
+    queryKey: ['numbering-document-types', companyId],
+    queryFn: () => numberingApi.documentTypes(),
+    enabled: !!companyId,
+  });
+
+  const checkMut = useMutation({
+    mutationFn: () =>
+      utilitiesApi.checkDocumentNumbering({
+        documentTypes: selected.size ? [...selected] : undefined,
+        from: from || undefined,
+        to: to || undefined,
+      }),
+    onSuccess: (data) => {
+      setResult(data);
+      setError('');
+      setStatus(
+        data.isClean
+          ? `Checked ${data.checkedDocuments} document(s) — no problems found.`
+          : `Checked ${data.checkedDocuments} document(s) — ` +
+            `${data.seriesIssues.length} series issue(s), ${data.duplicates.length} duplicate(s), ` +
+            `${data.gaps.length} gap(s).`,
+      );
+    },
+    onError: (e: unknown) => {
+      setError(e instanceof Error ? e.message : 'The check could not be run.');
+      setStatus('');
+    },
+  });
+
+  const toggle = (t: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      return next;
+    });
+
+  const types = typesQuery.data ?? [];
 
   return (
-    <ResizableCriteriaWindow
-      title="Check Document Numbering - Selection Criteria"
-      windowState={windowState}
+    <ClassicWindow
+      title="Check Document Numbering — Selection Criteria"
+      icon={<ListChecks className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
       onClose={onClose}
-      onUpdateState={onUpdateState}
       onFocus={onFocus}
-      minWidth={600}
-      minHeight={500}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={820}
+      minHeight={560}
+      toolbar={
+        <>
+          <ToolBtn onClick={() => setSelected(new Set(types.map((t) => t.documentType)))}>
+            Select All
+          </ToolBtn>
+          <ToolBtn onClick={() => setSelected(new Set())}>Clear Selection</ToolBtn>
+          <ToolBtn onClick={() => checkMut.mutate()} disabled={checkMut.isPending || !companyId}>
+            <Search className="w-3 h-3" /> {checkMut.isPending ? 'Checking…' : 'Run Check'}
+          </ToolBtn>
+          <StatusNote error={error} status={status} />
+        </>
+      }
       footer={
-        <div className="h-[40px] px-3 bg-[#f0f0f0] border-t border-gray-300 flex items-center justify-between shrink-0">
-          <div className="flex gap-2">
-            <button className={sapButtonStyle}>OK</button>
-            <button onClick={onClose} className={sapGreyButtonStyle}>Cancel</button>
-          </div>
-          <div className="flex gap-2">
-            <button className={sapGreyButtonStyle}>Select All</button>
-            <button className={sapGreyButtonStyle}>Clear Selection</button>
-          </div>
-        </div>
+        <>
+          <span>
+            {selected.size ? `${selected.size} document type(s) selected` : 'All document types'}
+            {result ? ` · ${result.checkedDocuments} document(s) checked` : ''}
+          </span>
+          <span>Check Document Numbering</span>
+        </>
       }
     >
-      <div className="flex-1 p-3 flex flex-col gap-4 bg-[#f0f0f0] overflow-y-auto custom-scrollbar">
-        
-        {/* Section 1: Choose Documents to Review */}
-        <div className="flex flex-col border border-gray-400 p-2 relative pt-3">
-          <span className="absolute -top-2 left-2 bg-[#f0f0f0] px-1 text-[11px] font-bold text-[#333] underline">Choose Documents to Review</span>
-          
-          <div className="flex flex-col mt-2">
-            {/* Tabs */}
-            <div className="flex pl-4">
-              <button 
-                onClick={() => setActiveTab('Documents')}
-                className={`px-4 h-[22px] border border-gray-400 border-b-0 rounded-t-[4px] text-[11px] transition-colors ${activeTab === 'Documents' ? 'bg-white z-10 -mb-[1px]' : 'bg-[#e4e4e4] hover:bg-gray-200'}`}
-              >
-                Documents
-              </button>
-              <button 
-                onClick={() => setActiveTab('FixedAssetDocuments')}
-                className={`px-4 h-[22px] border border-gray-400 border-b-0 rounded-t-[4px] text-[11px] -ml-[1px] transition-colors ${activeTab === 'FixedAssetDocuments' ? 'bg-white z-10 -mb-[1px]' : 'bg-[#e4e4e4] hover:bg-gray-200'}`}
-              >
-                Fixed Asset Documents
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="bg-white border border-gray-400 p-4 min-h-[300px]">
-              {activeTab === 'Documents' ? (
-                <div className="grid grid-cols-4 gap-x-6">
-                  <div className="flex flex-col gap-1">
-                    {documentsCol1.map(doc => (
-                      <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-                        <input type="checkbox" className="w-3.5 h-3.5" />
-                        <span className={sapLabelStyle}>{doc}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {documentsCol2.map(doc => (
-                      <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-                        <input type="checkbox" className="w-3.5 h-3.5" />
-                        <span className={sapLabelStyle}>{doc}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {documentsCol3.map(doc => (
-                      <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-                        <input type="checkbox" className="w-3.5 h-3.5" />
-                        <span className={sapLabelStyle}>{doc}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {documentsCol4.map(doc => (
-                      <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-                        <input type="checkbox" className="w-3.5 h-3.5" />
-                        <span className={sapLabelStyle}>{doc}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {fixedAssetDocuments.map(doc => (
-                    <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-                      <input type="checkbox" className="w-3.5 h-3.5" />
-                      <span className={sapLabelStyle}>{doc}</span>
-                    </label>
-                  ))}
+      {!companyId ? (
+        <div className="p-3 text-[10px] text-gray-500 italic">
+          No company selected. Open{' '}
+          <span className="font-medium not-italic">Administration → Choose Company</span> first.
+        </div>
+      ) : (
+        <>
+          <div className="shrink-0 bg-[#f7f7f7] border-b border-[#d4d0c8] p-3">
+            <div className="text-[11px] font-bold mb-1.5">Choose Documents to Review</div>
+            <div className="grid grid-cols-4 gap-x-4 gap-y-0.5 max-h-[180px] overflow-auto custom-scrollbar">
+              {types.map((t) => (
+                <label key={t.documentType} className="flex items-center gap-2 text-[10.5px] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-3.5 h-3.5"
+                    checked={selected.has(t.documentType)}
+                    onChange={() => toggle(t.documentType)}
+                  />
+                  <span className="truncate" title={`${t.documentType} (${t.seriesCount} series)`}>
+                    {t.documentType}
+                  </span>
+                </label>
+              ))}
+              {!types.length && (
+                <div className="col-span-4 text-[10.5px] text-gray-400">
+                  No numbering series defined yet — set them up under Document Numbering.
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Middle Section: Numbers and Dates */}
-        <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-2">
-          <span className={sapLabelStyle}>Number From</span>
-          <div className="flex items-center gap-4">
-             <input type="text" className={`${sapInputStyle} w-32`} />
-             <span className={sapLabelStyle}>To</span>
-             <input type="text" className={`${sapInputStyle} w-32`} />
+            <div className="flex items-end gap-4 mt-3">
+              <FieldRow label="Date From" labelWidth="80px">
+                <ClassicInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-36" />
+              </FieldRow>
+              <FieldRow label="To" labelWidth="30px">
+                <ClassicInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-36" />
+              </FieldRow>
+              <span className="text-[9.5px] text-gray-600">
+                Leave the dates blank to check every document.
+              </span>
+            </div>
           </div>
 
-          <span className={sapLabelStyle}>Date From</span>
-          <div className="flex items-center gap-4">
-             <div className="relative">
-                <input type="text" className={`${sapInputStyle} w-32`} defaultValue="01.07.25" />
-                <div className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-[#e8e8e8] border-l border-gray-400">
-                   <Calendar className="w-3 h-3 text-gray-700" />
-                </div>
-             </div>
-             <span className={sapLabelStyle}>To</span>
-             <div className="relative">
-                <input type="text" className={`${sapInputStyle} w-32`} defaultValue="30.06.26" />
-                <div className="absolute right-0 top-0 h-full w-4 flex items-center justify-center bg-[#e8e8e8] border-l border-gray-400">
-                   <Calendar className="w-3 h-3 text-[#333] fill-yellow-400/30" />
-                </div>
-             </div>
-          </div>
-        </div>
+          <div className="flex-1 min-h-0 overflow-auto bg-white p-3 custom-scrollbar">
+            {checkMut.isPending ? (
+              <div className="text-[10.5px] text-gray-400">Checking…</div>
+            ) : !result ? (
+              <div className="text-[10.5px] text-gray-400">
+                Pick the document types to review and press Run Check.
+              </div>
+            ) : result.isClean ? (
+              <div className="text-[10.5px] text-green-800">
+                No problems found across {result.checkedDocuments} document(s). Every series is
+                configured consistently and the numbers run without gaps or duplicates.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {result.seriesIssues.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-red-800 mb-1">
+                      Series configuration ({result.seriesIssues.length})
+                    </div>
+                    <table className="w-full border-collapse text-[10.5px]">
+                      <thead>
+                        <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+                          <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Series</th>
+                          <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Document Type</th>
+                          <th className="px-2 py-1 font-bold text-[#444]">Problem</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.seriesIssues.map((i) => (
+                          <tr key={i.seriesId} className="border-b border-[#f0f0f0]">
+                            <td className="px-2 py-1 border-r border-[#f0f0f0]">{i.name}</td>
+                            <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">{i.documentType}</td>
+                            <td className="px-2 py-1 text-red-800">{i.issue}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-        {/* Section 2: Choose Master Data to Review */}
-        <div className="flex flex-col border border-gray-400 p-3 relative pt-3">
-          <span className="absolute -top-2 left-2 bg-[#f0f0f0] px-1 text-[11px] font-bold text-[#333] underline">Choose Master Data to Review</span>
-          <div className="flex flex-col gap-1 mt-1">
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-              <input type="checkbox" className="w-3.5 h-3.5" />
-              <span className={sapLabelStyle}>Business Partner</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 group">
-              <input type="checkbox" className="w-3.5 h-3.5" />
-              <span className={sapLabelStyle}>Item</span>
-            </label>
-          </div>
-        </div>
+                {result.duplicates.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-red-800 mb-1">
+                      Duplicate numbers ({result.duplicates.length})
+                    </div>
+                    <div className="text-[10.5px] font-mono">
+                      {result.duplicates.join(', ')}
+                    </div>
+                    <div className="text-[9.5px] text-gray-600 mt-1">
+                      Two documents share a number. That means a series was reset or edited while it
+                      was in use — the fix is to renumber the later document by hand, not to change
+                      the series.
+                    </div>
+                  </div>
+                )}
 
+                {result.gaps.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-bold text-amber-800 mb-1">
+                      Gaps ({result.gaps.length})
+                    </div>
+                    <table className="w-full border-collapse text-[10.5px] max-w-[420px]">
+                      <thead>
+                        <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+                          <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">After</th>
+                          <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Before</th>
+                          <th className="px-2 py-1 font-bold text-[#444] text-right">Missing</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.gaps.map((g, i) => (
+                          <tr key={i} className="border-b border-[#f0f0f0]">
+                            <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">{g.after}</td>
+                            <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">{g.before}</td>
+                            <td className="px-2 py-1 text-right">{g.missing}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="text-[9.5px] text-gray-600 mt-1">
+                      A gap usually means a draft was numbered and then deleted. It is reported
+                      rather than closed: renumbering posted documents to hide it would rewrite the
+                      audit trail.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <div className={cn('shrink-0 border-t border-[#d4d0c8] bg-[#f0f0f0] px-3 py-2 flex items-center gap-2')}>
+        <YellowBtn onClick={() => checkMut.mutate()} disabled={checkMut.isPending || !companyId}>
+          OK
+        </YellowBtn>
+        <GreyBtn onClick={onClose}>Cancel</GreyBtn>
       </div>
-    </ResizableCriteriaWindow>
+    </ClassicWindow>
   );
 };

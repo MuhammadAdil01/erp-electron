@@ -56,8 +56,8 @@ const money = (v: string | number | null | undefined) =>
 export const BusinessPartnerMasterDataWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const { user } = useAuth();
-  const companyId = user?.companyId ?? null;
+  const { activeCompanyId } = useAuth();
+  const companyId = activeCompanyId;
 
   const [tab, setTab] = useState<Tab>('General');
   const [search, setSearch] = useState('');

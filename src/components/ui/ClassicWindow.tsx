@@ -301,7 +301,8 @@ export const ListPlaceholder: React.FC<{
   if (noCompany) {
     return (
       <div className="p-3 text-[10px] text-gray-500 italic">
-        Sign in as a company user to load this data. Platform super admins have no company context.
+        No company selected. Open <span className="font-medium not-italic">Administration → Choose Company</span>{' '}
+        and pick the company to work in — this window is company-scoped.
       </div>
     );
   }

@@ -61,9 +61,13 @@ const emptyPeriodForm = {
 export const PostingPeriodsWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const { user } = useAuth();
+  const { activeCompanyId } = useAuth();
   const qc = useQueryClient();
-  const companyId = user?.companyId ?? null;
+  // The company the session is acting in. A platform operator's own
+  // `user.companyId` is null, so gating on that left this window empty and made
+  // Add Period fail — which the old axios 401 handling then turned into a full
+  // sign-out. Choose Company supplies this instead.
+  const companyId = activeCompanyId;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState('');

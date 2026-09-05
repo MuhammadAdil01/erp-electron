@@ -1,253 +1,541 @@
-import React, { useState } from 'react';
-import { ResizableCriteriaWindow, WindowState } from '../../ui/ResizableCriteriaWindow';
-import { ChevronDown, ArrowUpRight, ArrowUp, ArrowDown } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ClipboardList, ArrowDown, ArrowUp } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  approvalsApi,
+  numberingApi,
+  type ApprovalTemplate,
+  type CreateApprovalTemplatePayload,
+} from '../../../api/administration.api';
+import { usersApi } from '../../../api/users.api';
+import {
+  ClassicWindow,
+  CrudToolbar,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface ApprovalTemplatesWindowProps {
-  windowState: WindowState;
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  onUpdateState: (s: Partial<WindowState>) => void;
-  onFocus: () => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-const sapLabelStyle = "text-[11px] text-[#333] whitespace-nowrap leading-[18px]";
-const sapInputStyle = "h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-white w-full";
-const sapButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-const sapGreyButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
+const emptyForm = {
+  name: '',
+  description: '',
+  isActive: true,
+  documentTypes: [] as string[],
+  validFrom: '',
+  validTo: '',
+  originatorIds: [] as string[],
+  /** Ordered — the array position is the stage order, so it is not a set. */
+  stageIds: [] as string[],
+  minAmount: '',
+  maxAmount: '',
+};
 
-export const ApprovalTemplatesWindow: React.FC<ApprovalTemplatesWindowProps> = ({
-  windowState,
-  onClose,
-  onUpdateState,
-  onFocus
+export const ApprovalTemplatesWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const [activeTab, setActiveTab] = useState<'Originator' | 'Documents' | 'Stages' | 'Terms'>('Originator');
+  const { activeCompanyId } = useAuth();
+  const qc = useQueryClient();
+  const companyId = activeCompanyId;
 
-  const salesDocs = ['Sales Quotation', 'Sales Order', 'Delivery', 'Returns Request', 'Returns', 'A/R Down Payment', 'A/R Invoice', 'A/R Credit Memo'];
-  const purchaseDocs = ['Purchase Quotation', 'Purchase Order', 'Goods Receipt PO', 'Goods Returns Request', 'Goods Returns', 'A/P Down Payment', 'A/P Invoice', 'A/P Credit Memo', 'Internal Requisition', 'Purchase Request'];
-  const inventoryDocs = ['Goods Receipt', 'Goods Issue', 'Inventory Transfer Request', 'Inventory Transfer', 'Inventory Opening Balance'];
-  const blanketDocs = ['Sales Blanket Agreements', 'Purchase Blanket Agreements'];
-  const countingDocs = ['Inventory Counting', 'Inventory Posting'];
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'view' | 'new' | 'edit'>('view');
+  const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+
+  const templatesQuery = useQuery({
+    queryKey: ['approval-templates', companyId],
+    queryFn: () => approvalsApi.listTemplates(),
+    enabled: !!companyId,
+  });
+
+  const stagesQuery = useQuery({
+    queryKey: ['approval-stages', companyId],
+    queryFn: () => approvalsApi.listStages(),
+    enabled: !!companyId,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ['users', companyId],
+    queryFn: () => usersApi.getAll(companyId ?? undefined),
+    enabled: !!companyId,
+  });
+
+  const docTypesQuery = useQuery({
+    queryKey: ['numbering-document-types', companyId],
+    queryFn: () => numberingApi.documentTypes(),
+    enabled: !!companyId,
+  });
+
+  const templates = templatesQuery.data ?? [];
+  const stages = stagesQuery.data ?? [];
+  const users = usersQuery.data ?? [];
+  const docTypes = docTypesQuery.data ?? [];
+  const selected = templates.find((t) => t.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (selectedId && !templates.some((t) => t.id === selectedId)) setSelectedId(null);
+  }, [templates, selectedId]);
+
+  const onErr = (e: unknown) => {
+    setError(e instanceof Error ? e.message : 'The server rejected that change.');
+    setStatus('');
+  };
+  const invalidate = () => void qc.invalidateQueries({ queryKey: ['approval-templates'] });
+
+  const saveMut = useMutation({
+    mutationFn: () => {
+      const terms: Record<string, unknown> = {};
+      if (form.minAmount.trim()) terms.minAmount = Number(form.minAmount);
+      if (form.maxAmount.trim()) terms.maxAmount = Number(form.maxAmount);
+
+      const payload: CreateApprovalTemplatePayload = {
+        name: form.name.trim(),
+        description: form.description.trim() || undefined,
+        isActive: form.isActive,
+        documentTypes: form.documentTypes,
+        terms,
+        validFrom: form.validFrom || undefined,
+        validTo: form.validTo || undefined,
+        originatorIds: form.originatorIds,
+        stageIds: form.stageIds,
+      };
+      return mode === 'new'
+        ? approvalsApi.createTemplate(payload)
+        : approvalsApi.updateTemplate(selectedId as string, payload);
+    },
+    onSuccess: (row) => {
+      invalidate();
+      setSelectedId(row.id);
+      setMode('view');
+      setError('');
+      setStatus(mode === 'new' ? `Template ${row.name} created.` : `Template ${row.name} saved.`);
+    },
+    onError: onErr,
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => approvalsApi.removeTemplate(id),
+    onSuccess: () => {
+      invalidate();
+      setSelectedId(null);
+      setMode('view');
+      setError('');
+      setStatus('Template deleted.');
+    },
+    onError: onErr,
+  });
+
+  const isBusy = saveMut.isPending || deleteMut.isPending;
+
+  const openNew = () => {
+    setForm({ ...emptyForm });
+    setMode('new');
+    setError(''); setStatus('');
+  };
+
+  const openEdit = () => {
+    if (!selected) return;
+    const terms = (selected.terms ?? {}) as { minAmount?: number; maxAmount?: number };
+    setForm({
+      name: selected.name,
+      description: selected.description ?? '',
+      isActive: selected.isActive,
+      documentTypes: selected.documentTypes ?? [],
+      validFrom: selected.validFrom ? selected.validFrom.slice(0, 10) : '',
+      validTo: selected.validTo ? selected.validTo.slice(0, 10) : '',
+      originatorIds: selected.originators.map((o) => o.user.id),
+      stageIds: [...selected.stages]
+        .sort((a, b) => a.ordering - b.ordering)
+        .map((s) => s.stageId),
+      minAmount: terms.minAmount !== undefined ? String(terms.minAmount) : '',
+      maxAmount: terms.maxAmount !== undefined ? String(terms.maxAmount) : '',
+    });
+    setMode('edit');
+    setError(''); setStatus('');
+  };
+
+  const handleSave = () => {
+    if (!form.name.trim()) { setError('A template name is required.'); return; }
+    if (!form.documentTypes.length) {
+      setError('Pick at least one document type — a template that matches nothing never runs.');
+      return;
+    }
+    if (!form.stageIds.length) {
+      setError('Add at least one stage. A template with no stages would approve instantly.');
+      return;
+    }
+    if (form.validFrom && form.validTo && form.validTo < form.validFrom) {
+      setError('The valid-to date is before the valid-from date.');
+      return;
+    }
+    const min = form.minAmount.trim();
+    const max = form.maxAmount.trim();
+    if (min && Number.isNaN(Number(min))) { setError('Minimum amount must be a number.'); return; }
+    if (max && Number.isNaN(Number(max))) { setError('Maximum amount must be a number.'); return; }
+    if (min && max && Number(max) < Number(min)) {
+      setError('The maximum amount is below the minimum.');
+      return;
+    }
+    setError('');
+    saveMut.mutate();
+  };
+
+  const toggleDocType = (t: string) =>
+    setForm((f) => ({
+      ...f,
+      documentTypes: f.documentTypes.includes(t)
+        ? f.documentTypes.filter((x) => x !== t)
+        : [...f.documentTypes, t],
+    }));
+
+  const toggleOriginator = (id: string) =>
+    setForm((f) => ({
+      ...f,
+      originatorIds: f.originatorIds.includes(id)
+        ? f.originatorIds.filter((x) => x !== id)
+        : [...f.originatorIds, id],
+    }));
+
+  const addStage = (id: string) =>
+    setForm((f) => (f.stageIds.includes(id) ? f : { ...f, stageIds: [...f.stageIds, id] }));
+
+  const removeStage = (id: string) =>
+    setForm((f) => ({ ...f, stageIds: f.stageIds.filter((x) => x !== id) }));
+
+  /** Order is the approval sequence, so moving a stage is a real edit. */
+  const moveStage = (index: number, delta: number) =>
+    setForm((f) => {
+      const next = [...f.stageIds];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return f;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...f, stageIds: next };
+    });
+
+  const stageName = (id: string) => stages.find((s) => s.id === id)?.name ?? id;
 
   return (
-    <ResizableCriteriaWindow
-      title="Approval Templates - Setup"
-      windowState={windowState}
+    <ClassicWindow
+      title="Approval Templates — Setup"
+      icon={<ClipboardList className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
       onClose={onClose}
-      onUpdateState={onUpdateState}
       onFocus={onFocus}
-      minWidth={850}
-      minHeight={650}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={960}
+      minHeight={580}
+      toolbar={
+        <>
+          <CrudToolbar
+            onNew={openNew}
+            onEdit={openEdit}
+            onDelete={() => {
+              if (!selected) return;
+              if ((selected._count?.requests ?? 0) > 0) {
+                setError(
+                  `${selected.name} has ${selected._count?.requests} request(s) against it. ` +
+                  'Deactivate it instead — deleting would orphan their history.',
+                );
+                return;
+              }
+              if (!window.confirm(`Delete approval template ${selected.name}?`)) return;
+              deleteMut.mutate(selected.id);
+            }}
+            onRefresh={() => templatesQuery.refetch()}
+            canEdit={!!selected}
+            canDelete={!!selected}
+            isFetching={templatesQuery.isFetching}
+            isBusy={isBusy}
+          />
+          <StatusNote error={error} status={status} />
+        </>
+      }
+      footer={
+        <>
+          <span>{templates.length} template(s) · {stages.length} stage(s) available</span>
+          <span>Approval Templates</span>
+        </>
+      }
     >
-      <div className="flex-1 p-3 flex flex-col gap-4 bg-[#f0f0f0] overflow-hidden">
-        
-        {/* Header Configuration */}
-        <div className="flex flex-col gap-1">
-           <div className="grid grid-cols-[100px_250px] gap-x-2 items-center">
-              <span className={sapLabelStyle}>Name</span>
-              <input type="text" className={`${sapInputStyle} !bg-[#fffbd0]`} />
-              
-              <span className={sapLabelStyle}>Description</span>
-              <input type="text" className={sapInputStyle} />
-           </div>
-           <div className="flex flex-col mt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                 <input type="checkbox" defaultChecked className="w-3.5 h-3.5" />
-                 <span className={sapLabelStyle}>Active</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer ml-4">
-                 <input type="checkbox" defaultChecked className="w-3.5 h-3.5" />
-                 <span className={sapLabelStyle}>Active When Updating Documents Not Generated by Approval Process</span>
-              </label>
-           </div>
-        </div>
-
-        {/* Tabs Container */}
-        <div className="flex-1 flex flex-col border border-gray-400 bg-white shadow-inner overflow-hidden">
-           {/* Tab Bar */}
-           <div className="flex bg-[#f0f0f0] border-b border-gray-400 px-4">
-              {['Originator', 'Documents', 'Stages', 'Terms'].map(tab => (
-                <button 
-                  key={tab}
-                  onClick={() => setActiveTab(tab as any)}
-                  className={`px-6 h-[22px] text-[11px] border border-gray-400 border-b-0 rounded-t-[3px] -ml-[1px] transition-colors ${activeTab === tab ? 'bg-white font-bold -mb-[1px] z-10' : 'bg-[#e4e4e4] hover:bg-gray-200'}`}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="w-[300px] shrink-0 border-r border-[#d4d0c8] overflow-auto bg-white custom-scrollbar">
+          <table className="w-full border-collapse text-[10.5px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Template</th>
+                <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444] text-right">Stages</th>
+                <th className="px-2 py-1 font-bold text-[#444] text-right">Requests</th>
+              </tr>
+            </thead>
+            <tbody>
+              {templates.map((t: ApprovalTemplate) => (
+                <tr
+                  key={t.id}
+                  onClick={() => { setSelectedId(t.id); setMode('view'); setError(''); setStatus(''); }}
+                  className={cn(
+                    'border-b border-[#f0f0f0] cursor-default',
+                    selectedId === t.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50/50',
+                    !t.isActive && 'text-gray-400 italic',
+                  )}
                 >
-                  {tab}
-                </button>
+                  <td className="px-2 py-1 border-r border-[#f0f0f0]">{t.name}</td>
+                  <td className="px-2 py-1 border-r border-[#f0f0f0] text-right">{t.stages.length}</td>
+                  <td className="px-2 py-1 text-right">{t._count?.requests ?? 0}</td>
+                </tr>
               ))}
-           </div>
-
-           {/* Tab Content */}
-           <div className="flex-1 p-3 overflow-hidden flex flex-col">
-              {activeTab === 'Originator' && (
-                <div className="flex-1 flex flex-col">
-                   <h3 className="text-[11px] font-bold underline mb-2">Originator</h3>
-                   <div className="flex-1 border border-gray-300 overflow-auto custom-scrollbar">
-                      <table className="w-full border-collapse text-[11px]">
-                         <thead className="sticky top-0 bg-[#f8f8f8] border-b border-gray-300 z-10">
-                            <tr className="h-[22px]">
-                               <th className="w-8 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">#</th>
-                               <th className="w-1/2 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">User</th>
-                               <th className="px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc] flex items-center justify-between">
-                                  <span>Department</span>
-                                  <ArrowUpRight className="w-3 h-3 text-blue-600 cursor-pointer" />
-                               </th>
-                            </tr>
-                         </thead>
-                         <tbody>
-                            <tr className="h-[18px] border-b border-gray-100 bg-[#ffed99]/30">
-                               <td className="w-8 border-r border-gray-100 text-center text-gray-500">1</td>
-                               <td className="border-r border-gray-100 px-1 flex items-center justify-end">
-                                  <ChevronDown className="w-3 h-3 text-gray-800" />
-                               </td>
-                               <td className="px-1"></td>
-                            </tr>
-                            {Array.from({ length: 20 }).map((_, i) => (
-                              <tr key={i} className="h-[18px] border-b border-gray-50">
-                                 <td className="w-8 border-r border-gray-100"></td>
-                                 <td className="border-r border-gray-100"></td>
-                                 <td></td>
-                              </tr>
-                            ))}
-                         </tbody>
-                      </table>
-                   </div>
-                </div>
-              )}
-
-              {activeTab === 'Documents' && (
-                <div className="flex-1 overflow-auto custom-scrollbar">
-                   <div className="flex items-center gap-2 mb-4">
-                      <input type="radio" checked readOnly className="w-3.5 h-3.5" />
-                      <span className={sapLabelStyle}>Documents</span>
-                   </div>
-                   <div className="grid grid-cols-2 gap-x-12 gap-y-6">
-                      {/* Sales */}
-                      <div className="space-y-1">
-                         <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Sales - A/R</h4>
-                         {salesDocs.map(doc => (
-                            <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                               <input type="checkbox" className="w-3.5 h-3.5" />
-                               <span className={sapLabelStyle}>{doc}</span>
-                            </label>
-                         ))}
-                      </div>
-                      {/* Purchasing */}
-                      <div className="space-y-1">
-                         <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Purchasing - A/P</h4>
-                         {purchaseDocs.map(doc => (
-                            <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                               <input type="checkbox" className="w-3.5 h-3.5" />
-                               <span className={sapLabelStyle}>{doc}</span>
-                            </label>
-                         ))}
-                      </div>
-                      {/* Inventory */}
-                      <div className="space-y-1">
-                         <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Inventory</h4>
-                         {inventoryDocs.map(doc => (
-                            <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                               <input type="checkbox" className="w-3.5 h-3.5" />
-                               <span className={sapLabelStyle}>{doc}</span>
-                            </label>
-                         ))}
-                      </div>
-                      {/* Payment */}
-                      <div className="space-y-1">
-                         <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Payment</h4>
-                         <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                            <input type="checkbox" className="w-3.5 h-3.5" />
-                            <span className={sapLabelStyle}>Outgoing Payment</span>
-                         </label>
-                      </div>
-                      {/* Blanket */}
-                      <div className="space-y-1">
-                         <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Blanket Agreement</h4>
-                         {blanketDocs.map(doc => (
-                            <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                               <input type="checkbox" className="w-3.5 h-3.5" />
-                               <span className={sapLabelStyle}>{doc}</span>
-                            </label>
-                         ))}
-                      </div>
-                      {/* Counting */}
-                      <div className="space-y-1">
-                         <h4 className="text-[11px] font-bold text-[#333] underline mb-1">Inventory Counting Transactions</h4>
-                         {countingDocs.map(doc => (
-                            <label key={doc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50">
-                               <input type="checkbox" className="w-3.5 h-3.5" />
-                               <span className={sapLabelStyle}>{doc}</span>
-                            </label>
-                         ))}
-                      </div>
-                   </div>
-                </div>
-              )}
-
-              {activeTab === 'Stages' && (
-                <div className="flex-1 flex gap-2">
-                   <div className="flex-1 flex flex-col">
-                      <h3 className="text-[11px] font-bold underline mb-2">Approval Stages</h3>
-                      <div className="flex-1 border border-gray-300 overflow-auto custom-scrollbar">
-                         <table className="w-full border-collapse text-[11px]">
-                            <thead className="sticky top-0 bg-[#f8f8f8] border-b border-gray-300 z-10">
-                               <tr className="h-[22px]">
-                                  <th className="w-8 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">#</th>
-                                  <th className="w-1/2 border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]">Stage Name</th>
-                                  <th className="px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc] flex items-center justify-between">
-                                     <span>Stage Description</span>
-                                     <ArrowUpRight className="w-3 h-3 text-blue-600 cursor-pointer" />
-                                  </th>
-                               </tr>
-                            </thead>
-                            <tbody>
-                               <tr className="h-[18px] border-b border-gray-100 bg-[#ffed99]/30">
-                                  <td className="w-8 border-r border-gray-100 text-center text-gray-500">1</td>
-                                  <td className="border-r border-gray-100"></td>
-                                  <td></td>
-                               </tr>
-                               {Array.from({ length: 25 }).map((_, i) => (
-                                 <tr key={i} className="h-[18px] border-b border-gray-50">
-                                    <td className="w-8 border-r border-gray-100"></td>
-                                    <td className="border-r border-gray-100"></td>
-                                    <td></td>
-                                 </tr>
-                               ))}
-                            </tbody>
-                         </table>
-                      </div>
-                   </div>
-                   <div className="w-8 flex flex-col gap-2 pt-8">
-                      <button className="w-6 h-6 border border-gray-400 bg-white flex items-center justify-center hover:bg-gray-100 shadow-sm"><ArrowUp className="w-3.5 h-3.5" /></button>
-                      <button className="w-6 h-6 border border-gray-400 bg-white flex items-center justify-center hover:bg-gray-100 shadow-sm"><ArrowDown className="w-3.5 h-3.5" /></button>
-                   </div>
-                </div>
-              )}
-
-              {activeTab === 'Terms' && (
-                <div className="flex flex-col gap-4">
-                   <div className="flex flex-col gap-2">
-                      <h3 className="text-[11px] font-bold underline">Launch Approval Process:</h3>
-                      <label className="flex items-center gap-2 cursor-pointer ml-4">
-                         <input type="radio" name="launch" defaultChecked className="w-3.5 h-3.5" />
-                         <span className={sapLabelStyle}>Always</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer ml-4">
-                         <input type="radio" name="launch" className="w-3.5 h-3.5" />
-                         <span className={sapLabelStyle}>When the Following Applies</span>
-                      </label>
-                   </div>
-                </div>
-              )}
-           </div>
+            </tbody>
+          </table>
+          <ListPlaceholder
+            noCompany={!companyId}
+            isLoading={templatesQuery.isLoading}
+            isEmpty={!templatesQuery.isLoading && !templates.length}
+            emptyText="No approval templates yet. Click New to route a document type through a stage."
+          />
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-2">
-           <button className={sapButtonStyle}>Add</button>
-           <button onClick={onClose} className={sapButtonStyle}>Cancel</button>
-        </div>
+        <div className="flex-1 min-w-0 overflow-auto bg-white p-3 custom-scrollbar">
+          {mode === 'view' ? (
+            !selected ? (
+              <div className="text-[10.5px] text-gray-400">
+                Pick a template to see what it routes and through which stages.
+              </div>
+            ) : (
+              <div className="space-y-2 max-w-[680px]">
+                <div className="text-[11px] font-bold">{selected.name}</div>
+                <div className="text-[10px] text-gray-600">
+                  {selected.description || 'No description.'}
+                  {!selected.isActive && <span className="text-red-700"> · inactive</span>}
+                </div>
 
+                <div className="text-[10.5px]">
+                  <b>Document types:</b> {selected.documentTypes.join(', ') || '—'}
+                </div>
+                <div className="text-[10.5px]">
+                  <b>Valid:</b>{' '}
+                  {selected.validFrom ? new Date(selected.validFrom).toLocaleDateString() : 'always'}
+                  {' → '}
+                  {selected.validTo ? new Date(selected.validTo).toLocaleDateString() : 'no end'}
+                </div>
+                <div className="text-[10.5px]">
+                  <b>Originators:</b>{' '}
+                  {selected.originators.length
+                    ? selected.originators.map((o) => o.user.name).join(', ')
+                    : 'everyone'}
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-bold mt-2 mb-1">Stages, in order</div>
+                  <ol className="text-[10.5px] list-decimal pl-5">
+                    {[...selected.stages].sort((a, b) => a.ordering - b.ordering).map((s) => (
+                      <li key={s.id}>{s.stage.name}</li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            )
+          ) : (
+            <div className="max-w-[820px] space-y-1">
+              <div className="text-[11px] font-bold mb-1">
+                {mode === 'new' ? 'New Approval Template' : `Edit — ${selected?.name}`}
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-6">
+                <FieldRow label="Name" labelWidth="120px" required>
+                  <ClassicInput
+                    value={form.name}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    className="w-full bg-[#fffbd0]"
+                    autoFocus
+                  />
+                </FieldRow>
+                <FieldRow label="Description" labelWidth="120px">
+                  <ClassicInput
+                    value={form.description}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    className="w-full"
+                  />
+                </FieldRow>
+                <FieldRow label="Valid From" labelWidth="120px">
+                  <ClassicInput
+                    type="date"
+                    value={form.validFrom}
+                    onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
+                    className="w-full"
+                  />
+                </FieldRow>
+                <FieldRow label="Valid To" labelWidth="120px">
+                  <ClassicInput
+                    type="date"
+                    value={form.validTo}
+                    onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
+                    className="w-full"
+                  />
+                </FieldRow>
+                <FieldRow label="Min. Amount" labelWidth="120px">
+                  <ClassicInput
+                    inputMode="decimal"
+                    value={form.minAmount}
+                    onChange={(e) => setForm((f) => ({ ...f, minAmount: e.target.value }))}
+                    className="w-full text-right font-mono"
+                    placeholder="no lower bound"
+                  />
+                </FieldRow>
+                <FieldRow label="Max. Amount" labelWidth="120px">
+                  <ClassicInput
+                    inputMode="decimal"
+                    value={form.maxAmount}
+                    onChange={(e) => setForm((f) => ({ ...f, maxAmount: e.target.value }))}
+                    className="w-full text-right font-mono"
+                    placeholder="no upper bound"
+                  />
+                </FieldRow>
+              </div>
+
+              <label className="flex items-center gap-2 text-[11px] cursor-pointer py-1">
+                <input
+                  type="checkbox"
+                  className="w-3.5 h-3.5"
+                  checked={form.isActive}
+                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                />
+                Active
+              </label>
+
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <div>
+                  <div className="text-[11px] font-bold mb-1">
+                    Document Types ({form.documentTypes.length})
+                  </div>
+                  <div className="border border-[#d4d0c8] max-h-[200px] overflow-auto custom-scrollbar">
+                    {docTypes.map((d) => (
+                      <label
+                        key={d.documentType}
+                        className="flex items-center gap-2 text-[10.5px] px-2 py-0.5 border-b border-[#f0f0f0] cursor-pointer hover:bg-blue-50/50"
+                      >
+                        <input
+                          type="checkbox"
+                          className="w-3.5 h-3.5"
+                          checked={form.documentTypes.includes(d.documentType)}
+                          onChange={() => toggleDocType(d.documentType)}
+                        />
+                        <span className="truncate">{d.documentType}</span>
+                      </label>
+                    ))}
+                    {!docTypes.length && (
+                      <div className="p-2 text-[10px] text-gray-400">
+                        No document types — define numbering series first.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-bold mb-1">
+                    Originators ({form.originatorIds.length || 'everyone'})
+                  </div>
+                  <div className="border border-[#d4d0c8] max-h-[200px] overflow-auto custom-scrollbar">
+                    {users.map((u) => (
+                      <label
+                        key={u.id}
+                        className="flex items-center gap-2 text-[10.5px] px-2 py-0.5 border-b border-[#f0f0f0] cursor-pointer hover:bg-blue-50/50"
+                      >
+                        <input
+                          type="checkbox"
+                          className="w-3.5 h-3.5"
+                          checked={form.originatorIds.includes(u.id)}
+                          onChange={() => toggleOriginator(u.id)}
+                        />
+                        <span className="truncate">{u.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="text-[9px] text-gray-500 mt-0.5">
+                    Leave empty to apply to every originator.
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-bold mb-1">Stages, in order</div>
+                  <div className="border border-[#d4d0c8] min-h-[120px] max-h-[200px] overflow-auto custom-scrollbar">
+                    {form.stageIds.map((id, i) => (
+                      <div
+                        key={id}
+                        className="flex items-center gap-1 text-[10.5px] px-2 py-0.5 border-b border-[#f0f0f0]"
+                      >
+                        <span className="w-4 text-gray-500">{i + 1}.</span>
+                        <span className="flex-1 truncate">{stageName(id)}</span>
+                        <button
+                          className="opacity-60 hover:opacity-100 disabled:opacity-20"
+                          disabled={i === 0}
+                          onClick={() => moveStage(i, -1)}
+                          title="Move earlier"
+                        >
+                          <ArrowUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          className="opacity-60 hover:opacity-100 disabled:opacity-20"
+                          disabled={i === form.stageIds.length - 1}
+                          onClick={() => moveStage(i, 1)}
+                          title="Move later"
+                        >
+                          <ArrowDown className="w-3 h-3" />
+                        </button>
+                        <button
+                          className="opacity-60 hover:opacity-100 hover:text-red-700"
+                          onClick={() => removeStage(id)}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {!form.stageIds.length && (
+                      <div className="p-2 text-[10px] text-gray-400">
+                        No stages yet — add one below.
+                      </div>
+                    )}
+                  </div>
+                  <select
+                    className="w-full h-[18px] border border-gray-400 px-1 text-[11px] mt-1"
+                    value=""
+                    onChange={(e) => { if (e.target.value) addStage(e.target.value); }}
+                  >
+                    <option value="">+ add a stage…</option>
+                    {stages
+                      .filter((s) => !form.stageIds.includes(s.id))
+                      .map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-3">
+                <YellowBtn onClick={handleSave} disabled={isBusy}>
+                  {saveMut.isPending ? 'Saving…' : mode === 'new' ? 'Add' : 'Update'}
+                </YellowBtn>
+                <GreyBtn onClick={() => { setMode('view'); setError(''); }}>Cancel</GreyBtn>
+                <span className="text-[9.5px] text-gray-500 ml-1">
+                  Stages run top to bottom; a request only reaches the next one once the current
+                  stage has its required approvals.
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </ResizableCriteriaWindow>
+    </ClassicWindow>
   );
 };

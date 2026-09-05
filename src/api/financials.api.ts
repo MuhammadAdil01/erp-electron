@@ -225,7 +225,37 @@ export const exchangeRatesApi = {
     api.post<{ upserted: number; rates: ExchangeRate[] }>(
       '/financials/exchange-rates/bulk', { rates },
     ).then((r) => r.data),
+
+  /** One month shaped as the Exchange Rates grid draws it: a row per day. */
+  grid: (year: number, month: number, base = 'USD') =>
+    api.get<ExchangeRateGrid>('/financials/exchange-rates/grid', {
+      params: { year, month, base },
+    }).then((r) => r.data),
+
+  /** Clears one quote — "no rate today" is not the same as a rate of zero. */
+  clearCell: (target: string, date: string, base = 'USD') =>
+    api.delete<{ removed: number; targetCurrency: string; date: string }>(
+      '/financials/exchange-rates/cell', { params: { target, date, base } },
+    ).then((r) => r.data),
 };
+
+export interface ExchangeRateGridCell {
+  id: string;
+  rate: string;
+  source: string | null;
+}
+
+export interface ExchangeRateGrid {
+  year: number;
+  month: number;
+  baseCurrency: string;
+  currencies: { code: string; name: string; decimals: number }[];
+  days: {
+    day: number;
+    date: string;
+    cells: Record<string, ExchangeRateGridCell | null>;
+  }[];
+}
 
 export interface PaymentTerms extends Auditable {
   code: string; name: string; netDays: number;

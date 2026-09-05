@@ -63,6 +63,7 @@ import { HouseBankAccountsQueryWindow } from '../../banking/BankAccounts/HouseBa
 
 // Purchasing
 import { CompanyAdminWindow } from '../../administration/CompanyAdminWindow';
+import { ErrorBoundary } from '../../common/ErrorBoundary';
 import { PurchaseRequestWindow } from '../../purchasing/Orders/PurchaseRequestWindow';
 import { PurchaseQuotationWindow } from '../../purchasing/Orders/PurchaseQuotationWindow';
 import { PurchaseOrderWindow } from '../../purchasing/Orders/PurchaseOrderWindow';
@@ -359,7 +360,11 @@ export const WorkspaceWindows: React.FC<Props> = ({ wm }) => {
       {wm.showDocumentSettings   && <DocumentSettingsWindow      show={wm.showDocumentSettings}   onClose={() => wm.setShowDocumentSettings(false)}   windowState={wm.documentSettingsWindowPos}   setWindowState={wm.setDocumentSettingsWindowPos} />}
       {wm.showPrintPreferences    && <PrintPreferencesWindow     show={wm.showPrintPreferences}    onClose={() => wm.setShowPrintPreferences(false)}    windowState={wm.printPreferencesWindowPos}    setWindowState={wm.setPrintPreferencesWindowPos} />}
       {wm.showTooltipPreview      && <TooltipPreviewWindow      show={wm.showTooltipPreview}      onClose={() => wm.setShowTooltipPreview(false)}      windowState={wm.tooltipPreviewWindowPos}      setWindowState={wm.setTooltipPreviewWindowPos} />}
-      {wm.showCompanyAdmin        && <CompanyAdminWindow       show={wm.showCompanyAdmin}        onClose={() => wm.setShowCompanyAdmin(false)}        windowState={wm.companyAdminWindowPos}        setWindowState={wm.setCompanyAdminWindowPos} />}
+      {wm.showCompanyAdmin        && (
+        <ErrorBoundary label="Company Administration">
+          <CompanyAdminWindow show={wm.showCompanyAdmin} onClose={() => wm.setShowCompanyAdmin(false)} windowState={wm.companyAdminWindowPos} setWindowState={wm.setCompanyAdminWindowPos} />
+        </ErrorBoundary>
+      )}
       {wm.showUsersSetup          && <UsersSetupWindow          show={wm.showUsersSetup}          onClose={() => wm.setShowUsersSetup(false)}          windowState={wm.usersSetupWindowPos}          setWindowState={wm.setUsersSetupWindowPos} />}
       {wm.showUserGroups         && <UserGroupsWindow          show={wm.showUserGroups}          onClose={() => wm.setShowUserGroups(false)}          windowState={wm.userGroupsWindowPos}          setWindowState={wm.setUserGroupsWindowPos} />}
       {wm.showUserDefaults       && <UserDefaultsWindow        show={wm.showUserDefaults}        onClose={() => wm.setShowUserDefaults(false)}        windowState={wm.userDefaultsWindowPos}        setWindowState={wm.setUserDefaultsWindowPos} />}

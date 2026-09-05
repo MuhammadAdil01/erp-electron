@@ -1,96 +1,139 @@
-import React from 'react';
-import { ResizableCriteriaWindow, WindowState } from '../../ui/ResizableCriteriaWindow';
+import React, { useState } from 'react';
+import { ScrollText, RefreshCw } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import { licenseApi } from '../../../api/administration.api';
+import { usersApi } from '../../../api/users.api';
+import {
+  ClassicWindow,
+  ToolBtn,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { cn, ClassicInput, ClassicSel, GreyBtn } from '../../ui/ClassicERPUI';
 
-interface SupportUserLogWindowProps {
-  windowState: WindowState;
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  onUpdateState: (s: Partial<WindowState>) => void;
-  onFocus: () => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
+  onFocus?: () => void;
 }
 
-const sapButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-const sapGreyButtonStyle = "px-3 h-[20px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border border-gray-500 text-[11px] shadow-sm rounded-[1px] min-w-[70px] hover:brightness-95 active:shadow-inner flex items-center justify-center";
-
-export const SupportUserLogWindow: React.FC<SupportUserLogWindowProps> = ({
-  windowState,
-  onClose,
-  onUpdateState,
-  onFocus
+/**
+ * Support User Log.
+ *
+ * Written by the administration actions that matter — a license import, a seat
+ * assignment or release, a change-log cleanup, a forced disconnect. Read-only
+ * here on purpose: a log a user can edit is not a log.
+ */
+export const SupportUserLogWindow: React.FC<Props> = ({
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
-  const columns = [
-    { name: '#', width: '40px' },
-    { name: 'Login Reason', width: '150px' },
-    { name: 'Login Detail', width: '200px' },
-    { name: 'Real Name', width: '150px' },
-    { name: 'MAC Address', width: '150px' },
-    { name: 'Machine Name', width: '150px' },
-    { name: 'Session Start Time', width: '150px' },
-    { name: 'Session End Time', width: '150px' },
-    { name: 'Hash Check Failed', width: '120px' },
-  ];
+  const { activeCompanyId } = useAuth();
+  const companyId = activeCompanyId;
+
+  const [userId, setUserId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+
+  const logQuery = useQuery({
+    queryKey: ['support-user-log', companyId, userId, from, to],
+    queryFn: () =>
+      licenseApi.supportLog({
+        userId: userId || undefined,
+        from: from || undefined,
+        to: to || undefined,
+        take: 500,
+      }),
+    enabled: !!companyId,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ['users', companyId],
+    queryFn: () => usersApi.getAll(companyId ?? undefined),
+    enabled: !!companyId,
+  });
+
+  const rows = logQuery.data ?? [];
 
   return (
-    <ResizableCriteriaWindow
+    <ClassicWindow
       title="Support User Log"
-      windowState={windowState}
+      icon={<ScrollText className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
       onClose={onClose}
-      onUpdateState={onUpdateState}
       onFocus={onFocus}
-      minWidth={600}
-      minHeight={400}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={860}
+      minHeight={480}
+      toolbar={
+        <ToolBtn onClick={() => logQuery.refetch()} title="Refresh">
+          <RefreshCw className={cn('w-3 h-3', logQuery.isFetching && 'animate-spin')} /> Refresh
+        </ToolBtn>
+      }
+      footer={
+        <>
+          <span>{rows.length} entr{rows.length === 1 ? 'y' : 'ies'}</span>
+          <span>Support User Log</span>
+        </>
+      }
     >
-      <div className="flex-1 p-2 flex flex-col bg-[#f0f0f0] overflow-hidden">
-        
-        {/* Main Grid Table */}
-        <div className="flex-1 border border-gray-400 bg-white shadow-inner overflow-hidden flex flex-col">
-           <div className="flex-1 overflow-auto custom-scrollbar">
-              <table className="w-full border-collapse text-[11px] table-fixed min-w-[1200px]">
-                 <thead className="sticky top-0 bg-[#f8f8f8] border-b border-gray-400 z-10">
-                    <tr className="h-[22px]">
-                       {columns.map((col, i) => (
-                         <th 
-                           key={i} 
-                           style={{ width: col.width }}
-                           className={`border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc] truncate`}
-                         >
-                            {col.name}
-                         </th>
-                       ))}
-                       <th className="border-r border-gray-300 px-1 font-normal text-left text-gray-700 bg-gradient-to-b from-[#fefefe] to-[#dcdcdc]"></th>
-                    </tr>
-                 </thead>
-                 <tbody>
-                    {/* Empty Rows matching SAP look */}
-                    {Array.from({ length: 40 }).map((_, rowIndex) => (
-                      <tr key={rowIndex} className="h-[18px] border-b border-gray-100 group hover:bg-[#ffed99]/30">
-                         <td className="border-r border-gray-300 text-center bg-[#f0f0f0] text-gray-500">{rowIndex + 1}</td>
-                         {columns.slice(1).map((col, colIndex) => (
-                           <td key={colIndex} className="border-r border-gray-300 px-1">
-                              {/* Data goes here */}
-                           </td>
-                         ))}
-                         <td></td>
-                      </tr>
-                    ))}
-                 </tbody>
-              </table>
-           </div>
-           
-           {/* Bottom Right Scroll Helper */}
-           <div className="h-[14px] bg-[#f0f0f0] border-t border-gray-400 flex items-center justify-end px-1">
-              <div className="w-3.5 h-3.5 bg-white border border-gray-400 flex items-center justify-center">
-                 <div className="w-0.5 h-0.5 bg-blue-600" />
-              </div>
-           </div>
-        </div>
-
-        {/* Footer Buttons */}
-        <div className="flex gap-2 mt-2 px-1">
-           <button onClick={onClose} className={sapButtonStyle}>OK</button>
-           <button onClick={onClose} className={sapGreyButtonStyle}>Cancel</button>
-        </div>
-
+      <div className="shrink-0 bg-[#f7f7f7] border-b border-[#d4d0c8] px-3 py-2 flex items-end gap-3 flex-wrap">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-600">User</span>
+          <ClassicSel value={userId} onChange={(e) => setUserId(e.target.value)} className="w-48">
+            <option value="">Anyone</option>
+            {(usersQuery.data ?? []).map((u) => (
+              <option key={u.id} value={u.id}>{u.name}</option>
+            ))}
+          </ClassicSel>
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-600">From</span>
+          <ClassicInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-36" />
+        </label>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-600">To</span>
+          <ClassicInput type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-36" />
+        </label>
+        <GreyBtn onClick={() => { setUserId(''); setFrom(''); setTo(''); }}>Clear</GreyBtn>
       </div>
-    </ResizableCriteriaWindow>
+
+      <div className="flex-1 min-h-0 overflow-auto bg-white custom-scrollbar">
+        <table className="w-full border-collapse text-[10.5px]">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8] text-left">
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">When</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">User</th>
+              <th className="px-2 py-1 border-r border-[#d4d0c8] font-bold text-[#444]">Action</th>
+              <th className="px-2 py-1 font-bold text-[#444]">Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} className="border-b border-[#f0f0f0]">
+                <td className="px-2 py-1 border-r border-[#f0f0f0] whitespace-nowrap">
+                  {new Date(r.occurredAt).toLocaleString()}
+                </td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0]">{r.user?.name ?? 'system'}</td>
+                <td className="px-2 py-1 border-r border-[#f0f0f0] font-mono">{r.action}</td>
+                <td className="px-2 py-1 text-gray-700">{r.detail ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <ListPlaceholder
+          noCompany={!companyId}
+          isLoading={logQuery.isLoading}
+          isEmpty={!logQuery.isLoading && !rows.length}
+          emptyText="Nothing logged for those filters yet."
+        />
+      </div>
+    </ClassicWindow>
   );
 };
