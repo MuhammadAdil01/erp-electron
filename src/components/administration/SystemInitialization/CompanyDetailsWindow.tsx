@@ -189,8 +189,11 @@ export const CompanyDetailsWindow: React.FC<Props> = ({
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      // Two writes because the data has two homes: the Company row for what the
-      // ledger reads, and the settings group for everything else.
+      // The data has two homes — the Company row for what the ledger reads, and
+      // a settings group for everything else — but it is sent as one request so
+      // the server can write both in a single transaction. Two requests meant
+      // the first could commit and the second fail, leaving the window showing
+      // an error over a save that had half happened.
       const companyPayload: Partial<CompanyDetails> = {};
       for (const key of COMPANY_COLUMN_KEYS) {
         const raw = form[key];
@@ -206,9 +209,10 @@ export const CompanyDetailsWindow: React.FC<Props> = ({
         }
       }
 
-      await settingsApi.updateCompany(companyPayload);
-      await settingsApi.saveGroup(DETAILS_GROUP, form.details);
-      return true;
+      return settingsApi.saveCompanyDetails({
+        company: companyPayload,
+        details: form.details,
+      });
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['company-details'] });

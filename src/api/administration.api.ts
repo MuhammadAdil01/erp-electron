@@ -50,6 +50,21 @@ export const settingsApi = {
   updateCompany: (payload: Partial<CompanyDetails>) =>
     api.put<CompanyDetails>('/administration/company-details', payload).then((r) => r.data),
 
+  /**
+   * Saves the whole Company Details window in one transaction.
+   *
+   * The window's data lives in two places — the company row and a settings
+   * group — and writing them as two requests meant the first could commit while
+   * the second failed, leaving an error reported over a half-applied save.
+   */
+  saveCompanyDetails: (payload: {
+    company?: Partial<CompanyDetails>;
+    details?: Record<string, unknown>;
+  }) =>
+    api.put<{ company: CompanyDetails; details: Record<string, unknown> }>(
+      '/administration/company-details/save', payload,
+    ).then((r) => r.data),
+
   getAll: () => api.get<SettingsGroups>('/administration/settings').then((r) => r.data),
 
   getGroup: (group: string) =>
