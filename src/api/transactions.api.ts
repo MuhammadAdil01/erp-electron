@@ -3,6 +3,16 @@ import { createCrudApi, type Auditable, type Ref } from './crud';
 
 const BASE = '/hr/transactions';
 
+/**
+ * Generating or replacing a whole company's worth of employee lines is a
+ * multi-second job — several hundred rows, computed and written in one
+ * transaction. The default 15s timeout on the shared axios instance aborted it
+ * as "timeout exceeded" the moment a company had a real headcount, so these
+ * calls get their own budget. Ordinary CRUD keeps the short timeout, which is
+ * what makes a genuinely dead backend fail fast.
+ */
+const BULK = { timeout: 120_000 };
+
 // ─── MONTHLY ATTENDANCE SHEET ───────────────────────────────────────────────────
 export interface AttendanceSheetLine {
   id?: string;
@@ -54,9 +64,9 @@ export const attendanceSheetsApi = {
   ...attendanceSheetsBase,
   getLines: (id: string) => api.get<AttendanceSheetLine[]>(`${BASE}/attendance-sheets/${id}/lines`).then((r) => r.data),
   replaceLines: (id: string, rows: AttendanceSheetLine[]) =>
-    api.put<AttendanceSheetLine[]>(`${BASE}/attendance-sheets/${id}/lines`, { rows }).then((r) => r.data),
+    api.put<AttendanceSheetLine[]>(`${BASE}/attendance-sheets/${id}/lines`, { rows }, BULK).then((r) => r.data),
   generate: (id: string) =>
-    api.post<AttendanceSheetLine[]>(`${BASE}/attendance-sheets/${id}/generate`, {}).then((r) => r.data),
+    api.post<AttendanceSheetLine[]>(`${BASE}/attendance-sheets/${id}/generate`, {}, BULK).then((r) => r.data),
 };
 
 // ─── PAYROLL PROCESS (PayrollRun) ───────────────────────────────────────────────
@@ -78,6 +88,20 @@ export interface PayrollRunLine {
   hra?: string | number | null;
   bigCity?: string | number | null;
   eligibleHra?: string | number | null;
+  // Computed by Generate — earnings, each deduction source, and the net.
+  grossPay?: string | number | null;
+  perDayRate?: string | number | null;
+  paidLeaveDays?: string | number | null;
+  unpaidLeaveDays?: string | number | null;
+  lopDeduction?: string | number | null;
+  loanDeduction?: string | number | null;
+  taxableGross?: string | number | null;
+  taxDeduction?: string | number | null;
+  adjustmentAdditions?: string | number | null;
+  adjustmentDeductions?: string | number | null;
+  totalEarnings?: string | number | null;
+  totalDeductions?: string | number | null;
+  netPay?: string | number | null;
   employee?: { id: string; name: string; employeeNumber?: string | null; departmentId?: string | null; positionId?: string | null };
 }
 export interface PayrollRun extends Auditable {
@@ -112,8 +136,9 @@ export const payrollRunsApi = {
   ...payrollRunsBase,
   getLines: (id: string) => api.get<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/lines`).then((r) => r.data),
   replaceLines: (id: string, rows: PayrollRunLine[]) =>
-    api.put<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/lines`, { rows }).then((r) => r.data),
-  generate: (id: string) => api.post<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/generate`, {}).then((r) => r.data),
+    api.put<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/lines`, { rows }, BULK).then((r) => r.data),
+  generate: (id: string) =>
+    api.post<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/generate`, {}, BULK).then((r) => r.data),
 };
 
 // ─── PAYROLL MONTHLY ADJUSTMENTS ───────────────────────────────────────────────
@@ -164,7 +189,7 @@ export const payrollAdjustmentsApi = {
   ...payrollAdjustmentsBase,
   getLines: (id: string) => api.get<PayrollAdjustmentLine[]>(`${BASE}/payroll-adjustments/${id}/lines`).then((r) => r.data),
   replaceLines: (id: string, rows: PayrollAdjustmentLine[]) =>
-    api.put<PayrollAdjustmentLine[]>(`${BASE}/payroll-adjustments/${id}/lines`, { rows }).then((r) => r.data),
+    api.put<PayrollAdjustmentLine[]>(`${BASE}/payroll-adjustments/${id}/lines`, { rows }, BULK).then((r) => r.data),
 };
 
 // ─── LOAN APPLICATION (EmployeeLoan) ───────────────────────────────────────────
@@ -217,5 +242,5 @@ export const employeeLoansApi = {
   ...employeeLoansBase,
   getInstallments: (id: string) => api.get<LoanInstallment[]>(`${BASE}/loan-applications/${id}/installments`).then((r) => r.data),
   replaceInstallments: (id: string, rows: LoanInstallment[]) =>
-    api.put<LoanInstallment[]>(`${BASE}/loan-applications/${id}/installments`, { rows }).then((r) => r.data),
+    api.put<LoanInstallment[]>(`${BASE}/loan-applications/${id}/installments`, { rows }, BULK).then((r) => r.data),
 };

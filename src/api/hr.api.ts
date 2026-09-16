@@ -216,6 +216,8 @@ export interface LeaveTypePayload {
   minBalanceForEncash?: number;
   maxLeaveToEncash?: number;
   payableLeave?: boolean;
+  /** false ⇒ each approved day is docked from salary in Payroll Process. */
+  paid?: boolean;
   maxMonthlyApplications?: number;
   minContinuousDays?: number;
   maxContinuousDays?: number;
@@ -302,21 +304,32 @@ export interface DecideLeaveRequestPayload {
   approvedByName?: string;
 }
 
+/**
+ * Deciding a leave request is not one write. Submitting runs employee and type
+ * lookups, creates the request, reserves the balance, starts the approval
+ * workflow and writes an audit record; approving unwinds the same chain. Each
+ * step is a round trip, and against a hosted database the whole thing was
+ * measured at ~13s — close enough to the client's 15s default that the window
+ * reported "timeout exceeded" on a request the server had in fact accepted.
+ * These four get the budget the work actually needs.
+ */
+const LEAVE_WRITE = { timeout: 60_000 };
+
 export const leaveRequestsApi = {
   list: (params?: { employeeId?: string; status?: string }) =>
     api.get<LeaveRequest[]>('/hr/leaves/requests', { params }).then((r) => r.data),
 
   submit: (employeeId: string, payload: SubmitLeaveRequestPayload) =>
-    api.post<LeaveRequest>(`/hr/leaves/requests/employees/${employeeId}`, payload).then((r) => r.data),
+    api.post<LeaveRequest>(`/hr/leaves/requests/employees/${employeeId}`, payload, LEAVE_WRITE).then((r) => r.data),
 
   approve: (id: string, payload?: DecideLeaveRequestPayload) =>
-    api.post<LeaveRequest>(`/hr/leaves/requests/${id}/approve`, payload ?? {}).then((r) => r.data),
+    api.post<LeaveRequest>(`/hr/leaves/requests/${id}/approve`, payload ?? {}, LEAVE_WRITE).then((r) => r.data),
 
   reject: (id: string, payload?: DecideLeaveRequestPayload) =>
-    api.post<LeaveRequest>(`/hr/leaves/requests/${id}/reject`, payload ?? {}).then((r) => r.data),
+    api.post<LeaveRequest>(`/hr/leaves/requests/${id}/reject`, payload ?? {}, LEAVE_WRITE).then((r) => r.data),
 
   cancel: (id: string) =>
-    api.post<LeaveRequest>(`/hr/leaves/requests/${id}/cancel`, {}).then((r) => r.data),
+    api.post<LeaveRequest>(`/hr/leaves/requests/${id}/cancel`, {}, LEAVE_WRITE).then((r) => r.data),
 };
 
 // ── Positions (HR Payroll → Employee Current Information → Designation) ────

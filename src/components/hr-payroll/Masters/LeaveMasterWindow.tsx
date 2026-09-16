@@ -40,6 +40,9 @@ const emptyForm = {
   minBalanceForEncash: '',
   maxLeaveToEncash: '',
   payableLeave: false,
+  // Drives the payroll LOP deduction. Defaults to paid, so a newly created
+  // leave type never silently starts docking salaries.
+  paid: true,
   maxMonthlyApplications: '',
   minContinuousDays: '',
   maxContinuousDays: '',
@@ -84,6 +87,7 @@ export const LeaveMasterWindow: React.FC<Props> = ({
         minBalanceForEncash: numStr(s.minBalanceForEncash),
         maxLeaveToEncash: numStr(s.maxLeaveToEncash),
         payableLeave: s.payableLeave,
+        paid: s.paid ?? true,
         maxMonthlyApplications: numStr(s.maxMonthlyApplications),
         minContinuousDays: numStr(s.minContinuousDays),
         maxContinuousDays: numStr(s.maxContinuousDays),
@@ -119,6 +123,7 @@ export const LeaveMasterWindow: React.FC<Props> = ({
       minBalanceForEncash: num(form.minBalanceForEncash),
       maxLeaveToEncash: num(form.maxLeaveToEncash),
       payableLeave: form.payableLeave,
+      paid: form.paid,
       maxMonthlyApplications: num(form.maxMonthlyApplications),
       minContinuousDays: num(form.minContinuousDays),
       maxContinuousDays: num(form.maxContinuousDays),
@@ -240,6 +245,9 @@ export const LeaveMasterWindow: React.FC<Props> = ({
               <FieldRow label="Probation Applicable" labelWidth="180px">{crud.selected.applicableDuringProbation ? 'Yes' : 'No'}</FieldRow>
               <FieldRow label="Encashable" labelWidth="180px">{crud.selected.encashable ? 'Yes' : 'No'}</FieldRow>
               <FieldRow label="Payable" labelWidth="180px">{crud.selected.payableLeave ? 'Yes' : 'No'}</FieldRow>
+              <FieldRow label="Salary Treatment" labelWidth="180px">
+                {crud.selected.paid === false ? 'Unpaid — deducted' : 'Paid in full'}
+              </FieldRow>
               <FieldRow label="Carry Forward" labelWidth="180px">{crud.selected.carryForwardToNextYear ? 'Yes' : 'No'}</FieldRow>
               <FieldRow label="Closed" labelWidth="180px">{crud.selected.isClosed ? 'Yes' : 'No'}</FieldRow>
               <FieldRow label="Date Ranges" labelWidth="180px">{(crud.selected.dateRanges ?? []).length}</FieldRow>
@@ -288,6 +296,19 @@ export const LeaveMasterWindow: React.FC<Props> = ({
                     <ClassicInput type="number" step="0.5" value={form.maxLeaveToEncash} onChange={(e) => setForm((f) => ({ ...f, maxLeaveToEncash: e.target.value }))} className="w-full" />
                   </FieldRow>
                   <label className={cb}><input type="checkbox" checked={form.payableLeave} onChange={(e) => setForm((f) => ({ ...f, payableLeave: e.target.checked }))} /> Payable Leave</label>
+                  <label className={cb}>
+                    <input
+                      type="checkbox"
+                      checked={!form.paid}
+                      onChange={(e) => setForm((f) => ({ ...f, paid: !e.target.checked }))}
+                    />{' '}
+                    Unpaid — deduct from salary
+                  </label>
+                  <div className="text-[9.5px] text-gray-500 italic pl-4 -mt-1">
+                    {form.paid
+                      ? 'Approved leave of this type is paid in full.'
+                      : 'Each approved day is docked at gross ÷ working days in Payroll Process.'}
+                  </div>
                 </div>
 
                 <div className="flex-1 flex flex-col gap-1.5">

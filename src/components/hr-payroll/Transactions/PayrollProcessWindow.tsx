@@ -28,22 +28,90 @@ interface Props {
 
 const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
 const today = () => new Date().toISOString().slice(0, 10);
-const numCols: { key: keyof PayrollRunLine; label: string }[] = [
-  { key: 'totalDaysWorking', label: 'Total Days Working' },
-  { key: 'lopDays', label: 'LOP Days' },
-  { key: 'totalDaysWorked', label: 'Days Worked' },
-  { key: 'paidDays', label: 'Paid Days' },
-  { key: 'payLeaves', label: 'Pay Leaves' },
-  { key: 'basic', label: 'Basic' },
-  { key: 'entertainment', label: 'Entertainment' },
-  { key: 'eligibleBasic', label: 'Eligible Basic' },
-  { key: 'conveyance', label: 'Conveyance' },
-  { key: 'education', label: 'Education' },
-  { key: 'eligibleConveyance', label: 'Eligible Conveyance' },
-  { key: 'hra', label: 'HRA' },
-  { key: 'bigCity', label: 'Big City' },
-  { key: 'eligibleHra', label: 'Eligible HRA' },
+/**
+ * The grid reads left to right as a payslip: attendance, then what was earned,
+ * then what was taken off, then the net. `group` drives the tinted header bands
+ * so a deduction can never be mistaken for an earning at a glance.
+ *
+ * `computed` columns are produced by Generate from leave, the loan schedule,
+ * the tax formula and the monthly adjustment document. They stay read-only —
+ * typing over a net pay would silently disagree with its own components.
+ */
+type ColGroup = 'days' | 'earnings' | 'deductions' | 'net';
+interface NumCol {
+  key: keyof PayrollRunLine;
+  label: string;
+  group: ColGroup;
+  computed?: boolean;
+}
+
+const numCols: NumCol[] = [
+  { key: 'totalDaysWorking', label: 'Total Days Working', group: 'days' },
+  { key: 'totalDaysWorked', label: 'Days Worked', group: 'days' },
+  { key: 'payLeaves', label: 'Paid Leave Days', group: 'days' },
+  { key: 'unpaidLeaveDays', label: 'Unpaid Leave Days', group: 'days', computed: true },
+  { key: 'lopDays', label: 'LOP Days', group: 'days' },
+  { key: 'paidDays', label: 'Paid Days', group: 'days' },
+
+  { key: 'basic', label: 'Basic', group: 'earnings' },
+  { key: 'hra', label: 'HRA', group: 'earnings' },
+  { key: 'conveyance', label: 'Conveyance', group: 'earnings' },
+  { key: 'entertainment', label: 'Entertainment', group: 'earnings' },
+  { key: 'education', label: 'Education', group: 'earnings' },
+  { key: 'bigCity', label: 'Big City', group: 'earnings' },
+  { key: 'grossPay', label: 'Gross Pay', group: 'earnings', computed: true },
+  { key: 'perDayRate', label: 'Rate / Day', group: 'earnings', computed: true },
+  { key: 'adjustmentAdditions', label: 'Additions', group: 'earnings', computed: true },
+  { key: 'totalEarnings', label: 'Total Earnings', group: 'earnings', computed: true },
+
+  { key: 'lopDeduction', label: 'Leave / LOP Ded.', group: 'deductions', computed: true },
+  { key: 'loanDeduction', label: 'Loan Ded.', group: 'deductions', computed: true },
+  { key: 'taxableGross', label: 'Taxable Gross', group: 'deductions', computed: true },
+  { key: 'taxDeduction', label: 'Income Tax', group: 'deductions', computed: true },
+  { key: 'adjustmentDeductions', label: 'Other Ded.', group: 'deductions', computed: true },
+  { key: 'totalDeductions', label: 'Total Deductions', group: 'deductions', computed: true },
+
+  { key: 'netPay', label: 'Net Pay', group: 'net', computed: true },
 ];
+
+const groupHeaderTone: Record<ColGroup, string> = {
+  days: 'bg-[#f0f0f0] text-[#444]',
+  earnings: 'bg-[#e7f1e7] text-[#1f5130]',
+  deductions: 'bg-[#fbeceb] text-[#8a2b22]',
+  net: 'bg-[#fff4cc] text-[#6b4d00]',
+};
+const groupCellTone: Record<ColGroup, string> = {
+  days: '',
+  earnings: 'bg-[#fafcfa]',
+  deductions: 'bg-[#fffafa]',
+  net: 'bg-[#fffdf3] font-bold',
+};
+
+const groupLabels: Record<ColGroup, string> = {
+  days: 'Attendance',
+  earnings: 'Earnings',
+  deductions: 'Deductions',
+  net: 'Net',
+};
+
+/** Contiguous runs of `numCols` sharing a group, for the banded header row. */
+const groupSpans = numCols.reduce<{ group: ColGroup; label: string; span: number }[]>((acc, c) => {
+  const last = acc[acc.length - 1];
+  if (last && last.group === c.group) last.span += 1;
+  else acc.push({ group: c.group, label: groupLabels[c.group], span: 1 });
+  return acc;
+}, []);
+
+/** Day counts are per-employee facts; summing them down the column is noise. */
+const moneyCols = new Set<keyof PayrollRunLine>(
+  numCols.filter((c) => c.group !== 'days' && c.key !== 'perDayRate').map((c) => c.key),
+);
+
+const asNum = (v: unknown) => (v === null || v === undefined || v === '' ? 0 : Number(v));
+const fmt = (v: unknown) =>
+  v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString(undefined, {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
 
 const emptyForm = {
   employeeType: '',
@@ -286,10 +354,31 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                   <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-collapse text-[10px]">
                       <thead className="sticky top-0 z-10 bg-[#f0f0f0]">
+                        <tr className="border-b border-gray-300">
+                          <th className="border-r border-gray-300 px-1 py-0.5 text-left bg-[#f0f0f0]"></th>
+                          {groupSpans.map((g) => (
+                            <th
+                              key={g.group}
+                              colSpan={g.span}
+                              className={cn('border-r border-gray-400 px-1 py-0.5 text-center font-bold uppercase tracking-wide text-[9px]', groupHeaderTone[g.group])}
+                            >
+                              {g.label}
+                            </th>
+                          ))}
+                          <th className="w-8 bg-[#f0f0f0]"></th>
+                        </tr>
                         <tr className="border-b border-gray-400">
-                          <th className="border-r border-gray-300 px-1 py-1 text-left min-w-[160px]">Employee</th>
-                          {numCols.map((c) => <th key={c.key} className="border-r border-gray-300 px-1 py-1 text-left min-w-[100px]">{c.label}</th>)}
-                          <th className="w-8"></th>
+                          <th className="border-r border-gray-300 px-1 py-1 text-left min-w-[160px] bg-[#f0f0f0]">Employee</th>
+                          {numCols.map((c) => (
+                            <th
+                              key={c.key}
+                              title={c.computed ? 'Computed by Generate — read-only' : undefined}
+                              className={cn('border-r border-gray-300 px-1 py-1 text-left min-w-[100px]', groupHeaderTone[c.group])}
+                            >
+                              {c.label}
+                            </th>
+                          ))}
+                          <th className="w-8 bg-[#f0f0f0]"></th>
                         </tr>
                       </thead>
                       <tbody className="bg-white">
@@ -306,13 +395,19 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                                 )}
                             </td>
                             {numCols.map((c) => (
-                              <td key={c.key} className="border-r border-gray-100 px-1">
-                                <input
-                                  type="number" step="0.01"
-                                  value={row[c.key] === null || row[c.key] === undefined ? '' : String(row[c.key])}
-                                  onChange={(e) => updateCell(idx, c.key as string, e.target.value)}
-                                  className="w-full h-[18px] text-[10px] outline-none border-none"
-                                />
+                              <td key={c.key} className={cn('border-r border-gray-100 px-1', groupCellTone[c.group])}>
+                                {c.computed ? (
+                                  <div className="h-[18px] leading-[18px] text-right tabular-nums text-[10px] text-[#333]">
+                                    {fmt(row[c.key])}
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="number" step="0.01"
+                                    value={row[c.key] === null || row[c.key] === undefined ? '' : String(row[c.key])}
+                                    onChange={(e) => updateCell(idx, c.key as string, e.target.value)}
+                                    className="w-full h-[18px] text-[10px] text-right tabular-nums outline-none border-none bg-transparent"
+                                  />
+                                )}
                               </td>
                             ))}
                             <td className="text-center">
@@ -324,6 +419,19 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                           <tr><td colSpan={numCols.length + 2} className="text-center text-gray-400 py-4">No rows yet. Click "Generate From Grade + Attendance" or "Add Row".</td></tr>
                         )}
                       </tbody>
+                      {!!lines.length && (
+                        <tfoot className="sticky bottom-0">
+                          <tr className="bg-[#f0f0f0] border-t-2 border-gray-400 font-bold">
+                            <td className="border-r border-gray-300 px-1 py-1">Total — {lines.length} employee{lines.length === 1 ? '' : 's'}</td>
+                            {numCols.map((c) => (
+                              <td key={c.key} className={cn('border-r border-gray-300 px-1 py-1 text-right tabular-nums', groupCellTone[c.group])}>
+                                {moneyCols.has(c.key) ? fmt(lines.reduce((sum, r) => sum + asNum(r[c.key]), 0)) : ''}
+                              </td>
+                            ))}
+                            <td />
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </>
