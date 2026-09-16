@@ -1,193 +1,289 @@
-import React from 'react';
-import { X, Minus, Square } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Banknote } from 'lucide-react';
+import { useCrudResource } from '../../../hooks/useCrudResource';
+import { loanTypesApi, type LoanType, type LoanTypePayload } from '../../../api/payroll-masters.api';
+import {
+  ClassicWindow,
+  CrudToolbar,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface LoanMasterWindowProps {
+interface Props {
   show: boolean;
   onClose: () => void;
   windowState: WindowState;
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  onFocus?: () => void;
 }
 
-export const LoanMasterWindow: React.FC<LoanMasterWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+const emptyForm = {
+  code: '',
+  description: '',
+  loanType: 'Personal',
+  maxAmount: '',
+  rateOfInterest: '',
+  minRepaymentAmount: '',
+  maxInstallments: '',
+  remarks: '',
+  isActive: true,
+};
+
+export const LoanMasterWindow: React.FC<Props> = ({
+  show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  if (!show || windowState.isMinimized) return null;
+  const [form, setForm] = useState(emptyForm);
+  const crud = useCrudResource<LoanType, LoanTypePayload>(
+    'loan-types',
+    loanTypesApi,
+    { label: (l) => l.description },
+  );
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        if (direction.includes('e')) newWidth = Math.max(350, startWidth + deltaX);
-        if (direction.includes('s')) newHeight = Math.max(300, startHeight + deltaY);
-        
-        if (direction.includes('w')) {
-          newWidth = startWidth - deltaX;
-          if (newWidth >= 350) newX = startXPos + deltaX;
-          else newWidth = 350;
-        }
-        
-        if (direction.includes('n')) {
-          newHeight = startHeight - deltaY;
-          if (newHeight >= 300) newY = startYPos + deltaY;
-          else newHeight = 300;
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
+  useEffect(() => {
+    if (crud.mode === 'new') setForm(emptyForm);
+    else if (crud.mode === 'edit' && crud.selected) {
+      const s = crud.selected;
+      setForm({
+        code: s.code,
+        description: s.description,
+        loanType: s.loanType,
+        maxAmount: s.maxAmount != null ? String(s.maxAmount) : '',
+        rateOfInterest: s.rateOfInterest != null ? String(s.rateOfInterest) : '',
+        minRepaymentAmount: s.minRepaymentAmount != null ? String(s.minRepaymentAmount) : '',
+        maxInstallments: s.maxInstallments != null ? String(s.maxInstallments) : '',
+        remarks: s.remarks ?? '',
+        isActive: s.isActive,
       });
-    };
+    }
+  }, [crud.mode, crud.selected]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const handleSave = () => {
+    if (!form.code.trim() || !form.description.trim()) {
+      crud.setError('Code and Description are required.');
+      return;
+    }
+    crud.save({
+      code: form.code.trim(),
+      description: form.description.trim(),
+      loanType: form.loanType,
+      maxAmount: form.maxAmount === '' ? undefined : Number(form.maxAmount),
+      rateOfInterest: form.rateOfInterest === '' ? undefined : Number(form.rateOfInterest),
+      minRepaymentAmount: form.minRepaymentAmount === '' ? undefined : Number(form.minRepaymentAmount),
+      maxInstallments: form.maxInstallments === '' ? undefined : Number(form.maxInstallments),
+      remarks: form.remarks.trim() || undefined,
+      isActive: form.isActive,
+    });
   };
 
-  const sapInputStyle = "w-full h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd0]";
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap";
+  const isForm = crud.mode === 'new' || crud.mode === 'edit';
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Loan Master"
+      icon={<Banknote className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      minWidth={760}
+      minHeight={480}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <CrudToolbar
+            onNew={crud.openNew}
+            onEdit={() => crud.selected && crud.openEdit(crud.selected)}
+            onDelete={() => crud.remove()}
+            onRefresh={crud.refetch}
+            canEdit={!!crud.selected}
+            canDelete={!!crud.selected}
+            isFetching={crud.isFetching}
+            isBusy={crud.isBusy}
+          />
+          <StatusNote error={crud.error} status={crud.status} />
         </>
-      )}
-
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[12px] tracking-tight">Loan Master</span>
+      }
+      footer={
+        <>
+          <span>{crud.rows.length} loan type{crud.rows.length === 1 ? '' : 's'}</span>
+          <span>Loan Master</span>
+        </>
+      }
+    >
+      <div className="flex flex-1 min-h-0">
+        <div className="flex-1 bg-white overflow-auto custom-scrollbar min-w-0">
+          <table className="w-full border-collapse text-[10.5px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Code</th>
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Description</th>
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Type</th>
+                <th className="text-right py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Max Amount</th>
+                <th className="text-left py-1 px-2 font-bold text-[#444]">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crud.rows.map((l, i) => (
+                <tr
+                  key={l.id}
+                  onClick={() => crud.select(l)}
+                  onDoubleClick={() => crud.openEdit(l)}
+                  className={cn(
+                    'border-b border-[#f0f0f0] cursor-default',
+                    crud.selected?.id === l.id
+                      ? 'bg-[#ffed99]'
+                      : i % 2 === 0 ? 'bg-white hover:bg-blue-50/50' : 'bg-[#fafafa] hover:bg-blue-50/50',
+                  )}
+                >
+                  <td className="py-1 px-2 border-r border-[#f0f0f0] font-mono">{l.code}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{l.description}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{l.loanType}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0] text-right">
+                    {l.maxAmount != null ? Number(l.maxAmount).toFixed(2) : '—'}
+                  </td>
+                  <td className="py-1 px-2">
+                    {l.isActive
+                      ? <span className="text-green-700">Active</span>
+                      : <span className="text-gray-400">Inactive</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ListPlaceholder
+            noCompany={crud.noCompany}
+            isLoading={crud.isLoading}
+            isEmpty={!crud.isLoading && crud.rows.length === 0}
+            emptyText="No loan types yet. Click New to add one."
+          />
         </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-4 h-4 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-4 h-4 text-gray-600 group-hover:text-white" />
-           </div>
-        </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col p-2 overflow-hidden bg-white m-1.5 border border-gray-400 shadow-inner">
-        <div className="p-4 flex flex-col gap-1.5">
-          {/* Form Fields */}
-          <div className="grid grid-cols-[140px_1fr] items-center gap-y-3">
-            <span className={sapLabelStyle}>Code *</span>
-            <input type="text" className={sapInputStyle} />
-
-            <span className={sapLabelStyle}>Description *</span>
-            <input type="text" className={sapInputStyle} />
-
-            <span className={sapLabelStyle}>Loan Type</span>
-            <select className={sapInputStyle}>
-                <option value="Personal">Personal</option>
-                <option value="Advance">Advance</option>
-            </select>
-
-            <span className={sapLabelStyle}>Max Amount</span>
-            <input type="text" className={sapInputStyle} />
-
-            <span className={sapLabelStyle}>Rate Of Interest</span>
-            <input type="text" className={sapInputStyle} />
-
-            <span className={sapLabelStyle}>Min Repayment Amount</span>
-            <input type="text" className={sapInputStyle} />
-
-            <span className={sapLabelStyle}>Max. No. of Installments</span>
-            <input type="text" className={sapInputStyle} />
-
-            <span className={sapLabelStyle + " self-start pt-1"}>Remarks</span>
-            <textarea className="w-full h-16 border border-gray-400 p-1 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd0] resize-none"></textarea>
+        <div className="w-[300px] shrink-0 border-l border-[#d4d0c8] bg-white p-3 overflow-auto">
+          <div className="text-[11px] font-bold text-[#333] mb-2 border-b border-[#e0e0e0] pb-1">
+            {crud.mode === 'new'
+              ? 'New Loan Type'
+              : crud.mode === 'edit'
+                ? `Edit — ${crud.selected?.description}`
+                : 'Details'}
           </div>
+
+          {!isForm && !crud.selected && (
+            <div className="text-[10.5px] text-gray-400 mt-6 text-center">
+              Select a loan type, or click New.
+            </div>
+          )}
+
+          {!isForm && crud.selected && (
+            <>
+              <FieldRow label="Code">{crud.selected.code}</FieldRow>
+              <FieldRow label="Description">{crud.selected.description}</FieldRow>
+              <FieldRow label="Loan Type">{crud.selected.loanType}</FieldRow>
+              <FieldRow label="Max Amount">
+                {crud.selected.maxAmount != null ? Number(crud.selected.maxAmount).toFixed(2) : '—'}
+              </FieldRow>
+              <FieldRow label="Rate of Interest">
+                {crud.selected.rateOfInterest != null ? `${Number(crud.selected.rateOfInterest).toFixed(2)}%` : '—'}
+              </FieldRow>
+              <FieldRow label="Min Repayment">
+                {crud.selected.minRepaymentAmount != null ? Number(crud.selected.minRepaymentAmount).toFixed(2) : '—'}
+              </FieldRow>
+              <FieldRow label="Max Installments">{crud.selected.maxInstallments ?? '—'}</FieldRow>
+              <FieldRow label="Status">{crud.selected.isActive ? 'Active' : 'Inactive'}</FieldRow>
+              {crud.selected.remarks && (
+                <div className="mt-2 text-[10px] text-gray-600 whitespace-pre-wrap">{crud.selected.remarks}</div>
+              )}
+              <div className="mt-3">
+                <YellowBtn onClick={() => crud.openEdit(crud.selected!)}>Edit</YellowBtn>
+              </div>
+            </>
+          )}
+
+          {isForm && (
+            <>
+              <FieldRow label="Code" required>
+                <ClassicInput
+                  value={form.code}
+                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+                  className="w-full"
+                  autoFocus
+                />
+              </FieldRow>
+              <FieldRow label="Description" required>
+                <ClassicInput
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Loan Type">
+                <ClassicSel
+                  value={form.loanType}
+                  onChange={(e) => setForm((f) => ({ ...f, loanType: e.target.value }))}
+                  className="w-full"
+                >
+                  <option value="Personal">Personal</option>
+                  <option value="Advance">Advance</option>
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Max Amount">
+                <ClassicInput
+                  type="number" step="0.01" min="0"
+                  value={form.maxAmount}
+                  onChange={(e) => setForm((f) => ({ ...f, maxAmount: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Rate Of Interest">
+                <ClassicInput
+                  type="number" step="0.01" min="0"
+                  value={form.rateOfInterest}
+                  onChange={(e) => setForm((f) => ({ ...f, rateOfInterest: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Min Repayment">
+                <ClassicInput
+                  type="number" step="0.01" min="0"
+                  value={form.minRepaymentAmount}
+                  onChange={(e) => setForm((f) => ({ ...f, minRepaymentAmount: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Max Installments">
+                <ClassicInput
+                  type="number" step="1" min="0"
+                  value={form.maxInstallments}
+                  onChange={(e) => setForm((f) => ({ ...f, maxInstallments: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Active">
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                />
+              </FieldRow>
+              <div className="mb-1">
+                <div className="text-[10.5px] text-[#333] mb-1">Remarks</div>
+                <textarea
+                  value={form.remarks}
+                  onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
+                  className="w-full h-16 border border-[#d4d0c8] p-1 text-[10.5px] outline-none focus:border-orange-400 bg-white resize-none"
+                />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <YellowBtn onClick={handleSave} disabled={crud.isBusy}>
+                  {crud.isBusy ? 'Saving…' : 'Save'}
+                </YellowBtn>
+                <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Footer Area */}
-      <div className="flex gap-2 p-2 shrink-0">
-          <button className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm hover:from-white active:bg-orange-200 min-w-[100px] rounded-[1px] transition-all">
-            Find
-          </button>
-          <button 
-            onClick={onClose}
-            className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm hover:from-white active:bg-orange-200 min-w-[100px] rounded-[1px] transition-all"
-          >
-            Cancel
-          </button>
-      </div>
-    </div>
+    </ClassicWindow>
   );
 };

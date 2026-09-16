@@ -1,266 +1,288 @@
-import React from 'react';
-import { X, Minus, Square } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileEdit, Plus, Trash2 } from 'lucide-react';
+import { useCrudResource } from '../../../hooks/useCrudResource';
+import {
+  payrollAdjustmentsApi,
+  type PayrollAdjustment,
+  type PayrollAdjustmentPayload,
+  type PayrollAdjustmentLine,
+} from '../../../api/transactions.api';
+import { payPeriodsApi, type PayPeriod } from '../../../api/payroll-masters.api';
+import { employeesApi, type Employee } from '../../../api/employees.api';
+import {
+  ClassicWindow,
+  CrudToolbar,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface PayrollMonthlyAdjustmentsWindowProps {
+interface Props {
   show: boolean;
   onClose: () => void;
   windowState: WindowState;
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  onFocus?: () => void;
 }
 
-export const PayrollMonthlyAdjustmentsWindow: React.FC<PayrollMonthlyAdjustmentsWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
+const today = () => new Date().toISOString().slice(0, 10);
+const numCols: { key: keyof PayrollAdjustmentLine; label: string }[] = [
+  { key: 'arrears', label: 'Arrears' },
+  { key: 'generalDeduction', label: 'General Deduction' },
+  { key: 'carAllowance', label: 'Car Allce' },
+  { key: 'carInsLaptopDed', label: 'Car Ins/Laptop Ded' },
+  { key: 'taDa', label: 'TA/DA' },
+  { key: 'dowryAllowance', label: 'Dowry Allowance' },
+  { key: 'taxableAddition', label: 'Taxable Addition' },
+  { key: 'fuel', label: 'Fuel' },
+  { key: 'messDeduction', label: 'Mess Deduction' },
+  { key: 'generalDeduction2', label: 'General Ded 2' },
+  { key: 'carInsLaptopDed2', label: 'Car Ins/Laptop Ded 2' },
+  { key: 'loanDeduction', label: 'Loan/Deduction' },
+  { key: 'deduction11', label: 'Deduction11' },
+  { key: 'deduction12', label: 'Deduction12' },
+  { key: 'deduction13', label: 'Deduction13' },
+  { key: 'deduction14', label: 'Deduction14' },
+  { key: 'deduction15', label: 'Deduction15' },
+  { key: 'amount', label: 'Amount' },
+];
+
+const emptyForm = {
+  employeeType: '',
+  payPeriodId: '',
+  documentDate: today(),
+  status: 'Open',
+  remarks: '',
+};
+
+export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
+  show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  if (!show || windowState.isMinimized) return null;
+  const [form, setForm] = useState(emptyForm);
+  const [lines, setLines] = useState<PayrollAdjustmentLine[]>([]);
+  const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [savingLines, setSavingLines] = useState(false);
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  const crud = useCrudResource<PayrollAdjustment, PayrollAdjustmentPayload>(
+    'payroll-adjustments',
+    payrollAdjustmentsApi,
+    { label: (a) => a.id },
+  );
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
+  useEffect(() => {
+    if (!show) return;
+    payPeriodsApi.getAll({ isActive: true }).then(setPayPeriods).catch(() => setPayPeriods([]));
+    employeesApi.getAll({ pageSize: 200 }).then((r) => setEmployees(r.items)).catch(() => setEmployees([]));
+  }, [show]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        if (direction.includes('e')) newWidth = Math.max(1000, startWidth + deltaX);
-        if (direction.includes('s')) newHeight = Math.max(600, startHeight + deltaY);
-        
-        if (direction.includes('w')) {
-          newWidth = startWidth - deltaX;
-          if (newWidth >= 1000) newX = startXPos + deltaX;
-          else newWidth = 1000;
-        }
-        
-        if (direction.includes('n')) {
-          newHeight = startHeight - deltaY;
-          if (newHeight >= 600) newY = startYPos + deltaY;
-          else newHeight = 600;
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
+  useEffect(() => {
+    if (crud.mode === 'new') {
+      setForm(emptyForm);
+      setLines([]);
+    } else if (crud.selected) {
+      const s = crud.selected;
+      setForm({
+        employeeType: s.employeeType ?? '',
+        payPeriodId: s.payPeriodId ?? '',
+        documentDate: toDateInput(s.documentDate) || today(),
+        status: s.status ?? 'Open',
+        remarks: s.remarks ?? '',
       });
-    };
+      payrollAdjustmentsApi.getLines(s.id).then(setLines).catch(() => setLines([]));
+    }
+  }, [crud.mode, crud.selected]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const handleSave = () => {
+    crud.save({
+      employeeType: form.employeeType.trim() || undefined,
+      payPeriodId: form.payPeriodId || undefined,
+      documentDate: form.documentDate || undefined,
+      status: form.status,
+      remarks: form.remarks.trim() || undefined,
+    });
   };
 
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap";
+  const handleSaveLines = async () => {
+    if (!crud.selected) return;
+    setSavingLines(true);
+    crud.setError('');
+    try {
+      const saved = await payrollAdjustmentsApi.replaceLines(crud.selected.id, lines);
+      setLines(saved);
+    } catch (e) {
+      crud.setError(e instanceof Error ? e.message : 'Failed to save the grid.');
+    } finally {
+      setSavingLines(false);
+    }
+  };
+
+  const addRow = () => setLines((r) => [...r, { employeeId: '' }]);
+  const removeRow = (idx: number) => setLines((r) => r.filter((_, i) => i !== idx));
+  const updateCell = (idx: number, key: string, value: string) =>
+    setLines((r) => r.map((row, i) => (i === idx ? { ...row, [key]: value === '' ? '' : Number(value) } : row)));
+  const updateRemarks = (idx: number, value: string) =>
+    setLines((r) => r.map((row, i) => (i === idx ? { ...row, remarks: value } : row)));
+
+  const isForm = crud.mode === 'new' || crud.mode === 'edit';
+  const hasHeader = !!crud.selected;
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Payroll Monthly Adjustments"
+      icon={<FileEdit className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      minWidth={1100}
+      minHeight={640}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <CrudToolbar
+            onNew={crud.openNew}
+            onEdit={() => crud.selected && crud.openEdit(crud.selected)}
+            onDelete={() => crud.remove()}
+            onRefresh={crud.refetch}
+            canEdit={!!crud.selected}
+            canDelete={!!crud.selected}
+            isFetching={crud.isFetching}
+            isBusy={crud.isBusy || savingLines}
+          />
+          <StatusNote error={crud.error} status={crud.status} />
         </>
-      )}
-
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[12px] tracking-tight">Payroll Monthly Deductions</span>
+      }
+      footer={<><span>{crud.rows.length} adjustment doc{crud.rows.length === 1 ? '' : 's'}</span><span>Payroll Monthly Adjustments</span></>}
+    >
+      <div className="flex flex-1 min-h-0">
+        <div className="w-[220px] shrink-0 bg-white overflow-auto custom-scrollbar border-r border-[#d4d0c8]">
+          <table className="w-full border-collapse text-[10.5px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Doc Date</th>
+                <th className="text-left py-1 px-2 font-bold text-[#444]">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crud.rows.map((s, i) => (
+                <tr
+                  key={s.id}
+                  onClick={() => crud.select(s)}
+                  onDoubleClick={() => crud.openEdit(s)}
+                  className={cn(
+                    'border-b border-[#f0f0f0] cursor-default',
+                    crud.selected?.id === s.id ? 'bg-[#ffed99]' : i % 2 === 0 ? 'bg-white hover:bg-blue-50/50' : 'bg-[#fafafa] hover:bg-blue-50/50',
+                  )}
+                >
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{s.payPeriod?.name || toDateInput(s.documentDate)}</td>
+                  <td className="py-1 px-2">{s.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ListPlaceholder noCompany={crud.noCompany} isLoading={crud.isLoading} isEmpty={!crud.isLoading && crud.rows.length === 0} emptyText="No adjustment docs yet. Click New to add one." />
         </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-4 h-4 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-4 h-4 text-gray-600 group-hover:text-white" />
-           </div>
-        </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col p-2 overflow-hidden bg-white m-1.5 border border-gray-400 shadow-inner">
-        <div className="flex-1 flex flex-col overflow-hidden p-2">
-           {/* Header Info */}
-           <div className="grid grid-cols-[1fr_1fr] gap-x-12 mb-4">
-              <div className="flex flex-col gap-1">
-                 <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Employee Type</span>
-                    <select className="w-[180px] h-[18px] border border-gray-400 px-1 text-[11px]"><option value=""></option></select>
-                 </div>
-                 <div className="grid grid-cols-[120px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Pay Period</span>
-                    <input type="text" className="w-[180px] h-[18px] border border-gray-400 px-1 text-[11px]" />
-                 </div>
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          {!isForm && !crud.selected && (
+            <div className="text-[10.5px] text-gray-400 mt-6 text-center">Select an adjustment doc, or click New.</div>
+          )}
+
+          {(isForm || crud.selected) && (
+            <>
+              <div className="p-2 border-b border-[#d4d0c8] shrink-0">
+                <div className="grid grid-cols-4 gap-x-4 gap-y-1.5">
+                  <FieldRow label="Employee Type" labelWidth="100px">
+                    <ClassicInput value={form.employeeType} onChange={(e) => setForm((f) => ({ ...f, employeeType: e.target.value }))} className="w-full" disabled={!isForm} placeholder="All" />
+                  </FieldRow>
+                  <FieldRow label="Pay Period" labelWidth="100px">
+                    <ClassicSel value={form.payPeriodId} onChange={(e) => setForm((f) => ({ ...f, payPeriodId: e.target.value }))} className="w-full" disabled={!isForm}>
+                      <option value="">—</option>
+                      {payPeriods.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+                    </ClassicSel>
+                  </FieldRow>
+                  <FieldRow label="Document Date" labelWidth="100px">
+                    <ClassicInput type="date" value={form.documentDate} onChange={(e) => setForm((f) => ({ ...f, documentDate: e.target.value }))} className="w-full" disabled={!isForm} />
+                  </FieldRow>
+                  <FieldRow label="Status" labelWidth="100px">
+                    <ClassicSel value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className="w-full" disabled={!isForm}>
+                      <option value="Open">Open</option>
+                      <option value="Posted">Posted</option>
+                    </ClassicSel>
+                  </FieldRow>
+                </div>
+                {isForm && (
+                  <div className="flex gap-2 mt-2">
+                    <YellowBtn onClick={handleSave} disabled={crud.isBusy}>{crud.isBusy ? 'Saving…' : crud.mode === 'new' ? 'Add' : 'Save'}</YellowBtn>
+                    <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
+                  </div>
+                )}
               </div>
 
-              <div className="flex flex-col gap-1">
-                 <div className="flex items-center gap-2 self-end">
-                    <span className={sapLabelStyle}>No.</span>
-                    <select className="w-[80px] h-[18px] border border-gray-400 px-1 text-[11px]"><option value="Primary">Primary</option></select>
-                    <input type="text" className="w-[60px] h-[18px] border border-gray-400 px-1 text-[11px] bg-[#f0f0f0]" value="15" readOnly />
-                 </div>
-                 <div className="flex items-center gap-2 self-end">
-                    <span className={sapLabelStyle}>Document Date</span>
-                    <div className="w-[168px] flex h-[18px] border border-gray-400 bg-[#fffbd0]">
-                       <input type="text" className="w-full px-1 text-[11px] outline-none bg-transparent" value="24.02.26" readOnly />
-                    </div>
-                 </div>
-                 <div className="flex items-center gap-2 self-end">
-                    <span className={sapLabelStyle}>Status</span>
-                    <input type="text" className="w-[168px] h-[18px] border border-gray-400 px-1 text-[11px] bg-[#f0f0f0]" value="Open" readOnly />
-                 </div>
-              </div>
-           </div>
-
-           {/* Table Section */}
-           <div className="flex-1 border border-gray-400 overflow-auto custom-scrollbar bg-[#f8f9fa]">
-              <table className="w-full border-collapse">
-                 <thead className="sticky top-0 z-10 bg-[#f0f0f0]">
-                    <tr className="border-b border-gray-400 text-left">
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[30px]">#</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Employee ID</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[120px]">Employee Name</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">.... No</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[70px]">Arrears</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[100px]">General Deduction</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[70px]">Car Allce</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[110px]">Car Ins/ Laptop Ded</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[70px]">TA/DA</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[100px]">Dowry Allowance</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[100px]">Taxable Addition</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[70px]">Fuel</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[100px]">Mess Deduction</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">General Ded</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[110px]">Car Ins/ Laptop Ded</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[100px]">Loan/Deduction</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Deduction11</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Deduction12</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Deducn13</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Deduction14</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Deduction15</th>
-                       <th className="border-r border-gray-300 text-[9px] font-medium px-1 py-1 min-w-[80px]">Amount</th>
-                       <th className="text-[9px] font-medium px-1 py-1 min-w-[120px]">Remarks</th>
-                    </tr>
-                 </thead>
-                 <tbody className="bg-white">
-                    <tr className="border-b border-gray-200 h-6">
-                       <td className="border-r border-gray-200 text-[10px] text-center">1</td>
-                       <td className="border-r border-gray-200"></td>
-                       <td className="border-r border-gray-200"></td>
-                       <td className="border-r border-gray-200"></td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td className="border-r border-gray-200 px-1 text-right text-[10px]">0.00</td>
-                       <td></td>
-                    </tr>
-                    {[...Array(15)].map((_, i) => (
-                      <tr key={i} className="border-b border-gray-100 h-6">
-                         <td className="border-r border-gray-100"></td>
-                         <td className="border-r border-gray-100"></td>
-                         <td className="border-r border-gray-100"></td>
-                         <td className="border-r border-gray-100"></td>
-                         <td className="border-r border-gray-100 text-right px-1 text-[10px] text-gray-400">0.00</td>
-                         {[...Array(17)].map((__, idx) => (
-                           <td key={idx} className="border-r border-gray-100"></td>
-                         ))}
-                         <td></td>
-                      </tr>
-                    ))}
-                 </tbody>
-              </table>
-           </div>
-
-           {/* Footer Section */}
-           <div className="flex flex-col gap-2 mt-4 px-1 pb-1">
-              <div className="flex items-center gap-2">
-                 <span className={sapLabelStyle}>Remarks</span>
-                 <input type="text" className="w-[300px] h-[22px] border border-gray-400 px-1 text-[11px]" />
-              </div>
-              <div className="flex gap-2 mt-2">
-                 <button className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[100px]">Add</button>
-                 <button onClick={onClose} className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px] min-w-[100px]">Cancel</button>
-              </div>
-           </div>
+              {hasHeader && (
+                <>
+                  <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#d4d0c8] shrink-0 bg-[#f7f7f7]">
+                    <button onClick={addRow} className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white rounded-[1px] hover:bg-[#ffed99]">
+                      <Plus className="w-3 h-3" /> Add Row
+                    </button>
+                    <YellowBtn onClick={handleSaveLines} disabled={savingLines}>{savingLines ? 'Saving…' : 'Save Grid'}</YellowBtn>
+                  </div>
+                  <div className="flex-1 overflow-auto custom-scrollbar">
+                    <table className="w-full border-collapse text-[9.5px]">
+                      <thead className="sticky top-0 z-10 bg-[#f0f0f0]">
+                        <tr className="border-b border-gray-400">
+                          <th className="border-r border-gray-300 px-1 py-1 text-left min-w-[160px]">Employee</th>
+                          {numCols.map((c) => <th key={c.key} className="border-r border-gray-300 px-1 py-1 text-left min-w-[85px]">{c.label}</th>)}
+                          <th className="border-r border-gray-300 px-1 py-1 text-left min-w-[120px]">Remarks</th>
+                          <th className="w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {lines.map((row, idx) => (
+                          <tr key={idx} className="border-b border-gray-100 h-6">
+                            <td className="border-r border-gray-100 px-1">
+                              {row.employee
+                                ? <span>{row.employee.employeeNumber ? `${row.employee.employeeNumber} — ` : ''}{row.employee.name}</span>
+                                : (
+                                  <select value={row.employeeId} onChange={(e) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: e.target.value } : rr)))} className="w-full h-[18px] text-[10px] outline-none border-none">
+                                    <option value="">Select…</option>
+                                    {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
+                                  </select>
+                                )}
+                            </td>
+                            {numCols.map((c) => (
+                              <td key={c.key} className="border-r border-gray-100 px-1">
+                                <input
+                                  type="number" step="0.01"
+                                  value={row[c.key] === null || row[c.key] === undefined ? '' : String(row[c.key])}
+                                  onChange={(e) => updateCell(idx, c.key as string, e.target.value)}
+                                  className="w-full h-[18px] text-[10px] outline-none border-none"
+                                />
+                              </td>
+                            ))}
+                            <td className="border-r border-gray-100 px-1">
+                              <input value={row.remarks ?? ''} onChange={(e) => updateRemarks(idx, e.target.value)} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                            </td>
+                            <td className="text-center">
+                              <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
+                            </td>
+                          </tr>
+                        ))}
+                        {!lines.length && (
+                          <tr><td colSpan={numCols.length + 3} className="text-center text-gray-400 py-4">No rows yet. Click "Add Row".</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </>
+          )}
         </div>
       </div>
-    </div>
+    </ClassicWindow>
   );
 };

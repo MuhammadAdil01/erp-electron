@@ -1,290 +1,382 @@
-import React from 'react';
-import { X, Minus, Square, Calendar } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CalendarDays, Plus, Trash2 } from 'lucide-react';
+import { useCrudResource } from '../../../hooks/useCrudResource';
+import {
+  leaveTypesApi,
+  leaveDateRangesApi,
+  type LeaveType,
+  type LeaveTypePayload,
+  type LeaveTypeDateRange,
+} from '../../../api/hr.api';
+import {
+  ClassicWindow,
+  CrudToolbar,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface LeaveMasterWindowProps {
+interface Props {
   show: boolean;
   onClose: () => void;
   windowState: WindowState;
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  onFocus?: () => void;
 }
 
-export const LeaveMasterWindow: React.FC<LeaveMasterWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
+const numStr = (v: string | number | null | undefined) => (v === null || v === undefined ? '' : String(v));
+
+const emptyForm = {
+  code: '',
+  name: '',
+  description: '',
+  totalLeavesInYear: '',
+  totalLeavesInYearForTrainer: '',
+  leaveCategory: 'Others',
+  applicableDuringProbation: false,
+  encashable: false,
+  minBalanceForEncash: '',
+  maxLeaveToEncash: '',
+  payableLeave: false,
+  maxMonthlyApplications: '',
+  minContinuousDays: '',
+  maxContinuousDays: '',
+  minContinuousDurationProb: '',
+  maxContinuousDurationProb: '',
+  effectiveFrom: '',
+  carryForwardToNextYear: false,
+  maxLeaveCarryForward: '',
+  isClosed: false,
+  remarks: '',
+  isActive: true,
+};
+
+export const LeaveMasterWindow: React.FC<Props> = ({
+  show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  if (!show || windowState.isMinimized) return null;
+  const [form, setForm] = useState(emptyForm);
+  const [ranges, setRanges] = useState<LeaveTypeDateRange[]>([]);
+  const [savingRanges, setSavingRanges] = useState(false);
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  const crud = useCrudResource<LeaveType, LeaveTypePayload>(
+    'leave-types',
+    leaveTypesApi,
+    { label: (l) => l.name },
+  );
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        if (direction.includes('e')) newWidth = Math.max(700, startWidth + deltaX);
-        if (direction.includes('s')) newHeight = Math.max(500, startHeight + deltaY);
-        
-        if (direction.includes('w')) {
-          newWidth = startWidth - deltaX;
-          if (newWidth >= 700) newX = startXPos + deltaX;
-          else newWidth = 700;
-        }
-        
-        if (direction.includes('n')) {
-          newHeight = startHeight - deltaY;
-          if (newHeight >= 500) newY = startYPos + deltaY;
-          else newHeight = 500;
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
+  useEffect(() => {
+    if (crud.mode === 'new') {
+      setForm(emptyForm);
+      setRanges([]);
+    } else if (crud.mode === 'edit' && crud.selected) {
+      const s = crud.selected;
+      setForm({
+        code: s.code,
+        name: s.name,
+        description: s.description ?? '',
+        totalLeavesInYear: numStr(s.totalLeavesInYear),
+        totalLeavesInYearForTrainer: numStr(s.totalLeavesInYearForTrainer),
+        leaveCategory: s.leaveCategory ?? 'Others',
+        applicableDuringProbation: s.applicableDuringProbation,
+        encashable: s.encashable,
+        minBalanceForEncash: numStr(s.minBalanceForEncash),
+        maxLeaveToEncash: numStr(s.maxLeaveToEncash),
+        payableLeave: s.payableLeave,
+        maxMonthlyApplications: numStr(s.maxMonthlyApplications),
+        minContinuousDays: numStr(s.minContinuousDays),
+        maxContinuousDays: numStr(s.maxContinuousDays),
+        minContinuousDurationProb: numStr(s.minContinuousDurationProb),
+        maxContinuousDurationProb: numStr(s.maxContinuousDurationProb),
+        effectiveFrom: toDateInput(s.effectiveFrom),
+        carryForwardToNextYear: s.carryForwardToNextYear,
+        maxLeaveCarryForward: numStr(s.maxLeaveCarryForward),
+        isClosed: s.isClosed,
+        remarks: s.remarks ?? '',
+        isActive: s.isActive,
       });
-    };
+      setRanges(s.dateRanges ?? []);
+    }
+  }, [crud.mode, crud.selected]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
+  const num = (v: string) => (v === '' ? undefined : Number(v));
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const handleSave = () => {
+    if (!form.code.trim() || !form.name.trim()) {
+      crud.setError('Leave Code and Name are required.');
+      return;
+    }
+    crud.save({
+      code: form.code.trim(),
+      name: form.name.trim(),
+      description: form.description.trim() || undefined,
+      totalLeavesInYear: num(form.totalLeavesInYear),
+      totalLeavesInYearForTrainer: num(form.totalLeavesInYearForTrainer),
+      leaveCategory: form.leaveCategory,
+      applicableDuringProbation: form.applicableDuringProbation,
+      encashable: form.encashable,
+      minBalanceForEncash: num(form.minBalanceForEncash),
+      maxLeaveToEncash: num(form.maxLeaveToEncash),
+      payableLeave: form.payableLeave,
+      maxMonthlyApplications: num(form.maxMonthlyApplications),
+      minContinuousDays: num(form.minContinuousDays),
+      maxContinuousDays: num(form.maxContinuousDays),
+      minContinuousDurationProb: num(form.minContinuousDurationProb),
+      maxContinuousDurationProb: num(form.maxContinuousDurationProb),
+      effectiveFrom: form.effectiveFrom || undefined,
+      carryForwardToNextYear: form.carryForwardToNextYear,
+      maxLeaveCarryForward: num(form.maxLeaveCarryForward),
+      isClosed: form.isClosed,
+      remarks: form.remarks.trim() || undefined,
+      isActive: form.isActive,
+    });
   };
 
-  const sapInputStyle = "w-full h-[18px] border border-gray-400 px-1 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd0]";
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap";
-  const checkboxLabelStyle = "text-[11px] text-gray-700 ml-1";
+  // After a create/update transitions mode back to 'view' with the row
+  // selected, flush the date-range table against its real id. This runs even
+  // when ranges is empty, so deliberately clearing every row during an edit
+  // actually persists instead of silently leaving the old rows in place.
+  const prevModeRef = React.useRef(crud.mode);
+  useEffect(() => {
+    if (prevModeRef.current !== 'view' && crud.mode === 'view' && crud.selected) {
+      setSavingRanges(true);
+      leaveDateRangesApi.replace(crud.selected.id, ranges)
+        .then(setRanges)
+        .catch((e) => crud.setError(e instanceof Error ? e.message : 'Failed to save date ranges.'))
+        .finally(() => setSavingRanges(false));
+    }
+    prevModeRef.current = crud.mode;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crud.mode, crud.selected]);
+
+  const addRange = () => setRanges((r) => [...r, { fromDate: '', toDate: '', isLocked: false }]);
+  const removeRange = (idx: number) => setRanges((r) => r.filter((_, i) => i !== idx));
+  const updateRange = (idx: number, patch: Partial<LeaveTypeDateRange>) =>
+    setRanges((r) => r.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+
+  const isForm = crud.mode === 'new' || crud.mode === 'edit';
+  const cb = "text-[10.5px] flex items-center gap-1";
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Leave Master"
+      icon={<CalendarDays className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      minWidth={920}
+      minHeight={620}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <CrudToolbar
+            onNew={crud.openNew}
+            onEdit={() => crud.selected && crud.openEdit(crud.selected)}
+            onDelete={() => crud.remove()}
+            onRefresh={crud.refetch}
+            canEdit={!!crud.selected}
+            canDelete={!!crud.selected}
+            isFetching={crud.isFetching}
+            isBusy={crud.isBusy || savingRanges}
+          />
+          <StatusNote error={crud.error} status={crud.status} />
         </>
-      )}
-
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[12px] tracking-tight">Leave Master</span>
+      }
+      footer={
+        <>
+          <span>{crud.rows.length} leave type{crud.rows.length === 1 ? '' : 's'}</span>
+          <span>Leave Master</span>
+        </>
+      }
+    >
+      <div className="flex flex-1 min-h-0">
+        <div className="w-[260px] shrink-0 bg-white overflow-auto custom-scrollbar border-r border-[#d4d0c8]">
+          <table className="w-full border-collapse text-[10.5px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Code</th>
+                <th className="text-left py-1 px-2 font-bold text-[#444]">Name</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crud.rows.map((l, i) => (
+                <tr
+                  key={l.id}
+                  onClick={() => crud.select(l)}
+                  onDoubleClick={() => crud.openEdit(l)}
+                  className={cn(
+                    'border-b border-[#f0f0f0] cursor-default',
+                    crud.selected?.id === l.id
+                      ? 'bg-[#ffed99]'
+                      : i % 2 === 0 ? 'bg-white hover:bg-blue-50/50' : 'bg-[#fafafa] hover:bg-blue-50/50',
+                  )}
+                >
+                  <td className="py-1 px-2 border-r border-[#f0f0f0] font-mono">{l.code}</td>
+                  <td className="py-1 px-2 truncate">{l.name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ListPlaceholder
+            noCompany={crud.noCompany}
+            isLoading={crud.isLoading}
+            isEmpty={!crud.isLoading && crud.rows.length === 0}
+            emptyText="No leave types yet. Click New to add one."
+          />
         </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-4 h-4 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-4 h-4 text-gray-600 group-hover:text-white" />
-           </div>
-        </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col p-2 overflow-hidden bg-white m-1.5 border border-gray-400 shadow-inner">
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-          {/* Top Sections */}
-          <div className="flex gap-8 mb-4">
-            {/* Left Column */}
-            <div className="flex-1 flex flex-col gap-1.5">
-              <div className="grid grid-cols-[160px_1fr] items-center gap-y-1.5">
-                <span className={sapLabelStyle}>Leave Code *</span>
-                <input type="text" className={sapInputStyle} />
+        <div className="flex-1 bg-white p-3 overflow-auto custom-scrollbar">
+          {!isForm && !crud.selected && (
+            <div className="text-[10.5px] text-gray-400 mt-6 text-center">Select a leave type, or click New.</div>
+          )}
 
-                <span className={sapLabelStyle}>Description</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Total Leaves in Year *</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Total Leaves in Year for Trainer</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Leave Type</span>
-                <select className={sapInputStyle}>
-                  <option value="Others">Others</option>
-                </select>
-
-                <div />
-                <div className="flex items-center mt-1">
-                  <input type="checkbox" className="w-3 h-3" />
-                  <span className={checkboxLabelStyle}>Applicable During Probation</span>
-                </div>
-
-                <div />
-                <div className="flex items-center">
-                  <input type="checkbox" className="w-3 h-3" />
-                  <span className={checkboxLabelStyle}>Encashable</span>
-                </div>
-
-                <span className={sapLabelStyle}>Min Balance for Encash</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Max Leave to Encash</span>
-                <input type="text" className={sapInputStyle} />
-
-                <div />
-                <div className="flex items-center mt-1">
-                  <input type="checkbox" className="w-3 h-3" />
-                  <span className={checkboxLabelStyle}>Payable Leave</span>
-                </div>
+          {!isForm && crud.selected && (
+            <div className="text-[10.5px] text-[#333] space-y-1">
+              <div className="font-bold text-[11px] mb-2">{crud.selected.code} — {crud.selected.name}</div>
+              <FieldRow label="Total Leaves/Yr" labelWidth="180px">{numStr(crud.selected.totalLeavesInYear) || '—'}</FieldRow>
+              <FieldRow label="Leave Category" labelWidth="180px">{crud.selected.leaveCategory}</FieldRow>
+              <FieldRow label="Probation Applicable" labelWidth="180px">{crud.selected.applicableDuringProbation ? 'Yes' : 'No'}</FieldRow>
+              <FieldRow label="Encashable" labelWidth="180px">{crud.selected.encashable ? 'Yes' : 'No'}</FieldRow>
+              <FieldRow label="Payable" labelWidth="180px">{crud.selected.payableLeave ? 'Yes' : 'No'}</FieldRow>
+              <FieldRow label="Carry Forward" labelWidth="180px">{crud.selected.carryForwardToNextYear ? 'Yes' : 'No'}</FieldRow>
+              <FieldRow label="Closed" labelWidth="180px">{crud.selected.isClosed ? 'Yes' : 'No'}</FieldRow>
+              <FieldRow label="Date Ranges" labelWidth="180px">{(crud.selected.dateRanges ?? []).length}</FieldRow>
+              {crud.selected.remarks && <div className="mt-2 text-[10px] text-gray-600 whitespace-pre-wrap">{crud.selected.remarks}</div>}
+              <div className="mt-3">
+                <YellowBtn onClick={() => crud.openEdit(crud.selected!)}>Edit</YellowBtn>
               </div>
             </div>
+          )}
 
-            {/* Right Column */}
-            <div className="flex-1 flex flex-col gap-1.5">
-              <div className="grid grid-cols-[160px_1fr] items-center gap-y-1.5">
-                <span className={sapLabelStyle}>Max Monthly Appli.</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Min Continuous</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Max Continuous</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Min Conti. Dur. Prob.</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Max Conti. Dur. Prob.</span>
-                <input type="text" className={sapInputStyle} />
-
-                <span className={sapLabelStyle}>Effective From</span>
-                <div className="relative">
-                    <input type="text" className={sapInputStyle} />
-                    <Calendar className="absolute right-0.5 top-0.5 w-3 h-3 text-gray-500" />
+          {isForm && (
+            <>
+              <div className="flex gap-8 mb-3">
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <FieldRow label="Leave Code" required labelWidth="180px">
+                    <ClassicInput value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className="w-full" autoFocus />
+                  </FieldRow>
+                  <FieldRow label="Name" required labelWidth="180px">
+                    <ClassicInput value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Description" labelWidth="180px">
+                    <ClassicInput value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Total Leaves in Year" labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.totalLeavesInYear} onChange={(e) => setForm((f) => ({ ...f, totalLeavesInYear: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Total Leaves (Trainer)" labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.totalLeavesInYearForTrainer} onChange={(e) => setForm((f) => ({ ...f, totalLeavesInYearForTrainer: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Leave Type" labelWidth="180px">
+                    <ClassicSel value={form.leaveCategory} onChange={(e) => setForm((f) => ({ ...f, leaveCategory: e.target.value }))} className="w-full">
+                      <option value="Others">Others</option>
+                      <option value="Annual">Annual</option>
+                      <option value="Sick">Sick</option>
+                      <option value="Casual">Casual</option>
+                      <option value="Maternity">Maternity</option>
+                      <option value="Paternity">Paternity</option>
+                    </ClassicSel>
+                  </FieldRow>
+                  <label className={cb}><input type="checkbox" checked={form.applicableDuringProbation} onChange={(e) => setForm((f) => ({ ...f, applicableDuringProbation: e.target.checked }))} /> Applicable During Probation</label>
+                  <label className={cb}><input type="checkbox" checked={form.encashable} onChange={(e) => setForm((f) => ({ ...f, encashable: e.target.checked }))} /> Encashable</label>
+                  <FieldRow label="Min Balance for Encash" labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.minBalanceForEncash} onChange={(e) => setForm((f) => ({ ...f, minBalanceForEncash: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Max Leave to Encash" labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.maxLeaveToEncash} onChange={(e) => setForm((f) => ({ ...f, maxLeaveToEncash: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <label className={cb}><input type="checkbox" checked={form.payableLeave} onChange={(e) => setForm((f) => ({ ...f, payableLeave: e.target.checked }))} /> Payable Leave</label>
                 </div>
 
-                <div />
-                <div className="flex items-center mt-1">
-                  <input type="checkbox" className="w-3 h-3" />
-                  <span className={checkboxLabelStyle}>Carry Forward to Next Year</span>
-                </div>
-
-                <span className={sapLabelStyle}>Max.Leave Carry Fwd.</span>
-                <input type="text" className={sapInputStyle} />
-
-                <div />
-                <div className="flex items-center mt-1">
-                  <input type="checkbox" className="w-3 h-3" />
-                  <span className={checkboxLabelStyle}>Close</span>
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <FieldRow label="Max Monthly Appli." labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.maxMonthlyApplications} onChange={(e) => setForm((f) => ({ ...f, maxMonthlyApplications: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Min Continuous" labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.minContinuousDays} onChange={(e) => setForm((f) => ({ ...f, minContinuousDays: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Max Continuous" labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.maxContinuousDays} onChange={(e) => setForm((f) => ({ ...f, maxContinuousDays: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Min Conti. Dur. Prob." labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.minContinuousDurationProb} onChange={(e) => setForm((f) => ({ ...f, minContinuousDurationProb: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Max Conti. Dur. Prob." labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.maxContinuousDurationProb} onChange={(e) => setForm((f) => ({ ...f, maxContinuousDurationProb: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <FieldRow label="Effective From" labelWidth="180px">
+                    <ClassicInput type="date" value={form.effectiveFrom} onChange={(e) => setForm((f) => ({ ...f, effectiveFrom: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <label className={cb}><input type="checkbox" checked={form.carryForwardToNextYear} onChange={(e) => setForm((f) => ({ ...f, carryForwardToNextYear: e.target.checked }))} /> Carry Forward to Next Year</label>
+                  <FieldRow label="Max Leave Carry Fwd." labelWidth="180px">
+                    <ClassicInput type="number" step="0.5" value={form.maxLeaveCarryForward} onChange={(e) => setForm((f) => ({ ...f, maxLeaveCarryForward: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                  <label className={cb}><input type="checkbox" checked={form.isClosed} onChange={(e) => setForm((f) => ({ ...f, isClosed: e.target.checked }))} /> Close</label>
+                  <label className={cb}><input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} /> Active</label>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Table Section */}
-          <div className="border border-gray-400 mt-2 mb-2 min-h-[120px]">
-             <table className="w-full border-collapse">
-                <thead>
-                   <tr className="bg-[#f0f0f0] border-b border-gray-400">
-                      <th className="w-8 border-r border-gray-300 text-[11px] font-medium text-left px-1 py-1">#</th>
-                      <th className="border-r border-gray-300 text-[11px] font-medium text-left px-1 py-1">From Date</th>
-                      <th className="border-r border-gray-300 text-[11px] font-medium text-left px-1 py-1">To Date</th>
-                      <th className="text-[11px] font-medium text-left px-1 py-1">Lock</th>
-                   </tr>
-                </thead>
-                <tbody>
-                   <tr className="border-b border-gray-200 h-6">
-                      <td className="border-r border-gray-200 text-[11px] px-1">1</td>
-                      <td className="border-r border-gray-200"></td>
-                      <td className="border-r border-gray-200"></td>
-                      <td></td>
-                   </tr>
-                   {[2,3,4,5].map(i => (
-                     <tr key={i} className="border-b border-gray-200 h-6">
-                        <td className="border-r border-gray-200"></td>
-                        <td className="border-r border-gray-200"></td>
-                        <td className="border-r border-gray-200"></td>
-                        <td></td>
-                     </tr>
-                   ))}
-                </tbody>
-             </table>
-          </div>
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[10.5px] font-bold text-[#333]">Effective / Blackout Date Ranges</div>
+                  <button onClick={addRange} className="text-[10px] flex items-center gap-1 text-blue-700 hover:underline">
+                    <Plus className="w-3 h-3" /> Add Row
+                  </button>
+                </div>
+                <div className="border border-[#d4d0c8] max-h-[140px] overflow-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-[#f0f0f0] sticky top-0">
+                      <tr className="border-b border-[#d4d0c8]">
+                        <th className="w-8 border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1">#</th>
+                        <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1">From Date</th>
+                        <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1">To Date</th>
+                        <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1 w-16">Lock</th>
+                        <th className="w-6"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ranges.map((row, idx) => (
+                        <tr key={idx} className="border-b border-gray-200 h-6">
+                          <td className="border-r border-gray-200 px-1 text-[10.5px]">{idx + 1}</td>
+                          <td className="border-r border-gray-200 px-1">
+                            <input type="date" value={toDateInput(row.fromDate)} onChange={(e) => updateRange(idx, { fromDate: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                          </td>
+                          <td className="border-r border-gray-200 px-1">
+                            <input type="date" value={toDateInput(row.toDate)} onChange={(e) => updateRange(idx, { toDate: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                          </td>
+                          <td className="border-r border-gray-200 px-1 text-center">
+                            <input type="checkbox" checked={!!row.isLocked} onChange={(e) => updateRange(idx, { isLocked: e.target.checked })} />
+                          </td>
+                          <td className="text-center">
+                            <button onClick={() => removeRange(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!ranges.length && (
+                        <tr><td colSpan={5} className="text-center text-[10px] text-gray-400 py-2">No date ranges.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          {/* Remarks Section */}
-          <div className="grid grid-cols-[120px_1fr] items-start mt-4">
-             <span className={sapLabelStyle + " pt-1"}>Remarks</span>
-             <textarea className="w-full h-16 border border-gray-400 p-1 text-[11px] outline-none focus:border-orange-400 bg-[#fffbd0] resize-none"></textarea>
-          </div>
+              <div className="mb-2">
+                <div className="text-[10.5px] text-[#333] mb-1">Remarks</div>
+                <textarea value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} className="w-full h-16 border border-[#d4d0c8] p-1 text-[10.5px] outline-none focus:border-orange-400 bg-white resize-none" />
+              </div>
+
+              <div className="flex gap-2">
+                <YellowBtn onClick={handleSave} disabled={crud.isBusy || savingRanges}>
+                  {crud.isBusy || savingRanges ? 'Saving…' : 'Save'}
+                </YellowBtn>
+                <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Footer Area */}
-      <div className="flex gap-2 p-2 shrink-0">
-          <button className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm hover:from-white active:bg-orange-200 min-w-[100px] rounded-[1px] transition-all">
-            Find
-          </button>
-          <button 
-            onClick={onClose}
-            className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm hover:from-white active:bg-orange-200 min-w-[100px] rounded-[1px] transition-all"
-          >
-            Cancel
-          </button>
-      </div>
-    </div>
+    </ClassicWindow>
   );
 };

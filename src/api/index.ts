@@ -14,3 +14,9 @@ export * from './administration.api';
 export * from './financials.api';
 export * from './crm.api';
 export * from './ar-ap.api';
+
+// HR Payroll
+export * from './hr.api';
+export * from './payroll-masters.api';
+export * from './transactions.api';
+export * from './branches.api';

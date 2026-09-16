@@ -1,269 +1,424 @@
-import React from 'react';
-import { X, Minus, Square } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Banknote, Plus, Trash2 } from 'lucide-react';
+import { useCrudResource } from '../../../hooks/useCrudResource';
+import {
+  employeeLoansApi,
+  type EmployeeLoan,
+  type EmployeeLoanPayload,
+  type LoanInstallment,
+} from '../../../api/transactions.api';
+import { loanTypesApi, payPeriodsApi, type LoanType, type PayPeriod } from '../../../api/payroll-masters.api';
+import { employeesApi, type Employee } from '../../../api/employees.api';
+import {
+  ClassicWindow,
+  CrudToolbar,
+  StatusNote,
+  ListPlaceholder,
+  type WindowState,
+} from '../../ui/ClassicWindow';
+import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
-interface WindowState {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  isMinimized: boolean;
-  isMaximized: boolean;
-  zIndex: number;
-}
-
-interface LoanApplicationWindowProps {
+interface Props {
   show: boolean;
   onClose: () => void;
-  windowState: WindowState; 
+  windowState: WindowState;
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
+  onFocus?: () => void;
 }
 
-export const LoanApplicationWindow: React.FC<LoanApplicationWindowProps> = ({
-  show,
-  onClose,
-  windowState,
-  setWindowState
+const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
+const today = () => new Date().toISOString().slice(0, 10);
+
+const emptyForm = {
+  code: '',
+  employeeId: '',
+  loanTypeId: '',
+  loanAmount: '',
+  sanctionedAmount: '',
+  documentDate: today(),
+  status: 'Open',
+  effectivePayPeriodId: '',
+  effectiveDate: '',
+  noOfInstallments: '',
+  amountPerMonth: '',
+  approved: false,
+  remarks: '',
+  isActive: true,
+};
+
+export const LoanApplicationWindow: React.FC<Props> = ({
+  show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  if (!show || windowState.isMinimized) return null;
+  const [form, setForm] = useState(emptyForm);
+  const [installments, setInstallments] = useState<LoanInstallment[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loanTypes, setLoanTypes] = useState<LoanType[]>([]);
+  const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([]);
+  const [savingInstallments, setSavingInstallments] = useState(false);
 
-  const handleDrag = (e: React.MouseEvent) => {
-    if (windowState.isMaximized) return;
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  const crud = useCrudResource<EmployeeLoan, EmployeeLoanPayload>(
+    'loan-applications',
+    employeeLoansApi,
+    { label: (l) => l.code },
+  );
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      setWindowState(prev => ({
-        ...prev,
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY
-      }));
-    };
+  useEffect(() => {
+    if (!show) return;
+    employeesApi.getAll({ pageSize: 200 }).then((r) => setEmployees(r.items)).catch(() => setEmployees([]));
+    loanTypesApi.getAll({ isActive: true }).then(setLoanTypes).catch(() => setLoanTypes([]));
+    payPeriodsApi.getAll({ isActive: true }).then(setPayPeriods).catch(() => setPayPeriods([]));
+  }, [show]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      setWindowState(prev => {
-        let newX = prev.x;
-        let newY = prev.y;
-        let newWidth = prev.width;
-        let newHeight = prev.height;
-
-        if (direction.includes('e')) newWidth = Math.max(900, startWidth + deltaX);
-        if (direction.includes('s')) newHeight = Math.max(600, startHeight + deltaY);
-        
-        if (direction.includes('w')) {
-          newWidth = startWidth - deltaX;
-          if (newWidth >= 900) newX = startXPos + deltaX;
-          else newWidth = 900;
-        }
-        
-        if (direction.includes('n')) {
-          newHeight = startHeight - deltaY;
-          if (newHeight >= 600) newY = startYPos + deltaY;
-          else newHeight = 600;
-        }
-
-        return { ...prev, x: newX, y: newY, width: newWidth, height: newHeight };
+  useEffect(() => {
+    if (crud.mode === 'new') {
+      setForm(emptyForm);
+      setInstallments([]);
+    } else if (crud.mode === 'edit' && crud.selected) {
+      const s = crud.selected;
+      setForm({
+        code: s.code,
+        employeeId: s.employeeId,
+        loanTypeId: s.loanTypeId,
+        loanAmount: String(s.loanAmount),
+        sanctionedAmount: s.sanctionedAmount != null ? String(s.sanctionedAmount) : '',
+        documentDate: toDateInput(s.documentDate) || today(),
+        status: s.status ?? 'Open',
+        effectivePayPeriodId: s.effectivePayPeriodId ?? '',
+        effectiveDate: toDateInput(s.effectiveDate),
+        noOfInstallments: s.noOfInstallments != null ? String(s.noOfInstallments) : '',
+        amountPerMonth: s.amountPerMonth != null ? String(s.amountPerMonth) : '',
+        approved: s.approved,
+        remarks: s.remarks ?? '',
+        isActive: s.isActive,
       });
-    };
+      setInstallments(s.installments ?? []);
+    }
+  }, [crud.mode, crud.selected]);
 
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
+  const addRow = () => setInstallments((r) => [...r, { month: '', year: undefined, dueDate: '', amount: 0, status: 'Pending' }]);
+  const removeRow = (idx: number) => setInstallments((r) => r.filter((_, i) => i !== idx));
+  const updateRow = (idx: number, patch: Partial<LoanInstallment>) =>
+    setInstallments((r) => r.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const saveInstallmentsFor = async (loanId: string) => {
+    setSavingInstallments(true);
+    try {
+      const saved = await employeeLoansApi.replaceInstallments(loanId, installments);
+      setInstallments(saved);
+    } catch (e) {
+      crud.setError(e instanceof Error ? e.message : 'Failed to save the installment schedule.');
+    } finally {
+      setSavingInstallments(false);
+    }
   };
 
-  const sapLabelStyle = "text-[11px] text-gray-700 whitespace-nowrap";
-  const nonYellowInput = "w-full h-[18px] border border-gray-400 px-1 text-[11px] outline-none bg-[#f0f0f0]";
+  // Once a loan is created/updated (mode flips back to 'view'), flush any
+  // manual installment edits — including down to zero rows.
+  const prevModeRef = React.useRef(crud.mode);
+  useEffect(() => {
+    if (prevModeRef.current !== 'view' && crud.mode === 'view' && crud.selected) {
+      void saveInstallmentsFor(crud.selected.id);
+    }
+    prevModeRef.current = crud.mode;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crud.mode, crud.selected]);
+
+  const handleSave = () => {
+    if (!form.code.trim() || !form.employeeId || !form.loanTypeId || !form.loanAmount) {
+      crud.setError('Doc No, Employee, Loan Type and Loan Amount are required.');
+      return;
+    }
+    crud.save({
+      code: form.code.trim(),
+      employeeId: form.employeeId,
+      loanTypeId: form.loanTypeId,
+      loanAmount: Number(form.loanAmount),
+      sanctionedAmount: form.sanctionedAmount === '' ? undefined : Number(form.sanctionedAmount),
+      documentDate: form.documentDate || undefined,
+      status: form.status,
+      effectivePayPeriodId: form.effectivePayPeriodId || undefined,
+      effectiveDate: form.effectiveDate || undefined,
+      noOfInstallments: form.noOfInstallments === '' ? undefined : Number(form.noOfInstallments),
+      amountPerMonth: form.amountPerMonth === '' ? undefined : Number(form.amountPerMonth),
+      approved: form.approved,
+      remarks: form.remarks.trim() || undefined,
+      isActive: form.isActive,
+    });
+  };
+
+  const isForm = crud.mode === 'new' || crud.mode === 'edit';
+  const selectedEmployee = employees.find((e) => e.id === form.employeeId);
 
   return (
-    <div 
-      style={{
-        left: windowState.isMaximized ? 0 : windowState.x,
-        top: windowState.isMaximized ? 0 : windowState.y,
-        width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex
-      }}
-      className="absolute bg-[#ececec] flex flex-col shadow-[4px_4px_16px_rgba(0,0,0,0.5)] border border-[#404040]/50 rounded-[2px] overflow-hidden group/window select-none"
-    >
-      {/* Resize Handles */}
-      {!windowState.isMaximized && (
+    <ClassicWindow
+      title="Loan Application"
+      icon={<Banknote className="w-3.5 h-3.5 text-gray-600" />}
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      minWidth={900}
+      minHeight={600}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <CrudToolbar
+            onNew={crud.openNew}
+            onEdit={() => crud.selected && crud.openEdit(crud.selected)}
+            onDelete={() => crud.remove()}
+            onRefresh={crud.refetch}
+            canEdit={!!crud.selected}
+            canDelete={!!crud.selected}
+            isFetching={crud.isFetching}
+            isBusy={crud.isBusy || savingInstallments}
+          />
+          <StatusNote error={crud.error} status={crud.status} />
         </>
-      )}
+      }
+      footer={
+        <>
+          <span>{crud.rows.length} loan application{crud.rows.length === 1 ? '' : 's'}</span>
+          <span>Loan Application</span>
+        </>
+      }
+    >
+      <div className="flex flex-1 min-h-0">
+        <div className="flex-1 bg-white overflow-auto custom-scrollbar min-w-0 flex flex-col">
+          <table className="w-full border-collapse text-[10.5px] shrink-0">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Doc No</th>
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Employee</th>
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Loan Type</th>
+                <th className="text-right py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Amount</th>
+                <th className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444]">Approved</th>
+                <th className="text-left py-1 px-2 font-bold text-[#444]">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crud.rows.map((l, i) => (
+                <tr
+                  key={l.id}
+                  onClick={() => crud.select(l)}
+                  onDoubleClick={() => crud.openEdit(l)}
+                  className={cn(
+                    'border-b border-[#f0f0f0] cursor-default',
+                    crud.selected?.id === l.id
+                      ? 'bg-[#ffed99]'
+                      : i % 2 === 0 ? 'bg-white hover:bg-blue-50/50' : 'bg-[#fafafa] hover:bg-blue-50/50',
+                  )}
+                >
+                  <td className="py-1 px-2 border-r border-[#f0f0f0] font-mono">{l.code}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{l.employee?.name ?? '—'}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{l.loanType?.code ?? '—'}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0] text-right">{Number(l.loanAmount).toFixed(2)}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{l.approved ? 'Yes' : 'No'}</td>
+                  <td className="py-1 px-2">{l.status ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ListPlaceholder
+            noCompany={crud.noCompany}
+            isLoading={crud.isLoading}
+            isEmpty={!crud.isLoading && crud.rows.length === 0}
+            emptyText="No loan applications yet. Click New to add one."
+          />
 
-      {/* Title Bar */}
-      <div 
-        onMouseDown={handleDrag}
-        className="h-[28px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] flex items-center justify-between px-2 cursor-default shrink-0 border-b border-gray-400"
-      >
-        <div className="flex items-center gap-1.5">
-          <span className="text-black font-medium text-[12px] tracking-tight">Loan Application</span>
-        </div>
-        <div className="flex items-center gap-0.5">
-           <div onClick={() => setWindowState(p => ({...p, isMinimized: true}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Minus className="w-4 h-4 text-gray-600" />
-           </div>
-           <div onClick={() => setWindowState(p => ({...p, isMaximized: !p.isMaximized}))} className="w-5 h-5 flex items-center justify-center hover:bg-black/5 transition-colors">
-              <Square className="w-3.5 h-3.5 text-gray-600" />
-           </div>
-           <div onClick={onClose} className="w-5 h-5 flex items-center justify-center hover:bg-red-600 hover:text-white transition-colors group">
-              <X className="w-4 h-4 text-gray-600 group-hover:text-white" />
-           </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col p-2 overflow-hidden bg-white m-1.5 border border-gray-400 shadow-inner">
-        <div className="flex-1 flex flex-col overflow-hidden p-2">
-           {/* Header Info */}
-           <div className="grid grid-cols-[1fr_1fr] gap-x-12 mb-4">
-              <div className="flex flex-col gap-1">
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>.... No.*</span>
-                    <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                 </div>
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Employee Name</span>
-                    <input type="text" className={nonYellowInput} />
-                 </div>
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Designation</span>
-                    <input type="text" className={nonYellowInput} />
-                 </div>
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Loan Code *</span>
-                    <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                 </div>
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Loan Type</span>
-                    <input type="text" className={nonYellowInput} />
-                 </div>
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Loan Amount *</span>
-                    <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                 </div>
-                 <div className="grid grid-cols-[140px_1fr] items-center gap-2">
-                    <span className={sapLabelStyle}>Sanctioned Amount</span>
-                    <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                 </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                 <div className="flex items-center gap-2 self-end">
-                    <span className={sapLabelStyle}>No.</span>
-                    <select className="w-[100px] h-[18px] border border-gray-400 px-1 text-[11px]"><option value="Primary">Primary</option></select>
-                    <input type="text" className="w-[60px] h-[18px] border border-gray-400 px-1 text-[11px] bg-[#f0f0f0]" value="102" readOnly />
-                 </div>
-                 <div className="flex items-center gap-2 self-end">
-                    <span className={sapLabelStyle}>Document Date</span>
-                    <div className="w-[168px] flex h-[18px] border border-gray-400 bg-[#fffbd0]">
-                       <input type="text" className="w-full px-1 text-[11px] outline-none bg-transparent" value="24.02.26" readOnly />
-                    </div>
-                 </div>
-                 <div className="flex items-center gap-2 self-end">
-                    <span className={sapLabelStyle}>Status</span>
-                    <select className="w-[168px] h-[18px] border border-gray-400 px-1 text-[11px]"><option value="Open">Open</option></select>
-                 </div>
-                 <div className="mt-4 flex flex-col gap-1 w-[168px] self-end">
-                    <div className="flex flex-col">
-                       <span className={sapLabelStyle}>Effective pay Period</span>
-                       <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                    </div>
-                    <div className="flex flex-col">
-                       <span className={sapLabelStyle}>Effective Date</span>
-                       <input type="text" className="w-full h-[18px] border border-gray-400 px-1 text-[11px]" />
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           {/* Middle Section */}
-           <div className="grid grid-cols-[1fr_1fr] gap-x-12 mb-4">
-              <div className="flex flex-col gap-1">
-                 <div className="grid grid-cols-[140px_150px] items-center gap-2">
-                    <span className={sapLabelStyle}>No Of Installments</span>
-                    <input type="text" className="h-[18px] border border-gray-400 px-1 text-[11px]" />
-                 </div>
-                 <div className="grid grid-cols-[140px_150px] items-center gap-2">
-                    <span className={sapLabelStyle}>Amount/Month</span>
-                    <input type="text" className={nonYellowInput} />
-                 </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 pr-28">
-                 <input type="checkbox" className="w-3.5 h-3.5" />
-                 <span className={sapLabelStyle}>Approved</span>
-              </div>
-           </div>
-
-           {/* Table Section */}
-           <div className="flex-1 border border-gray-400 overflow-auto custom-scrollbar bg-[#f8f9fa]">
-              <table className="w-full border-collapse">
-                 <thead className="sticky top-0 z-10 bg-[#f0f0f0]">
-                    <tr className="border-b border-gray-400 text-left">
-                       <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[30px]">#</th>
-                       <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[100px]">Month</th>
-                       <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[80px]">Year</th>
-                       <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[100px]">Date</th>
-                       <th className="border-r border-gray-300 text-[10px] font-medium px-1 py-1 min-w-[120px]">Amount</th>
-                       <th className="text-[10px] font-medium px-1 py-1 min-w-[100px]">Status</th>
+          {crud.selected && !isForm && (
+            <div className="p-2 flex-1 flex flex-col min-h-0">
+              <div className="text-[10.5px] font-bold text-[#333] mb-1">Installment Schedule — {crud.selected.code}</div>
+              <div className="flex-1 border border-[#d4d0c8] overflow-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-[#f0f0f0]">
+                    <tr className="border-b border-[#d4d0c8]">
+                      <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1 py-1">#</th>
+                      <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1 py-1">Month</th>
+                      <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1 py-1">Year</th>
+                      <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1 py-1">Due Date</th>
+                      <th className="border-r border-[#d4d0c8] text-[10px] font-bold text-left px-1 py-1">Amount</th>
+                      <th className="text-[10px] font-bold text-left px-1 py-1">Status</th>
                     </tr>
-                 </thead>
-                 <tbody className="bg-white">
-                    {[...Array(12)].map((_, i) => (
-                      <tr key={i} className="border-b border-gray-100 h-6">
-                         <td className="border-r border-gray-100 bg-[#f0f0f0]"></td>
-                         <td className="border-r border-gray-100 px-1"></td>
-                         <td className="border-r border-gray-100 px-1"></td>
-                         <td className="border-r border-gray-100 px-1"></td>
-                         <td className="border-r border-gray-100 px-1"></td>
-                         <td className="px-1"></td>
+                  </thead>
+                  <tbody>
+                    {(crud.selected.installments ?? []).map((s, i) => (
+                      <tr key={s.id ?? i} className="border-b border-gray-200 h-6">
+                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{i + 1}</td>
+                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{s.month ?? '—'}</td>
+                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{s.year ?? '—'}</td>
+                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{toDateInput(s.dueDate) || '—'}</td>
+                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{Number(s.amount).toFixed(2)}</td>
+                        <td className="px-1 text-[10.5px]">{s.status ?? '—'}</td>
                       </tr>
                     ))}
-                 </tbody>
-              </table>
-           </div>
+                    {!(crud.selected.installments ?? []).length && (
+                      <tr><td colSpan={6} className="text-center text-[10.5px] text-gray-400 py-2">No installments. Click Edit to add or set No. Of Installments + Effective Date.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
 
-           {/* Footer Section */}
-           <div className="flex flex-col gap-2 mt-4 px-1 pb-1">
-              <div className="flex items-center gap-2">
-                 <span className={sapLabelStyle}>Remarks</span>
-                 <input type="text" className="flex-1 h-[22px] border border-gray-400 px-1 text-[11px]" />
+        <div className="w-[360px] shrink-0 border-l border-[#d4d0c8] bg-white p-3 overflow-auto">
+          <div className="text-[11px] font-bold text-[#333] mb-2 border-b border-[#e0e0e0] pb-1">
+            {crud.mode === 'new'
+              ? 'New Loan Application'
+              : crud.mode === 'edit'
+                ? `Edit — ${crud.selected?.code}`
+                : 'Details'}
+          </div>
+
+          {!isForm && !crud.selected && (
+            <div className="text-[10.5px] text-gray-400 mt-6 text-center">
+              Select a loan application, or click New.
+            </div>
+          )}
+
+          {!isForm && crud.selected && (
+            <>
+              <FieldRow label="Doc No">{crud.selected.code}</FieldRow>
+              <FieldRow label="Employee">{crud.selected.employee?.name ?? '—'}</FieldRow>
+              <FieldRow label="Loan Type">{crud.selected.loanType?.description ?? '—'}</FieldRow>
+              <FieldRow label="Loan Amount">{Number(crud.selected.loanAmount).toFixed(2)}</FieldRow>
+              <FieldRow label="Sanctioned">{crud.selected.sanctionedAmount != null ? Number(crud.selected.sanctionedAmount).toFixed(2) : '—'}</FieldRow>
+              <FieldRow label="Doc Date">{toDateInput(crud.selected.documentDate)}</FieldRow>
+              <FieldRow label="Status">{crud.selected.status ?? '—'}</FieldRow>
+              <FieldRow label="Effective Date">{toDateInput(crud.selected.effectiveDate) || '—'}</FieldRow>
+              <FieldRow label="No. Of Installments">{crud.selected.noOfInstallments ?? '—'}</FieldRow>
+              <FieldRow label="Amount / Month">{crud.selected.amountPerMonth != null ? Number(crud.selected.amountPerMonth).toFixed(2) : '—'}</FieldRow>
+              <FieldRow label="Approved">{crud.selected.approved ? 'Yes' : 'No'}</FieldRow>
+              {crud.selected.remarks && (
+                <div className="mt-2 text-[10px] text-gray-600 whitespace-pre-wrap">{crud.selected.remarks}</div>
+              )}
+              <div className="mt-3">
+                <YellowBtn onClick={() => crud.openEdit(crud.selected!)}>Edit</YellowBtn>
               </div>
-              <div className="flex mt-2">
-                 <button className="px-8 py-0.5 bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60 border border-gray-500 text-[11px] font-bold shadow-sm rounded-[1px]">Add</button>
+            </>
+          )}
+
+          {isForm && (
+            <>
+              <FieldRow label="Doc No" required>
+                <ClassicInput value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className="w-full" autoFocus />
+              </FieldRow>
+              <FieldRow label="Employee" required>
+                <ClassicSel value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} className="w-full">
+                  <option value="">—</option>
+                  {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Designation">{selectedEmployee?.position || '—'}</FieldRow>
+              <FieldRow label="Loan Type" required>
+                <ClassicSel value={form.loanTypeId} onChange={(e) => setForm((f) => ({ ...f, loanTypeId: e.target.value }))} className="w-full">
+                  <option value="">—</option>
+                  {loanTypes.map((t) => <option key={t.id} value={t.id}>{t.code} — {t.description}</option>)}
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Loan Amount" required>
+                <ClassicInput type="number" step="0.01" min="0" value={form.loanAmount} onChange={(e) => setForm((f) => ({ ...f, loanAmount: e.target.value }))} className="w-full" />
+              </FieldRow>
+              <FieldRow label="Sanctioned Amount">
+                <ClassicInput type="number" step="0.01" min="0" value={form.sanctionedAmount} onChange={(e) => setForm((f) => ({ ...f, sanctionedAmount: e.target.value }))} className="w-full" />
+              </FieldRow>
+              <FieldRow label="Status">
+                <ClassicSel value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className="w-full">
+                  <option value="Open">Open</option>
+                  <option value="Closed">Closed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Effective Pay Period">
+                <ClassicSel value={form.effectivePayPeriodId} onChange={(e) => setForm((f) => ({ ...f, effectivePayPeriodId: e.target.value }))} className="w-full">
+                  <option value="">—</option>
+                  {payPeriods.map((p) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+                </ClassicSel>
+              </FieldRow>
+              <FieldRow label="Effective Date">
+                <ClassicInput type="date" value={form.effectiveDate} onChange={(e) => setForm((f) => ({ ...f, effectiveDate: e.target.value }))} className="w-full" />
+              </FieldRow>
+              <FieldRow label="No. Of Installments">
+                <ClassicInput type="number" step="1" min="1" value={form.noOfInstallments} onChange={(e) => setForm((f) => ({ ...f, noOfInstallments: e.target.value }))} className="w-full" />
+              </FieldRow>
+              <FieldRow label="Amount / Month">
+                <ClassicInput
+                  type="number" step="0.01" min="0"
+                  placeholder={form.loanAmount && form.noOfInstallments ? (Number(form.loanAmount) / Number(form.noOfInstallments)).toFixed(2) : undefined}
+                  value={form.amountPerMonth}
+                  onChange={(e) => setForm((f) => ({ ...f, amountPerMonth: e.target.value }))}
+                  className="w-full"
+                />
+              </FieldRow>
+              <FieldRow label="Approved">
+                <input type="checkbox" checked={form.approved} onChange={(e) => setForm((f) => ({ ...f, approved: e.target.checked }))} />
+              </FieldRow>
+              <div className="text-[10px] text-gray-500 italic mb-2">
+                Setting No. Of Installments + Effective Date auto-generates the monthly schedule below on Save
+                (leave Amount/Month blank to split the loan amount evenly).
               </div>
-           </div>
+
+              <div className="mt-2 mb-1 flex items-center justify-between">
+                <div className="text-[10.5px] font-bold text-[#333]">Installment Schedule</div>
+                <button onClick={addRow} className="text-[10px] flex items-center gap-1 text-blue-700 hover:underline">
+                  <Plus className="w-3 h-3" /> Add Row
+                </button>
+              </div>
+              <div className="border border-[#d4d0c8] max-h-[160px] overflow-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-[#f0f0f0] sticky top-0">
+                    <tr className="border-b border-[#d4d0c8]">
+                      <th className="border-r border-[#d4d0c8] text-[9.5px] font-bold text-left px-1">Month</th>
+                      <th className="border-r border-[#d4d0c8] text-[9.5px] font-bold text-left px-1">Year</th>
+                      <th className="border-r border-[#d4d0c8] text-[9.5px] font-bold text-left px-1">Amount</th>
+                      <th className="border-r border-[#d4d0c8] text-[9.5px] font-bold text-left px-1">Status</th>
+                      <th className="w-5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {installments.map((s, idx) => (
+                      <tr key={idx} className="border-b border-gray-200 h-6">
+                        <td className="border-r border-gray-200 px-1">
+                          <input value={s.month ?? ''} onChange={(e) => updateRow(idx, { month: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                        </td>
+                        <td className="border-r border-gray-200 px-1">
+                          <input type="number" value={s.year ?? ''} onChange={(e) => updateRow(idx, { year: e.target.value === '' ? undefined : Number(e.target.value) })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                        </td>
+                        <td className="border-r border-gray-200 px-1">
+                          <input type="number" step="0.01" value={String(s.amount ?? '')} onChange={(e) => updateRow(idx, { amount: Number(e.target.value) })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                        </td>
+                        <td className="border-r border-gray-200 px-1">
+                          <select value={s.status ?? 'Pending'} onChange={(e) => updateRow(idx, { status: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none bg-transparent">
+                            <option value="Pending">Pending</option>
+                            <option value="Paid">Paid</option>
+                          </select>
+                        </td>
+                        <td className="text-center">
+                          <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!installments.length && (
+                      <tr><td colSpan={5} className="text-center text-[10px] text-gray-400 py-2">No rows yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mb-1 mt-2">
+                <div className="text-[10.5px] text-[#333] mb-1">Remarks</div>
+                <textarea value={form.remarks} onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))} className="w-full h-12 border border-[#d4d0c8] p-1 text-[10.5px] outline-none focus:border-orange-400 bg-white resize-none" />
+              </div>
+              <div className="flex gap-2 mt-3">
+                <YellowBtn onClick={handleSave} disabled={crud.isBusy || savingInstallments}>
+                  {crud.isBusy || savingInstallments ? 'Saving…' : 'Save'}
+                </YellowBtn>
+                <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
+              </div>
+            </>
+          )}
         </div>
       </div>
-    </div>
+    </ClassicWindow>
   );
 };

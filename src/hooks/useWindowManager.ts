@@ -273,20 +273,26 @@ export function useWindowManager() {
   const [purchaseAnalysisWindow,            setPurchaseAnalysisWindow]            = useState(win(580,400,  580, 520, 43));
   const [purchaseRequestReportWindow,       setPurchaseRequestReportWindow]       = useState(win(610,420,  550, 580, 44));
   const [purchaseQuotationComparisonWindow, setPurchaseQuotationComparisonWindow] = useState(win(640,440,  550, 520, 45));
-  const [employeeCurrentInfoWindowPos,      setEmployeeCurrentInfoWindowPos]      = useState(win(100, 70,  850, 600, 46));
-  const [payPeriodWindowPos,                setPayPeriodWindowPos]                = useState(win(150,100,  500, 550, 47));
-  const [gradeMasterWindowPos,              setGradeMasterWindowPos]              = useState(win(200,130,  450, 400, 48));
-  const [loanMasterWindowPos,               setLoanMasterWindowPos]               = useState(win(250,160,  450, 400, 49));
-  const [leaveMasterWindowPos,              setLeaveMasterWindowPos]              = useState(win(300,190,  800, 550, 50));
-  const [employeeCategoryMasterWindowPos,   setEmployeeCategoryMasterWindowPos]   = useState(win(350,220,  400, 350, 51));
-  const [shiftMasterWindowPos,              setShiftMasterWindowPos]              = useState(win(400,250,  450, 400, 52));
-  const [taxFormulaWindowPos,               setTaxFormulaWindowPos]               = useState(win(450,280,  700, 500, 53));
-  const [gradePayScaleWindowPos,            setGradePayScaleWindowPos]            = useState(win(500,310,  900, 600, 54));
-  const [monthlyAttendanceWindowPos,        setMonthlyAttendanceWindowPos]        = useState(win(100,100, 1000, 700, 55));
-  const [payrollProcessWindowPos,           setPayrollProcessWindowPos]           = useState(win(150,150, 1000, 700, 56));
-  const [loanApplicationWindowPos,          setLoanApplicationWindowPos]          = useState(win(200,180,  950, 650, 57));
-  const [leaveApplicationWindowPos,         setLeaveApplicationWindowPos]         = useState(win(250,210,  950, 650, 58));
-  const [payrollAdjustmentsWindowPos,       setPayrollAdjustmentsWindowPos]       = useState(win(300,240, 1100, 700, 59));
+  // HR Payroll → Masters tabs open full-screen (isMaximized: true) by default,
+  // same convention as every other module's windows (Administration, CRM, …).
+  // The x/y/width/height are only the size a user falls back to after
+  // un-maximizing, so they still get a sane, resizable window at that point.
+  const [employeeCurrentInfoWindowPos,      setEmployeeCurrentInfoWindowPos]      = useState({ x: 100, y: 70,  width: 850, height: 600, isMinimized: false, isMaximized: true, zIndex: 46 });
+  const [payPeriodWindowPos,                setPayPeriodWindowPos]                = useState({ x: 150, y: 100, width: 500, height: 550, isMinimized: false, isMaximized: true, zIndex: 47 });
+  const [gradeMasterWindowPos,              setGradeMasterWindowPos]              = useState({ x: 200, y: 130, width: 450, height: 400, isMinimized: false, isMaximized: true, zIndex: 48 });
+  const [loanMasterWindowPos,               setLoanMasterWindowPos]               = useState({ x: 250, y: 160, width: 450, height: 400, isMinimized: false, isMaximized: true, zIndex: 49 });
+  const [leaveMasterWindowPos,              setLeaveMasterWindowPos]              = useState({ x: 300, y: 190, width: 800, height: 550, isMinimized: false, isMaximized: true, zIndex: 50 });
+  const [employeeCategoryMasterWindowPos,   setEmployeeCategoryMasterWindowPos]   = useState({ x: 350, y: 220, width: 400, height: 350, isMinimized: false, isMaximized: true, zIndex: 51 });
+  const [shiftMasterWindowPos,              setShiftMasterWindowPos]              = useState({ x: 400, y: 250, width: 450, height: 400, isMinimized: false, isMaximized: true, zIndex: 52 });
+  const [taxFormulaWindowPos,               setTaxFormulaWindowPos]               = useState({ x: 450, y: 280, width: 700, height: 500, isMinimized: false, isMaximized: true, zIndex: 53 });
+  const [gradePayScaleWindowPos,            setGradePayScaleWindowPos]            = useState({ x: 500, y: 310, width: 900, height: 600, isMinimized: false, isMaximized: true, zIndex: 54 });
+  // HR Payroll → Transactions tabs also open full-screen (isMaximized: true)
+  // by default, same convention as Masters and every other module's windows.
+  const [monthlyAttendanceWindowPos,        setMonthlyAttendanceWindowPos]        = useState({ x: 100, y: 100, width: 1000, height: 700, isMinimized: false, isMaximized: true, zIndex: 55 });
+  const [payrollProcessWindowPos,           setPayrollProcessWindowPos]           = useState({ x: 150, y: 150, width: 1000, height: 700, isMinimized: false, isMaximized: true, zIndex: 56 });
+  const [loanApplicationWindowPos,          setLoanApplicationWindowPos]          = useState({ x: 200, y: 180, width: 950,  height: 650, isMinimized: false, isMaximized: true, zIndex: 57 });
+  const [leaveApplicationWindowPos,         setLeaveApplicationWindowPos]         = useState({ x: 250, y: 210, width: 950,  height: 650, isMinimized: false, isMaximized: true, zIndex: 58 });
+  const [payrollAdjustmentsWindowPos,       setPayrollAdjustmentsWindowPos]       = useState({ x: 300, y: 240, width: 1100, height: 700, isMinimized: false, isMaximized: true, zIndex: 59 });
   const [chartOfAccountsWindowPos,          setChartOfAccountsWindowPos]          = useState(win( 50, 50,  900, 550, 60));
   const [editChartOfAccountsPos,            setEditChartOfAccountsPos]            = useState(win( 60, 60,  350, 350, 60));
   const [dataNotProvidedPos,                setDataNotProvidedPos]                = useState(win( 80, 80,  300, 150, 60));
