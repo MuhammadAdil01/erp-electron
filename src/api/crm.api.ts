@@ -151,7 +151,7 @@ export interface SalesEmployee extends Auditable {
   email?: string | null; remarks?: string | null; isActive: boolean;
   userId?: string | null; user?: { id: string; name: string; email: string } | null;
   employeeId?: string | null;
-  employee?: { id: string; firstName: string; lastName: string } | null;
+  employee?: { id: string; name: string; employeeNumber?: string | null } | null;
   _count?: { partners: number; opportunities: number };
 }
 export const salesEmployeesApi = createCrudApi<SalesEmployee>('/crm/sales-employees');
