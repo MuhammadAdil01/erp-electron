@@ -59,20 +59,57 @@ const numCols: NumCol[] = [
   { key: 'entertainment', label: 'Entertainment', group: 'earnings' },
   { key: 'education', label: 'Education', group: 'earnings' },
   { key: 'bigCity', label: 'Big City', group: 'earnings' },
-  { key: 'grossPay', label: 'Gross Pay', group: 'earnings', computed: true },
+  { key: 'adjustmentAdditions', label: 'Additions', group: 'earnings' },
   { key: 'perDayRate', label: 'Rate / Day', group: 'earnings', computed: true },
-  { key: 'adjustmentAdditions', label: 'Additions', group: 'earnings', computed: true },
+  { key: 'grossPay', label: 'Gross Pay', group: 'earnings', computed: true },
   { key: 'totalEarnings', label: 'Total Earnings', group: 'earnings', computed: true },
 
-  { key: 'lopDeduction', label: 'Leave / LOP Ded.', group: 'deductions', computed: true },
-  { key: 'loanDeduction', label: 'Loan Ded.', group: 'deductions', computed: true },
+  { key: 'lopDeduction', label: 'Leave / LOP Ded.', group: 'deductions' },
+  { key: 'loanDeduction', label: 'Loan Ded.', group: 'deductions' },
+  { key: 'taxDeduction', label: 'Income Tax', group: 'deductions' },
+  { key: 'adjustmentDeductions', label: 'Other Ded.', group: 'deductions' },
   { key: 'taxableGross', label: 'Taxable Gross', group: 'deductions', computed: true },
-  { key: 'taxDeduction', label: 'Income Tax', group: 'deductions', computed: true },
-  { key: 'adjustmentDeductions', label: 'Other Ded.', group: 'deductions', computed: true },
   { key: 'totalDeductions', label: 'Total Deductions', group: 'deductions', computed: true },
 
   { key: 'netPay', label: 'Net Pay', group: 'net', computed: true },
 ];
+
+/**
+ * Gross/Total Earnings/Total Deductions/Net Pay, live from whatever is
+ * currently in the row's own editable cells — mirrors
+ * `payroll-calculation.ts`'s `rowTotals` on the backend exactly, so what you
+ * see here while typing is what Save Grid will persist. Generate still
+ * prefills Basic/HRA/Conveyance from the Grade and the deduction columns from
+ * real attendance/loan/tax data; this just means editing any of them updates
+ * the totals immediately instead of only after another Generate.
+ */
+function rowTotals(row: PayrollRunLine): { grossPay: number; totalEarnings: number; totalDeductions: number; netPay: number } {
+  const grossPay = asNum(row.basic) + asNum(row.hra) + asNum(row.conveyance) +
+    asNum(row.entertainment) + asNum(row.education) + asNum(row.bigCity);
+  const totalEarnings = grossPay + asNum(row.adjustmentAdditions);
+  const totalDeductions = asNum(row.lopDeduction) + asNum(row.loanDeduction) +
+    asNum(row.taxDeduction) + asNum(row.adjustmentDeductions);
+  return {
+    grossPay: round2(grossPay),
+    totalEarnings: round2(totalEarnings),
+    totalDeductions: round2(totalDeductions),
+    netPay: round2(totalEarnings - totalDeductions),
+  };
+}
+const aggregateKeys = new Set<keyof PayrollRunLine>(['grossPay', 'totalEarnings', 'totalDeductions', 'netPay']);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Only the fields PayrollRunLineRowDto declares — id/employee/aggregates are never sent back. */
+function toSaveableRow(row: PayrollRunLine) {
+  const { employeeId, employeeType, totalDaysWorking, lopDays, totalDaysWorked, paidDays, payLeaves,
+    basic, entertainment, eligibleBasic, conveyance, education, eligibleConveyance, hra, bigCity, eligibleHra,
+    perDayRate, paidLeaveDays, unpaidLeaveDays, lopDeduction, loanDeduction, taxableGross, taxDeduction,
+    adjustmentAdditions, adjustmentDeductions } = row;
+  return { employeeId, employeeType, totalDaysWorking, lopDays, totalDaysWorked, paidDays, payLeaves,
+    basic, entertainment, eligibleBasic, conveyance, education, eligibleConveyance, hra, bigCity, eligibleHra,
+    perDayRate, paidLeaveDays, unpaidLeaveDays, lopDeduction, loanDeduction, taxableGross, taxDeduction,
+    adjustmentAdditions, adjustmentDeductions };
+}
 
 const groupHeaderTone: Record<ColGroup, string> = {
   days: 'bg-[#f0f0f0] text-[#444]',
@@ -215,7 +252,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
     setSavingLines(true);
     crud.setError('');
     try {
-      const saved = await payrollRunsApi.replaceLines(crud.selected.id, lines);
+      const saved = await payrollRunsApi.replaceLines(crud.selected.id, lines.map(toSaveableRow));
       setLines(saved);
     } catch (e) {
       crud.setError(e instanceof Error ? e.message : 'Failed to save the grid.');
@@ -382,7 +419,9 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                         </tr>
                       </thead>
                       <tbody className="bg-white">
-                        {lines.map((row, idx) => (
+                        {lines.map((row, idx) => {
+                          const totals = rowTotals(row);
+                          return (
                           <tr key={idx} className="border-b border-gray-100 h-6">
                             <td className="border-r border-gray-100 px-1">
                               {row.employee
@@ -398,7 +437,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                               <td key={c.key} className={cn('border-r border-gray-100 px-1', groupCellTone[c.group])}>
                                 {c.computed ? (
                                   <div className="h-[18px] leading-[18px] text-right tabular-nums text-[10px] text-[#333]">
-                                    {fmt(row[c.key])}
+                                    {fmt(aggregateKeys.has(c.key) ? totals[c.key as keyof typeof totals] : row[c.key])}
                                   </div>
                                 ) : (
                                   <input
@@ -414,7 +453,8 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                               <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                         {!lines.length && (
                           <tr><td colSpan={numCols.length + 2} className="text-center text-gray-400 py-4">No rows yet. Click "Generate From Grade + Attendance" or "Add Row".</td></tr>
                         )}
@@ -425,7 +465,9 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                             <td className="border-r border-gray-300 px-1 py-1">Total — {lines.length} employee{lines.length === 1 ? '' : 's'}</td>
                             {numCols.map((c) => (
                               <td key={c.key} className={cn('border-r border-gray-300 px-1 py-1 text-right tabular-nums', groupCellTone[c.group])}>
-                                {moneyCols.has(c.key) ? fmt(lines.reduce((sum, r) => sum + asNum(r[c.key]), 0)) : ''}
+                                {moneyCols.has(c.key)
+                                  ? fmt(lines.reduce((sum, r) => sum + (aggregateKeys.has(c.key) ? rowTotals(r)[c.key as keyof ReturnType<typeof rowTotals>] : asNum(r[c.key])), 0))
+                                  : ''}
                               </td>
                             ))}
                             <td />

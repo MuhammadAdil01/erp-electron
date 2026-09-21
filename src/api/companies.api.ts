@@ -92,10 +92,23 @@ export const companiesApi = {
   getOne: (id: string) =>
     api.get<Company>(`/companies/${id}`).then((r) => r.data),
 
-  /** The "New" button — creates a company with its subscription and first admin. */
+  /**
+   * The "New" button — creates a company with its subscription, first admin,
+   * and starter demo data (accounts, departments, approvals, etc.) so every
+   * Administration screen has something to show immediately.
+   *
+   * That demo data is seeded through several dozen writes against a
+   * cross-region database, so this single request can legitimately take
+   * significantly longer than the app's default timeout. A request that is
+   * still genuinely in progress on the server is not a failure — timing the
+   * client out early made the UI report an error for a company the server
+   * went on to create successfully a few seconds later, so the next attempt
+   * under the same name then failed for real with "slug already taken".
+   */
   onboard: (payload: OnboardCompanyPayload) =>
-    api.post<{ company: Company; adminPassword?: string }>('/companies/onboard', payload)
-      .then((r) => r.data),
+    api.post<{ company: Company; adminPassword?: string }>('/companies/onboard', payload, {
+      timeout: 120_000,
+    }).then((r) => r.data),
 
   toggleModule: (companyId: string, moduleId: string, isEnabled: boolean) =>
     api.patch<CompanyModule>(`/companies/${companyId}/modules/${moduleId}/toggle`, { isEnabled }).then((r) => r.data),

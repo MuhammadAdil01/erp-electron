@@ -202,6 +202,19 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
     crud.save(formToPayload(form));
   };
 
+  /**
+   * Refresh both reloads the list (so it reflects whatever was just saved)
+   * and clears the form back to a blank new-entry state — it never deletes
+   * anything. `openNew()` deselects the current row and flips mode to 'new',
+   * which the mode-change effect above already resets `form` to `emptyForm`
+   * for; only the active tab needs resetting explicitly here.
+   */
+  const handleRefresh = () => {
+    crud.refetch();
+    crud.openNew();
+    setActiveTab('Employee Details');
+  };
+
   const isForm = crud.mode === 'new' || crud.mode === 'edit';
 
   return (
@@ -221,7 +234,7 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
             onNew={crud.openNew}
             onEdit={() => crud.selected && crud.openEdit(crud.selected)}
             onDelete={() => crud.remove()}
-            onRefresh={crud.refetch}
+            onRefresh={handleRefresh}
             canEdit={!!crud.selected}
             canDelete={!!crud.selected}
             isFetching={crud.isFetching}

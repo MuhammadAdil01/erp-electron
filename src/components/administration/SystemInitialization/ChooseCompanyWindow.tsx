@@ -89,6 +89,15 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
 
   const selected = companies.find((c) => c.id === selectedId) ?? null;
 
+  // Checked against the same list the grid already shows, so a Database Name
+  // that collides with an existing company is flagged before Create is even
+  // clicked — rather than only after the server rejects it.
+  const slugTaken = useMemo(() => {
+    const slug = form.slug.trim().toLowerCase();
+    if (!slug) return false;
+    return companies.some((c) => c.databaseName.toLowerCase() === slug);
+  }, [companies, form.slug]);
+
   const onErr = (e: unknown) => {
     setError(e instanceof Error ? e.message : 'The server rejected that request.');
     setStatus('');
@@ -98,7 +107,7 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
     mutationFn: () => {
       const payload: OnboardCompanyPayload = {
         name: form.name.trim(),
-        slug: form.slug.trim() || slugify(form.name),
+        slug: form.slug.trim(),
         industry: form.industry || undefined,
         country: form.country || undefined,
         currency: form.currency || undefined,
@@ -165,6 +174,15 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
 
   const handleCreateSubmit = () => {
     if (!form.name.trim()) { setError('Company name is required.'); return; }
+    if (!form.slug.trim()) { setError('Database name is required.'); return; }
+    if (!/^[a-z0-9-]+$/.test(form.slug.trim())) {
+      setError('Database name must be lowercase letters, numbers, and hyphens only.');
+      return;
+    }
+    if (slugTaken) {
+      setError(`Database name "${form.slug.trim()}" is already used by another company. Pick a different one.`);
+      return;
+    }
     if (!form.planKey.trim()) { setError('A subscription plan key is required.'); return; }
     if (!form.adminName.trim()) { setError('The first administrator needs a name.'); return; }
     if (!/^\S+@\S+\.\S+$/.test(form.adminEmail.trim())) {
@@ -244,23 +262,25 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
             <FieldRow label="Company Name" labelWidth="110px" required>
               <ClassicInput
                 value={form.name}
-                onChange={(e) => setForm((f) => ({
-                  ...f,
-                  name: e.target.value,
-                  // Kept in step until the operator edits the slug themselves.
-                  slug: f.slug === slugify(f.name) ? slugify(e.target.value) : f.slug,
-                }))}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full"
                 autoFocus
               />
             </FieldRow>
             <FieldRow label="Database Name" labelWidth="110px" required>
-              <ClassicInput
-                value={form.slug}
-                onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
-                className="w-full font-mono"
-                placeholder="acme-corp"
-              />
+              <div className="w-full">
+                <ClassicInput
+                  value={form.slug}
+                  onChange={(e) => setForm((f) => ({ ...f, slug: slugify(e.target.value) }))}
+                  className={cn('w-full font-mono', slugTaken && 'border-red-500 bg-red-50')}
+                  placeholder="acme-corp"
+                />
+                {slugTaken && (
+                  <div className="text-[9px] text-red-700 mt-0.5">
+                    Already used by another company — pick a different Database Name.
+                  </div>
+                )}
+              </div>
             </FieldRow>
             <FieldRow label="Plan Key" labelWidth="110px" required>
               <ClassicInput
@@ -326,7 +346,7 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
             </FieldRow>
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <YellowBtn onClick={handleCreateSubmit} disabled={isBusy}>
+            <YellowBtn onClick={handleCreateSubmit} disabled={isBusy || slugTaken}>
               {createMut.isPending ? 'Creating…' : 'Create Company'}
             </YellowBtn>
             <GreyBtn onClick={() => { setPane('list'); setError(''); }}>Cancel</GreyBtn>

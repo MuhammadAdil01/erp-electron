@@ -19,7 +19,10 @@ function MainApp() {
           <span className="text-gray-600">|</span>
           <span className="text-gray-700">
             Logged in as: <span className="font-bold">{user?.name}</span>
-            {isSuperAdmin && (
+            {/* Only add the badge when the name doesn't already say it — the
+                seeded platform account is literally named "Super Admin", and
+                showing both read as the same words twice in a row. */}
+            {isSuperAdmin && !user?.name?.toLowerCase().includes('super admin') && (
               <span className="ml-1.5 px-1.5 py-0.5 bg-[#f39c12] text-white text-[9px] font-bold rounded-sm">SUPER ADMIN</span>
             )}
           </span>

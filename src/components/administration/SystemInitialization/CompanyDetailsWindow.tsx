@@ -134,6 +134,82 @@ const buildForm = (
   ),
 });
 
+/**
+ * `Text`, `Check` and `AccountSelect` used to be defined inside
+ * `CompanyDetailsWindow`'s render body. That makes each one a brand-new
+ * component *type* on every re-render — including the re-render every
+ * keystroke causes — so React tore down and remounted their underlying
+ * `<input>` on every character typed, dropping focus each time. The field
+ * looked unresponsive because it was: only the click that refocused it after
+ * losing focus ever "worked".
+ *
+ * Defined once at module scope, the type stays stable across renders and the
+ * inputs stop remounting. They read the form through context instead of
+ * closures so every call site below (`<Text k="..." label="..." />`, etc.)
+ * is unchanged.
+ */
+interface DetailsFormContextValue {
+  form: FormState;
+  setField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+  setDetail: (key: string, value: string | boolean) => void;
+  postableAccounts: { id: string; code: string; name: string }[];
+}
+const DetailsFormContext = React.createContext<DetailsFormContextValue | null>(null);
+function useDetailsForm(): DetailsFormContextValue {
+  const ctx = React.useContext(DetailsFormContext);
+  if (!ctx) throw new Error('Text/Check/AccountSelect must be rendered inside CompanyDetailsWindow');
+  return ctx;
+}
+
+const AccountSelect: React.FC<{ field: keyof FormState; label: string }> = ({ field, label }) => {
+  const { form, setField, postableAccounts } = useDetailsForm();
+  return (
+    <FieldRow label={label} labelWidth="180px">
+      <ClassicSel
+        value={String(form[field] ?? '')}
+        onChange={(e) => setField(field, e.target.value as never)}
+        className="w-full"
+      >
+        <option value="">— not set —</option>
+        {postableAccounts.map((a) => (
+          <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
+        ))}
+      </ClassicSel>
+    </FieldRow>
+  );
+};
+
+const Text: React.FC<{ k: string; label: string; placeholder?: string; width?: string }> = ({
+  k, label, placeholder, width = '150px',
+}) => {
+  const { form, setDetail } = useDetailsForm();
+  return (
+    <FieldRow label={label} labelWidth={width}>
+      <ClassicInput
+        value={String(form.details[k] ?? '')}
+        onChange={(e) => setDetail(k, e.target.value)}
+        className="w-full"
+        placeholder={placeholder}
+      />
+    </FieldRow>
+  );
+};
+
+const Check: React.FC<{ k: string; label: string }> = ({ k, label }) => {
+  const { form, setDetail } = useDetailsForm();
+  return (
+    <label className="flex items-center gap-2 text-[11px] cursor-pointer py-0.5">
+      <input
+        type="checkbox"
+        className="w-3.5 h-3.5"
+        checked={Boolean(form.details[k])}
+        onChange={(e) => setDetail(k, e.target.checked)}
+      />
+      {label}
+    </label>
+  );
+};
+
 export const CompanyDetailsWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
 }) => {
@@ -256,49 +332,10 @@ export const CompanyDetailsWindow: React.FC<Props> = ({
     [accounts],
   );
 
-  const AccountSelect: React.FC<{ field: keyof FormState; label: string }> = ({ field, label }) => (
-    <FieldRow label={label} labelWidth="180px">
-      <ClassicSel
-        value={String(form[field] ?? '')}
-        onChange={(e) => setField(field, e.target.value as never)}
-        className="w-full"
-      >
-        <option value="">— not set —</option>
-        {postableAccounts.map((a) => (
-          <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-        ))}
-      </ClassicSel>
-    </FieldRow>
-  );
-
-  const Text: React.FC<{ k: string; label: string; placeholder?: string; width?: string }> = ({
-    k, label, placeholder, width = '150px',
-  }) => (
-    <FieldRow label={label} labelWidth={width}>
-      <ClassicInput
-        value={String(form.details[k] ?? '')}
-        onChange={(e) => setDetail(k, e.target.value)}
-        className="w-full"
-        placeholder={placeholder}
-      />
-    </FieldRow>
-  );
-
-  const Check: React.FC<{ k: string; label: string }> = ({ k, label }) => (
-    <label className="flex items-center gap-2 text-[11px] cursor-pointer py-0.5">
-      <input
-        type="checkbox"
-        className="w-3.5 h-3.5"
-        checked={Boolean(form.details[k])}
-        onChange={(e) => setDetail(k, e.target.checked)}
-      />
-      {label}
-    </label>
-  );
-
   const isLoading = companyQuery.isLoading || detailsQuery.isLoading;
 
   return (
+    <DetailsFormContext.Provider value={{ form, setField, setDetail, postableAccounts }}>
     <ClassicWindow
       title="Company Details"
       icon={<Building className="w-3.5 h-3.5 text-gray-600" />}
@@ -666,5 +703,6 @@ export const CompanyDetailsWindow: React.FC<Props> = ({
         </span>
       </div>
     </ClassicWindow>
+    </DetailsFormContext.Provider>
   );
 };
