@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Calculator, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Ban, Calculator, Plus, Send, Trash2, Wand2 } from 'lucide-react';
 import { useCrudResource } from '../../../hooks/useCrudResource';
 import {
   payrollRunsApi,
@@ -172,6 +172,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [generating, setGenerating] = useState(false);
   const [savingLines, setSavingLines] = useState(false);
+  const [posting, setPosting] = useState(false);
 
   const crud = useCrudResource<PayrollRun, PayrollRunPayload>(
     'payroll-runs',
@@ -218,6 +219,9 @@ export const PayrollProcessWindow: React.FC<Props> = ({
     }));
   };
 
+  // Status, JE No and Cancellation JE No are system-managed by Post/Cancel
+  // below — a manual edit here would let the form disagree with the journal
+  // entry that actually exists (or doesn't) for this run.
   const handleSave = () => {
     crud.save({
       employeeType: form.employeeType.trim() || undefined,
@@ -225,12 +229,40 @@ export const PayrollProcessWindow: React.FC<Props> = ({
       payMonth: form.payMonth.trim() || undefined,
       fromDate: form.fromDate || undefined,
       toDate: form.toDate || undefined,
-      jeNo: form.jeNo.trim() || undefined,
       documentDate: form.documentDate || undefined,
-      status: form.status,
-      cancellationJeNo: form.cancellationJeNo.trim() || undefined,
       remarks: form.remarks.trim() || undefined,
     });
+  };
+
+  const handlePost = async () => {
+    if (!crud.selected) return;
+    setPosting(true);
+    crud.setError('');
+    try {
+      const updated = await payrollRunsApi.post(crud.selected.id);
+      crud.select(updated);
+      crud.refetch();
+    } catch (e) {
+      crud.setError(e instanceof Error ? e.message : 'Failed to post this payroll run.');
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleCancelPosting = async () => {
+    if (!crud.selected) return;
+    if (!window.confirm('Cancel this posted payroll run? This reverses its journal entry.')) return;
+    setPosting(true);
+    crud.setError('');
+    try {
+      const updated = await payrollRunsApi.cancel(crud.selected.id);
+      crud.select(updated);
+      crud.refetch();
+    } catch (e) {
+      crud.setError(e instanceof Error ? e.message : 'Failed to cancel this payroll run.');
+    } finally {
+      setPosting(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -268,6 +300,10 @@ export const PayrollProcessWindow: React.FC<Props> = ({
 
   const isForm = crud.mode === 'new' || crud.mode === 'edit';
   const hasHeader = !!crud.selected;
+  // Once posted, the run's totals are reflected in the G/L — editing the header
+  // or the grid underneath a live journal entry would let them disagree, so both
+  // become read-only until Cancel Posting reverses the entry.
+  const isPosted = form.status === 'Posted';
 
   return (
     <ClassicWindow
@@ -287,8 +323,8 @@ export const PayrollProcessWindow: React.FC<Props> = ({
             onEdit={() => crud.selected && crud.openEdit(crud.selected)}
             onDelete={() => crud.remove()}
             onRefresh={crud.refetch}
-            canEdit={!!crud.selected}
-            canDelete={!!crud.selected}
+            canEdit={!!crud.selected && !isPosted}
+            canDelete={!!crud.selected && !isPosted}
             isFetching={crud.isFetching}
             isBusy={crud.isBusy || generating || savingLines}
           />
@@ -350,21 +386,30 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                   <FieldRow label="To Date" labelWidth="100px">
                     <ClassicInput type="date" value={form.toDate} onChange={(e) => setForm((f) => ({ ...f, toDate: e.target.value }))} className="w-full" disabled={!isForm} />
                   </FieldRow>
+                  {/* JE No, Status and Cancellation JE No are written by Post/Cancel
+                      below (see PayrollRunsService.post/cancel on the backend) —
+                      never hand-editable, or the form could disagree with whether
+                      a journal entry for this run actually exists. */}
                   <FieldRow label="JE No" labelWidth="100px">
-                    <ClassicInput value={form.jeNo} onChange={(e) => setForm((f) => ({ ...f, jeNo: e.target.value }))} className="w-full" disabled={!isForm} />
+                    <ClassicInput value={form.jeNo || '—'} className="w-full" disabled readOnly />
                   </FieldRow>
                   <FieldRow label="Document Date" labelWidth="100px">
                     <ClassicInput type="date" value={form.documentDate} onChange={(e) => setForm((f) => ({ ...f, documentDate: e.target.value }))} className="w-full" disabled={!isForm} />
                   </FieldRow>
                   <FieldRow label="Status" labelWidth="100px">
-                    <ClassicSel value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className="w-full" disabled={!isForm}>
-                      <option value="Open">Open</option>
-                      <option value="Posted">Posted</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </ClassicSel>
+                    <span
+                      className={cn(
+                        'inline-block px-2 py-0.5 text-[10px] font-bold rounded-[1px] border',
+                        form.status === 'Posted' ? 'bg-[#e7f1e7] text-[#1f5130] border-[#bcdcbc]'
+                          : form.status === 'Cancelled' ? 'bg-[#fbeceb] text-[#8a2b22] border-[#f0c9c6]'
+                          : 'bg-[#f0f0f0] text-[#444] border-[#d4d0c8]',
+                      )}
+                    >
+                      {form.status || 'Open'}
+                    </span>
                   </FieldRow>
                   <FieldRow label="Cancellation JE No" labelWidth="100px">
-                    <ClassicInput value={form.cancellationJeNo} onChange={(e) => setForm((f) => ({ ...f, cancellationJeNo: e.target.value }))} className="w-full" disabled={!isForm} />
+                    <ClassicInput value={form.cancellationJeNo || '—'} className="w-full" disabled readOnly />
                   </FieldRow>
                 </div>
                 {isForm && (
@@ -373,20 +418,43 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                     <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
                   </div>
                 )}
+                {!isForm && crud.selected && (
+                  <div className="flex gap-2 mt-2">
+                    {form.status !== 'Posted' && form.status !== 'Cancelled' && (
+                      <button
+                        onClick={handlePost}
+                        disabled={posting || !lines.length}
+                        title={!lines.length ? 'Generate or add rows before posting' : undefined}
+                        className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#8ab88a] bg-[#e7f1e7] text-[#1f5130] rounded-[1px] hover:bg-[#d7ead7] disabled:opacity-40"
+                      >
+                        <Send className="w-3 h-3" /> {posting ? 'Posting…' : 'Post to G/L'}
+                      </button>
+                    )}
+                    {form.status === 'Posted' && (
+                      <button
+                        onClick={handleCancelPosting}
+                        disabled={posting}
+                        className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#e0a9a3] bg-[#fbeceb] text-[#8a2b22] rounded-[1px] hover:bg-[#f6dcda] disabled:opacity-40"
+                      >
+                        <Ban className="w-3 h-3" /> {posting ? 'Cancelling…' : 'Cancel Posting'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {hasHeader && (
                 <>
                   <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#d4d0c8] shrink-0 bg-[#f7f7f7]">
                     <div className="flex gap-2">
-                      <button onClick={handleGenerate} disabled={generating} className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white rounded-[1px] hover:bg-[#ffed99] disabled:opacity-40">
+                      <button onClick={handleGenerate} disabled={generating || isPosted} className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white rounded-[1px] hover:bg-[#ffed99] disabled:opacity-40">
                         <Wand2 className="w-3 h-3" /> {generating ? 'Generating…' : 'Generate From Grade + Attendance'}
                       </button>
-                      <button onClick={addRow} className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white rounded-[1px] hover:bg-[#ffed99]">
+                      <button onClick={addRow} disabled={isPosted} className="flex items-center gap-1 px-3 py-0.5 text-[10.5px] border border-[#d4d0c8] bg-white rounded-[1px] hover:bg-[#ffed99] disabled:opacity-40">
                         <Plus className="w-3 h-3" /> Add Row
                       </button>
                     </div>
-                    <YellowBtn onClick={handleSaveLines} disabled={savingLines}>{savingLines ? 'Saving…' : 'Save Grid'}</YellowBtn>
+                    <YellowBtn onClick={handleSaveLines} disabled={savingLines || isPosted}>{savingLines ? 'Saving…' : 'Save Grid'}</YellowBtn>
                   </div>
                   <div className="flex-1 overflow-auto custom-scrollbar">
                     <table className="w-full border-collapse text-[10px]">
@@ -427,7 +495,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                               {row.employee
                                 ? <span>{row.employee.employeeNumber ? `${row.employee.employeeNumber} — ` : ''}{row.employee.name}</span>
                                 : (
-                                  <select value={row.employeeId} onChange={(e) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: e.target.value } : rr)))} className="w-full h-[18px] text-[10px] outline-none border-none">
+                                  <select disabled={isPosted} value={row.employeeId} onChange={(e) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: e.target.value } : rr)))} className="w-full h-[18px] text-[10px] outline-none border-none disabled:bg-transparent">
                                     <option value="">Select…</option>
                                     {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
                                   </select>
@@ -435,7 +503,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                             </td>
                             {numCols.map((c) => (
                               <td key={c.key} className={cn('border-r border-gray-100 px-1', groupCellTone[c.group])}>
-                                {c.computed ? (
+                                {c.computed || isPosted ? (
                                   <div className="h-[18px] leading-[18px] text-right tabular-nums text-[10px] text-[#333]">
                                     {fmt(aggregateKeys.has(c.key) ? totals[c.key as keyof typeof totals] : row[c.key])}
                                   </div>
@@ -450,7 +518,9 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                               </td>
                             ))}
                             <td className="text-center">
-                              <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
+                              {!isPosted && (
+                                <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
+                              )}
                             </td>
                           </tr>
                           );

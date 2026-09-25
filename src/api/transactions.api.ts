@@ -139,6 +139,11 @@ export const payrollRunsApi = {
     api.put<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/lines`, { rows }, BULK).then((r) => r.data),
   generate: (id: string) =>
     api.post<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/generate`, {}, BULK).then((r) => r.data),
+  /** Books the run to the G/L — salary expense, salaries payable, tax payable, loan recovery. */
+  post: (id: string) => api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/post`, {}).then((r) => r.data),
+  /** Reverses a posted run's journal entry and flips it back to Cancelled. */
+  cancel: (id: string, reason?: string) =>
+    api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/cancel`, { reason }).then((r) => r.data),
 };
 
 // ─── PAYROLL MONTHLY ADJUSTMENTS ───────────────────────────────────────────────
