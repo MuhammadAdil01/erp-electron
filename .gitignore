@@ -43,3 +43,8 @@ Thumbs.db
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Local AI-assistant files: never committed
+.claude/
+CLAUDE.md
+CLAUDE.local.md
