@@ -100,6 +100,7 @@ export interface EmployeeListParams {
   branchId?: string;
   departmentId?: string;
   managerId?: string;
+  employeeCategoryId?: string;
   status?: EmployeeStatus;
   q?: string;
   page?: number;
@@ -123,13 +124,25 @@ export const employeesApi = {
 
 /**
  * `CrudApi`-shaped adapter over `employeesApi`, for `useCrudResource` — the
- * real endpoint returns `{ total, page, pageSize, items }`, not a bare array,
- * so this unwraps `items` (capped at a generous page size; Employee Current
- * Information isn't expected to page through thousands of rows in one window).
+ * real endpoint returns `{ total, page, pageSize, items }`, not a bare array.
+ *
+ * Reads every page. It used to take the first 200 and stop, so employee #201
+ * onward silently never appeared in Employee Current Information.
  */
+async function allEmployees(): Promise<Employee[]> {
+  const pageSize = 200; // the server's maximum
+  const first = await employeesApi.getAll({ page: 1, pageSize });
+  const items = [...first.items];
+  const pages = Math.ceil(first.total / pageSize);
+  for (let page = 2; page <= pages; page++) {
+    items.push(...(await employeesApi.getAll({ page, pageSize })).items);
+  }
+  return items;
+}
+
 export const employeesCrudApi: CrudApi<Employee, EmployeePayload> = {
   path: '/employees',
-  getAll: async () => (await employeesApi.getAll({ pageSize: 200 })).items,
+  getAll: allEmployees,
   count: async () => (await employeesApi.getAll({ pageSize: 1 })).total,
   getOne: employeesApi.getOne,
   create: employeesApi.create,

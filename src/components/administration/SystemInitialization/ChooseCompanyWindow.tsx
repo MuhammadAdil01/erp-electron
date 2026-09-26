@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Building2, Check, Plus, RefreshCw, UserCog } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../context/AuthContext';
+import { confirmDiscardUnsaved } from '../../../lib/unsavedChanges';
 import {
   companiesApi,
   type AvailableCompany,
@@ -162,6 +163,7 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
       return;
     }
 
+    if (selected.id !== activeCompanyId && !confirmDiscardUnsaved(`Switching to ${selected.name}`)) return;
     setActiveCompany({ id: selected.id, name: selected.name, slug: selected.slug });
     // Every cached list is scoped to the old company. Clearing rather than
     // refetching is deliberate: a stale row from the previous tenant rendering
@@ -541,6 +543,7 @@ export const ChooseCompanyWindow: React.FC<Props> = ({
         {activeCompanyId && (
           <GreyBtn
             onClick={() => {
+              if (!confirmDiscardUnsaved('Leaving the company')) return;
               setActiveCompany(null);
               void qc.clear();
               setSelectedId(null);

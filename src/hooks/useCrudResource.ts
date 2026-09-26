@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import type { CrudApi, ListParams } from '../api/crud';
@@ -31,6 +31,12 @@ export interface UseCrudResourceResult<T, TCreate, TUpdate> {
 
   /** True when there is no company on the token — every list will be empty. */
   noCompany: boolean;
+  /**
+   * The company this window is acting in right now. A window that fires its
+   * own requests (generate, post …) compares this before and after the await,
+   * so a late answer for the previous company is never written into the next.
+   */
+  companyId: string | null;
 }
 
 /**
@@ -82,6 +88,24 @@ export function useCrudResource<T extends { id: string }, TCreate = Partial<T>, 
     queryFn: () => crud.getAll(options.params),
     enabled,
   });
+
+  // A failed list load used to render as the empty-list placeholder ("No …
+  // yet. Click New to add one.") — a 500 looked exactly like an empty table.
+  const listError = query.error
+    ? `Could not load the list: ${query.error instanceof Error ? query.error.message : String(query.error)}`
+    : '';
+
+  // Switching company: whatever was selected or half-edited belonged to the
+  // previous tenant. Drop it rather than let a Save send it to the new one.
+  const lastCompany = useRef(companyId);
+  useEffect(() => {
+    if (lastCompany.current === companyId) return;
+    lastCompany.current = companyId;
+    setSelected(null);
+    setMode('view');
+    setError('');
+    setStatus('');
+  }, [companyId]);
 
   const invalidate = useCallback(() => {
     // Prefix match so any params variant of this resource refreshes too.
@@ -197,10 +221,11 @@ export function useCrudResource<T extends { id: string }, TCreate = Partial<T>, 
     remove,
 
     isBusy: createMut.isPending || updateMut.isPending || deleteMut.isPending,
-    error,
+    error: error || listError,
     setError,
     status,
 
     noCompany: !companyId,
+    companyId: companyId ?? null,
   };
 }
