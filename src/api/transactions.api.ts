@@ -70,10 +70,23 @@ export const attendanceSheetsApi = {
 };
 
 // ─── PAYROLL PROCESS (PayrollRun) ───────────────────────────────────────────────
+/**
+ * Post and Cancel write the journal entry, the loan/advance recovery rows and
+ * the run in one transaction — a handful of round trips to the hosted
+ * database, more with many employees. The shared 15s default is too short for
+ * that, so they get the same long budget as the bulk calls.
+ */
+const POSTING = { timeout: 120_000 };
+
+export const PAYROLL_RUN_TYPES = ['Regular', 'Supplementary', 'Off-cycle', 'Bonus'] as const;
+export type PayrollRunType = (typeof PAYROLL_RUN_TYPES)[number];
+
+/** Statuses written only by Post / Cancel (and, from Phase 2, salary payments). */
+export type PayrollRunStatus = 'Open' | 'Posted' | 'Partially Paid' | 'Paid' | 'Cancelled';
+
 export interface PayrollRunLine {
   id?: string;
   employeeId: string;
-  employeeType?: string | null;
   totalDaysWorking?: string | number | null;
   lopDays?: string | number | null;
   totalDaysWorked?: string | number | null;
@@ -95,6 +108,8 @@ export interface PayrollRunLine {
   unpaidLeaveDays?: string | number | null;
   lopDeduction?: string | number | null;
   loanDeduction?: string | number | null;
+  /** Salary advance recovered this run — its own column and its own JE credit. */
+  advanceDeduction?: string | number | null;
   taxableGross?: string | number | null;
   taxDeduction?: string | number | null;
   adjustmentAdditions?: string | number | null;
@@ -105,30 +120,47 @@ export interface PayrollRunLine {
   employee?: { id: string; name: string; employeeNumber?: string | null; departmentId?: string | null; positionId?: string | null };
 }
 export interface PayrollRun extends Auditable {
+  /** Legacy free text from before Employee Category; read-only history. */
   employeeType?: string | null;
+  employeeCategoryId?: string | null;
+  runType?: PayrollRunType;
   payPeriodId?: string | null;
   payMonth?: string | null;
   fromDate?: string | null;
   toDate?: string | null;
   jeNo?: string | null;
   documentDate: string;
-  status?: string | null;
+  status?: PayrollRunStatus | null;
   cancellationJeNo?: string | null;
+  journalEntryId?: string | null;
   remarks?: string | null;
-  payPeriod?: { id: string; code: string; name: string } | null;
+  payPeriod?: { id: string; code: string; name: string; workingDays?: number | null; fromDate?: string; toDate?: string } | null;
+  employeeCategory?: { id: string; code: string; name: string } | null;
+  journalEntry?: { id: string; number: string; status: string; currency?: string } | null;
   _count?: { lines: number };
 }
+/**
+ * What the window may send. Status, JE No, Cancellation JE No and the journal
+ * link are not here: the backend refuses them (400), because only Post and
+ * Cancel may set them.
+ */
 export interface PayrollRunPayload {
-  employeeType?: string;
+  employeeCategoryId?: string | null;
+  runType?: PayrollRunType;
   payPeriodId?: string;
   payMonth?: string;
   fromDate?: string;
   toDate?: string;
-  jeNo?: string;
   documentDate?: string;
-  status?: string;
-  cancellationJeNo?: string;
   remarks?: string;
+}
+
+/** Generate's answer: the new grid, plus anyone left out because another active Regular run already pays them. */
+export interface PayrollGenerateResult {
+  lines: PayrollRunLine[];
+  skipped: { employeeId: string; name: string; run: string; reason?: string }[];
+  /** Left out because they have no grade, or their grade has no pay-scale stage. */
+  noPayScale?: { employeeId: string; name: string; reason: string }[];
 }
 
 const payrollRunsBase = createCrudApi<PayrollRun, PayrollRunPayload>(`${BASE}/payroll-runs`);
@@ -138,12 +170,12 @@ export const payrollRunsApi = {
   replaceLines: (id: string, rows: PayrollRunLine[]) =>
     api.put<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/lines`, { rows }, BULK).then((r) => r.data),
   generate: (id: string) =>
-    api.post<PayrollRunLine[]>(`${BASE}/payroll-runs/${id}/generate`, {}, BULK).then((r) => r.data),
-  /** Books the run to the G/L — salary expense, salaries payable, tax payable, loan recovery. */
-  post: (id: string) => api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/post`, {}).then((r) => r.data),
-  /** Reverses a posted run's journal entry and flips it back to Cancelled. */
+    api.post<PayrollGenerateResult>(`${BASE}/payroll-runs/${id}/generate`, {}, BULK).then((r) => r.data),
+  /** Books the run to the G/L — salary expense, payables, tax, loan and advance recovery. */
+  post: (id: string) => api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/post`, {}, POSTING).then((r) => r.data),
+  /** Reverses a posted run's journal entry (and its recoveries) and flips it to Cancelled. */
   cancel: (id: string, reason?: string) =>
-    api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/cancel`, { reason }).then((r) => r.data),
+    api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/cancel`, { reason }, POSTING).then((r) => r.data),
 };
 
 // ─── PAYROLL MONTHLY ADJUSTMENTS ───────────────────────────────────────────────
@@ -173,7 +205,10 @@ export interface PayrollAdjustmentLine {
   employee?: { id: string; name: string; employeeNumber?: string | null };
 }
 export interface PayrollAdjustment extends Auditable {
+  /** Legacy free text from before Employee Category; read-only history. */
   employeeType?: string | null;
+  employeeCategoryId?: string | null;
+  employeeCategory?: { id: string; code: string; name: string } | null;
   payPeriodId?: string | null;
   documentDate: string;
   status?: string | null;
@@ -182,7 +217,8 @@ export interface PayrollAdjustment extends Auditable {
   _count?: { lines: number };
 }
 export interface PayrollAdjustmentPayload {
-  employeeType?: string;
+  /** null = the document applies to every employee. */
+  employeeCategoryId?: string | null;
   payPeriodId?: string;
   documentDate?: string;
   status?: string;
