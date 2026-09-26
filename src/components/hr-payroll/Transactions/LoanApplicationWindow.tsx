@@ -8,7 +8,8 @@ import {
   type LoanInstallment,
 } from '../../../api/transactions.api';
 import { loanTypesApi, payPeriodsApi, type LoanType, type PayPeriod } from '../../../api/payroll-masters.api';
-import { employeesApi, type Employee } from '../../../api/employees.api';
+import { firstError, useLookup } from '../../../hooks/useLookup';
+import { EmployeePicker, type EmployeeOption } from '../../ui/EmployeePicker';
 import {
   ClassicWindow,
   CrudToolbar,
@@ -51,9 +52,12 @@ export const LoanApplicationWindow: React.FC<Props> = ({
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [installments, setInstallments] = useState<LoanInstallment[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loanTypes, setLoanTypes] = useState<LoanType[]>([]);
-  const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([]);
+  // Only a schedule the user actually edited is sent back. Flushing on every
+  // save replaced the schedule the backend had just generated (for a new loan,
+  // with an empty one), and once payroll has recovered an installment the
+  // backend refuses any schedule change anyway.
+  const [installmentsDirty, setInstallmentsDirty] = useState(false);
+  const [pickedEmployee, setPickedEmployee] = useState<EmployeeOption | null>(null);
   const [savingInstallments, setSavingInstallments] = useState(false);
 
   const crud = useCrudResource<EmployeeLoan, EmployeeLoanPayload>(
@@ -62,17 +66,18 @@ export const LoanApplicationWindow: React.FC<Props> = ({
     { label: (l) => l.code },
   );
 
-  useEffect(() => {
-    if (!show) return;
-    employeesApi.getAll({ pageSize: 200 }).then((r) => setEmployees(r.items)).catch(() => setEmployees([]));
-    loanTypesApi.getAll({ isActive: true }).then(setLoanTypes).catch(() => setLoanTypes([]));
-    payPeriodsApi.getAll({ isActive: true }).then(setPayPeriods).catch(() => setPayPeriods([]));
-  }, [show]);
+  const loanTypesLookup = useLookup<LoanType>('Loan Types', () => loanTypesApi.getAll({ isActive: true }), { enabled: show });
+  const periodsLookup = useLookup<PayPeriod>('Pay Periods', () => payPeriodsApi.getAll({ isActive: true }), { enabled: show });
+  const loanTypes = loanTypesLookup.items;
+  const payPeriods = periodsLookup.items;
+  const lookupError = firstError(loanTypesLookup.error, periodsLookup.error);
 
   useEffect(() => {
+    setInstallmentsDirty(false);
     if (crud.mode === 'new') {
       setForm(emptyForm);
       setInstallments([]);
+      setPickedEmployee(null);
     } else if (crud.mode === 'edit' && crud.selected) {
       const s = crud.selected;
       setForm({
@@ -95,16 +100,26 @@ export const LoanApplicationWindow: React.FC<Props> = ({
     }
   }, [crud.mode, crud.selected]);
 
-  const addRow = () => setInstallments((r) => [...r, { month: '', year: undefined, dueDate: '', amount: 0, status: 'Pending' }]);
-  const removeRow = (idx: number) => setInstallments((r) => r.filter((_, i) => i !== idx));
-  const updateRow = (idx: number, patch: Partial<LoanInstallment>) =>
+  const addRow = () => { setInstallments((r) => [...r, { month: '', year: undefined, dueDate: '', amount: 0 }]); setInstallmentsDirty(true); };
+  const removeRow = (idx: number) => { setInstallments((r) => r.filter((_, i) => i !== idx)); setInstallmentsDirty(true); };
+  const updateRow = (idx: number, patch: Partial<LoanInstallment>) => {
     setInstallments((r) => r.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+    setInstallmentsDirty(true);
+  };
 
   const saveInstallmentsFor = async (loanId: string) => {
     setSavingInstallments(true);
     try {
-      const saved = await employeeLoansApi.replaceInstallments(loanId, installments);
-      setInstallments(saved);
+      // Status is derived from the recovery ledger on the server; never sent.
+      const rows = installments.map(({ month, year, dueDate, amount }) => ({
+        month: month || undefined,
+        year: year ?? undefined,
+        dueDate: dueDate ? String(dueDate).slice(0, 10) : undefined,
+        amount: Number(amount ?? 0),
+      }));
+      await employeeLoansApi.replaceInstallments(loanId, rows as LoanInstallment[]);
+      setInstallmentsDirty(false);
+      crud.refetch();
     } catch (e) {
       crud.setError(e instanceof Error ? e.message : 'Failed to save the installment schedule.');
     } finally {
@@ -116,7 +131,7 @@ export const LoanApplicationWindow: React.FC<Props> = ({
   // manual installment edits — including down to zero rows.
   const prevModeRef = React.useRef(crud.mode);
   useEffect(() => {
-    if (prevModeRef.current !== 'view' && crud.mode === 'view' && crud.selected) {
+    if (prevModeRef.current !== 'view' && crud.mode === 'view' && crud.selected && installmentsDirty) {
       void saveInstallmentsFor(crud.selected.id);
     }
     prevModeRef.current = crud.mode;
@@ -147,7 +162,7 @@ export const LoanApplicationWindow: React.FC<Props> = ({
   };
 
   const isForm = crud.mode === 'new' || crud.mode === 'edit';
-  const selectedEmployee = employees.find((e) => e.id === form.employeeId);
+  const selectedEmployee = pickedEmployee?.id === form.employeeId ? pickedEmployee : null;
 
   return (
     <ClassicWindow
@@ -172,7 +187,7 @@ export const LoanApplicationWindow: React.FC<Props> = ({
             isFetching={crud.isFetching}
             isBusy={crud.isBusy || savingInstallments}
           />
-          <StatusNote error={crud.error} status={crud.status} />
+          <StatusNote error={crud.error || lookupError} status={crud.status} />
         </>
       }
       footer={
@@ -304,10 +319,12 @@ export const LoanApplicationWindow: React.FC<Props> = ({
                 <ClassicInput value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className="w-full" autoFocus />
               </FieldRow>
               <FieldRow label="Employee" required>
-                <ClassicSel value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} className="w-full">
-                  <option value="">—</option>
-                  {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
-                </ClassicSel>
+                <EmployeePicker
+                  className="w-full"
+                  value={form.employeeId}
+                  selectedLabel={crud.mode === 'edit' && crud.selected?.employeeId === form.employeeId ? crud.selected?.employee?.name : undefined}
+                  onChange={(id, emp) => { setForm((f) => ({ ...f, employeeId: id })); setPickedEmployee(emp); }}
+                />
               </FieldRow>
               <FieldRow label="Designation">{selectedEmployee?.position || '—'}</FieldRow>
               <FieldRow label="Loan Type" required>
@@ -327,6 +344,8 @@ export const LoanApplicationWindow: React.FC<Props> = ({
                   <option value="Open">Open</option>
                   <option value="Closed">Closed</option>
                   <option value="Cancelled">Cancelled</option>
+                  {/* Set automatically when payroll has recovered every installment. */}
+                  {form.status === 'Recovered' && <option value="Recovered">Recovered</option>}
                 </ClassicSel>
               </FieldRow>
               <FieldRow label="Effective Pay Period">
@@ -387,11 +406,8 @@ export const LoanApplicationWindow: React.FC<Props> = ({
                         <td className="border-r border-gray-200 px-1">
                           <input type="number" step="0.01" value={String(s.amount ?? '')} onChange={(e) => updateRow(idx, { amount: Number(e.target.value) })} className="w-full h-[18px] text-[10px] outline-none border-none" />
                         </td>
-                        <td className="border-r border-gray-200 px-1">
-                          <select value={s.status ?? 'Pending'} onChange={(e) => updateRow(idx, { status: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none bg-transparent">
-                            <option value="Pending">Pending</option>
-                            <option value="Paid">Paid</option>
-                          </select>
+                        <td className="border-r border-gray-200 px-1 text-[10px] text-gray-600" title="Set by payroll posting (the recovery ledger), not by hand">
+                          {s.status ?? 'Pending'}
                         </td>
                         <td className="text-center">
                           <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>

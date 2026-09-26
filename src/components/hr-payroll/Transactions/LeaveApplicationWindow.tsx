@@ -7,7 +7,8 @@ import {
   type LeaveRequest,
   type LeaveType,
 } from '../../../api/hr.api';
-import { employeesApi, type Employee } from '../../../api/employees.api';
+import { firstError, useLookup } from '../../../hooks/useLookup';
+import { EmployeePicker, type EmployeeOption } from '../../ui/EmployeePicker';
 import { ClassicWindow, StatusNote, ListPlaceholder, ToolBtn, type WindowState } from '../../ui/ClassicWindow';
 import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
@@ -55,8 +56,10 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
   const [isBusy, setIsBusy] = useState(false);
   const [approvedByName, setApprovedByName] = useState('');
 
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [pickedEmployee, setPickedEmployee] = useState<EmployeeOption | null>(null);
+  // A failed load is reported, never shown as an empty dropdown.
+  const leaveTypesLookup = useLookup<LeaveType>('Leave Types', () => leaveTypesApi.getAll(), { enabled: show });
+  const leaveTypes = leaveTypesLookup.items;
   const [lastLeave, setLastLeave] = useState<LeaveRequest | null>(null);
   const [balanceLeave, setBalanceLeave] = useState<number | null>(null);
 
@@ -73,8 +76,6 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
     setIsLoading(true);
     load();
     setIsLoading(false);
-    employeesApi.getAll({ pageSize: 200 }).then((r) => setEmployees(r.items)).catch(() => setEmployees([]));
-    leaveTypesApi.getAll().then(setLeaveTypes).catch(() => setLeaveTypes([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
@@ -169,8 +170,9 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
     }
   };
 
-  const employeeName = (id: string) => employees.find((e) => e.id === id)?.name ?? '—';
-  const selectedEmployee = employees.find((e) => e.id === form.employeeId);
+  // List rows carry their employee; this is only the fallback for a row that does not.
+  const employeeName = (id: string) => (pickedEmployee?.id === id ? pickedEmployee.name : '—');
+  const selectedEmployee = pickedEmployee?.id === form.employeeId ? pickedEmployee : null;
 
   return (
     <ClassicWindow
@@ -187,7 +189,7 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
         <>
           <ToolBtn onClick={openNew} disabled={isBusy}>New</ToolBtn>
           <ToolBtn onClick={load} title="Refresh"><RefreshCw className={cn('w-3 h-3', isFetching && 'animate-spin')} /></ToolBtn>
-          <StatusNote error={error} status={status} />
+          <StatusNote error={firstError(error, leaveTypesLookup.error)} status={status} />
         </>
       }
       footer={<><span>{rows.length} application{rows.length === 1 ? '' : 's'}</span><span>Leave Application</span></>}
@@ -276,10 +278,11 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
               <div className="grid grid-cols-2 gap-x-10 gap-y-1.5">
                 <div className="flex flex-col gap-1.5">
                   <FieldRow label="Employee" required labelWidth="150px">
-                    <ClassicSel value={form.employeeId} onChange={(e) => setForm((f) => ({ ...f, employeeId: e.target.value }))} className="w-full">
-                      <option value="">—</option>
-                      {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
-                    </ClassicSel>
+                    <EmployeePicker
+                      className="w-full"
+                      value={form.employeeId}
+                      onChange={(id, emp) => { setForm((f) => ({ ...f, employeeId: id })); setPickedEmployee(emp); }}
+                    />
                   </FieldRow>
                   <FieldRow label="Designation" labelWidth="150px">{selectedEmployee?.position || '—'}</FieldRow>
                   <FieldRow label="Last Leave From" labelWidth="150px">{lastLeave ? toDateInput(lastLeave.startDate) : '—'}</FieldRow>

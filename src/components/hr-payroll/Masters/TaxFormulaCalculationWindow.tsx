@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Percent as PercentIcon, Plus, Trash2 } from 'lucide-react';
 import { useCrudResource } from '../../../hooks/useCrudResource';
+import { firstError, useLookup } from '../../../hooks/useLookup';
 import {
   taxFormulasApi,
   employeeCategoriesApi,
@@ -47,7 +48,9 @@ export const TaxFormulaCalculationWindow: React.FC<Props> = ({
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [slabs, setSlabs] = useState<TaxSlab[]>([]);
-  const [categories, setCategories] = useState<EmployeeCategory[]>([]);
+  // A failed load is reported, never shown as an empty dropdown.
+  const categoriesLookup = useLookup<EmployeeCategory>('Employee Categories', () => employeeCategoriesApi.getAll({ isActive: true }), { enabled: show });
+  const categories = categoriesLookup.items;
   const [savingSlabs, setSavingSlabs] = useState(false);
 
   const crud = useCrudResource<TaxFormula, TaxFormulaPayload>(
@@ -56,11 +59,6 @@ export const TaxFormulaCalculationWindow: React.FC<Props> = ({
     { label: (t) => t.code },
   );
 
-  useEffect(() => {
-    if (show) {
-      employeeCategoriesApi.getAll({ isActive: true }).then(setCategories).catch(() => setCategories([]));
-    }
-  }, [show]);
 
   useEffect(() => {
     if (crud.mode === 'new') {
@@ -165,7 +163,7 @@ export const TaxFormulaCalculationWindow: React.FC<Props> = ({
             isFetching={crud.isFetching}
             isBusy={crud.isBusy || savingSlabs}
           />
-          <StatusNote error={crud.error} status={crud.status} />
+          <StatusNote error={firstError(crud.error, categoriesLookup.error)} status={crud.status} />
         </>
       }
       footer={

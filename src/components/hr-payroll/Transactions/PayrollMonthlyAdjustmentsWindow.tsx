@@ -7,8 +7,9 @@ import {
   type PayrollAdjustmentPayload,
   type PayrollAdjustmentLine,
 } from '../../../api/transactions.api';
-import { payPeriodsApi, type PayPeriod } from '../../../api/payroll-masters.api';
-import { employeesApi, type Employee } from '../../../api/employees.api';
+import { employeeCategoriesApi, payPeriodsApi, type EmployeeCategory, type PayPeriod } from '../../../api/payroll-masters.api';
+import { firstError, useLookup } from '../../../hooks/useLookup';
+import { EmployeePicker } from '../../ui/EmployeePicker';
 import {
   ClassicWindow,
   CrudToolbar,
@@ -50,7 +51,7 @@ const numCols: { key: keyof PayrollAdjustmentLine; label: string }[] = [
 ];
 
 const emptyForm = {
-  employeeType: '',
+  employeeCategoryId: '',
   payPeriodId: '',
   documentDate: today(),
   status: 'Open',
@@ -62,8 +63,7 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [lines, setLines] = useState<PayrollAdjustmentLine[]>([]);
-  const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [linesError, setLinesError] = useState('');
   const [savingLines, setSavingLines] = useState(false);
 
   const crud = useCrudResource<PayrollAdjustment, PayrollAdjustmentPayload>(
@@ -72,11 +72,10 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
     { label: (a) => a.id },
   );
 
-  useEffect(() => {
-    if (!show) return;
-    payPeriodsApi.getAll({ isActive: true }).then(setPayPeriods).catch(() => setPayPeriods([]));
-    employeesApi.getAll({ pageSize: 200 }).then((r) => setEmployees(r.items)).catch(() => setEmployees([]));
-  }, [show]);
+  // A failed load is reported, never shown as an empty dropdown.
+  const periodsLookup = useLookup<PayPeriod>('Pay Periods', () => payPeriodsApi.getAll({ isActive: true }), { enabled: show });
+  const payPeriods = periodsLookup.items;
+  const categoriesLookup = useLookup<EmployeeCategory>('Employee Categories', () => employeeCategoriesApi.getAll({ isActive: true }), { enabled: show });
 
   useEffect(() => {
     if (crud.mode === 'new') {
@@ -85,19 +84,23 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
     } else if (crud.selected) {
       const s = crud.selected;
       setForm({
-        employeeType: s.employeeType ?? '',
+        employeeCategoryId: s.employeeCategoryId ?? '',
         payPeriodId: s.payPeriodId ?? '',
         documentDate: toDateInput(s.documentDate) || today(),
         status: s.status ?? 'Open',
         remarks: s.remarks ?? '',
       });
-      payrollAdjustmentsApi.getLines(s.id).then(setLines).catch(() => setLines([]));
+      setLinesError('');
+      payrollAdjustmentsApi.getLines(s.id).then(setLines).catch((e) => {
+        setLines([]);
+        setLinesError(`Could not load this document's lines: ${e instanceof Error ? e.message : String(e)}`);
+      });
     }
   }, [crud.mode, crud.selected]);
 
   const handleSave = () => {
     crud.save({
-      employeeType: form.employeeType.trim() || undefined,
+      employeeCategoryId: form.employeeCategoryId || null,
       payPeriodId: form.payPeriodId || undefined,
       documentDate: form.documentDate || undefined,
       status: form.status,
@@ -152,7 +155,7 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
             isFetching={crud.isFetching}
             isBusy={crud.isBusy || savingLines}
           />
-          <StatusNote error={crud.error} status={crud.status} />
+          <StatusNote error={firstError(crud.error, linesError, periodsLookup.error, categoriesLookup.error)} status={crud.status} />
         </>
       }
       footer={<><span>{crud.rows.length} adjustment doc{crud.rows.length === 1 ? '' : 's'}</span><span>Payroll Monthly Adjustments</span></>}
@@ -195,8 +198,11 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
             <>
               <div className="p-2 border-b border-[#d4d0c8] shrink-0">
                 <div className="grid grid-cols-4 gap-x-4 gap-y-1.5">
-                  <FieldRow label="Employee Type" labelWidth="100px">
-                    <ClassicInput value={form.employeeType} onChange={(e) => setForm((f) => ({ ...f, employeeType: e.target.value }))} className="w-full" disabled={!isForm} placeholder="All" />
+                  <FieldRow label="Employee Category" labelWidth="110px">
+                    <ClassicSel value={form.employeeCategoryId} onChange={(e) => setForm((f) => ({ ...f, employeeCategoryId: e.target.value }))} className="w-full" disabled={!isForm}>
+                      <option value="">All employees</option>
+                      {categoriesLookup.items.map((c) => <option key={c.id} value={c.id}>{c.code} — {c.name}</option>)}
+                    </ClassicSel>
                   </FieldRow>
                   <FieldRow label="Pay Period" labelWidth="100px">
                     <ClassicSel value={form.payPeriodId} onChange={(e) => setForm((f) => ({ ...f, payPeriodId: e.target.value }))} className="w-full" disabled={!isForm}>
@@ -247,10 +253,13 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
                               {row.employee
                                 ? <span>{row.employee.employeeNumber ? `${row.employee.employeeNumber} — ` : ''}{row.employee.name}</span>
                                 : (
-                                  <select value={row.employeeId} onChange={(e) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: e.target.value } : rr)))} className="w-full h-[18px] text-[10px] outline-none border-none">
-                                    <option value="">Select…</option>
-                                    {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
-                                  </select>
+                                  <EmployeePicker
+                                    compact
+                                    employeeCategoryId={crud.selected?.employeeCategoryId}
+                                    value={row.employeeId}
+                                    exclude={lines.map((l) => l.employeeId).filter(Boolean)}
+                                    onChange={(id) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: id } : rr)))}
+                                  />
                                 )}
                             </td>
                             {numCols.map((c) => (

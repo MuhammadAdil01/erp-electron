@@ -9,7 +9,8 @@ import {
 } from '../../../api/transactions.api';
 import { payPeriodsApi, type PayPeriod } from '../../../api/payroll-masters.api';
 import { branchesApi, type Branch } from '../../../api/branches.api';
-import { employeesApi, type Employee } from '../../../api/employees.api';
+import { firstError, useLookup } from '../../../hooks/useLookup';
+import { EmployeePicker } from '../../ui/EmployeePicker';
 import {
   ClassicWindow,
   CrudToolbar,
@@ -61,9 +62,7 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [lines, setLines] = useState<AttendanceSheetLine[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [payPeriods, setPayPeriods] = useState<PayPeriod[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [linesError, setLinesError] = useState('');
   const [generating, setGenerating] = useState(false);
   const [savingLines, setSavingLines] = useState(false);
 
@@ -73,12 +72,11 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
     { label: (s) => s.payPeriodMonth || s.id },
   );
 
-  useEffect(() => {
-    if (!show) return;
-    branchesApi.getAll().then(setBranches).catch(() => setBranches([]));
-    payPeriodsApi.getAll({ isActive: true }).then(setPayPeriods).catch(() => setPayPeriods([]));
-    employeesApi.getAll({ pageSize: 200 }).then((r) => setEmployees(r.items)).catch(() => setEmployees([]));
-  }, [show]);
+  // A failed load is reported, never shown as an empty dropdown.
+  const branchesLookup = useLookup<Branch>('Branches', () => branchesApi.getAll(), { enabled: show });
+  const periodsLookup = useLookup<PayPeriod>('Pay Periods', () => payPeriodsApi.getAll({ isActive: true }), { enabled: show });
+  const branches = branchesLookup.items;
+  const payPeriods = periodsLookup.items;
 
   useEffect(() => {
     if (crud.mode === 'new') {
@@ -97,7 +95,11 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
         year: s.year != null ? String(s.year) : '',
         remarks: s.remarks ?? '',
       });
-      attendanceSheetsApi.getLines(s.id).then(setLines).catch(() => setLines([]));
+      setLinesError('');
+      attendanceSheetsApi.getLines(s.id).then(setLines).catch((e) => {
+        setLines([]);
+        setLinesError(`Could not load this sheet's lines: ${e instanceof Error ? e.message : String(e)}`);
+      });
     }
   }, [crud.mode, crud.selected]);
 
@@ -191,7 +193,7 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
             isFetching={crud.isFetching}
             isBusy={crud.isBusy || generating || savingLines}
           />
-          <StatusNote error={crud.error} status={crud.status} />
+          <StatusNote error={firstError(crud.error, linesError, branchesLookup.error, periodsLookup.error)} status={crud.status} />
         </>
       }
       footer={<><span>{crud.rows.length} sheet{crud.rows.length === 1 ? '' : 's'}</span><span>Monthly Attendance Sheet</span></>}
@@ -308,10 +310,12 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
                               {row.employee
                                 ? <span>{row.employee.employeeNumber ? `${row.employee.employeeNumber} — ` : ''}{row.employee.name}</span>
                                 : (
-                                  <select value={row.employeeId} onChange={(e) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: e.target.value } : rr)))} className="w-full h-[18px] text-[10px] outline-none border-none">
-                                    <option value="">Select…</option>
-                                    {employees.map((e) => <option key={e.id} value={e.id}>{e.employeeNumber ? `${e.employeeNumber} — ` : ''}{e.name}</option>)}
-                                  </select>
+                                  <EmployeePicker
+                                    compact
+                                    value={row.employeeId}
+                                    exclude={lines.map((l) => l.employeeId).filter(Boolean)}
+                                    onChange={(id) => setLines((r) => r.map((rr, i) => (i === idx ? { ...rr, employeeId: id } : rr)))}
+                                  />
                                 )}
                             </td>
                             {numCols.map((c) => (

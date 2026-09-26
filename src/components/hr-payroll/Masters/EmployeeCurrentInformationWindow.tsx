@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { UserSquare2 } from 'lucide-react';
 import { useCrudResource } from '../../../hooks/useCrudResource';
+import { firstError, useLookup } from '../../../hooks/useLookup';
 import { employeesCrudApi, type Employee, type EmployeePayload } from '../../../api/employees.api';
 import { employeeCategoriesApi, gradesApi, type EmployeeCategory, type Grade } from '../../../api/payroll-masters.api';
 import { shiftsApi, positionsApi, leaveBalancesApi, type Shift, type Position } from '../../../api/hr.api';
@@ -148,11 +149,18 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'Employee Details' | 'Leave Details'>('Employee Details');
   const [form, setForm] = useState<EmployeeFormState>(emptyForm);
 
-  const [categories, setCategories] = useState<EmployeeCategory[]>([]);
-  const [grades, setGrades] = useState<Grade[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  // A failed load is reported, never shown as an empty dropdown.
+  const categoriesLookup = useLookup<EmployeeCategory>('Employee Categories', () => employeeCategoriesApi.getAll({ isActive: true }), { enabled: show });
+  const gradesLookup = useLookup<Grade>('Grades', () => gradesApi.getAll({ isActive: true }), { enabled: show });
+  const shiftsLookup = useLookup<Shift>('Shifts', () => shiftsApi.getAll(), { enabled: show });
+  const positionsLookup = useLookup<Position>('Positions', () => positionsApi.getAll(), { enabled: show });
+  const departmentsLookup = useLookup<Department>('Departments', () => departmentsApi.getAll(), { enabled: show });
+  const categories = categoriesLookup.items;
+  const grades = gradesLookup.items;
+  const shifts = shiftsLookup.items;
+  const positions = positionsLookup.items;
+  const departments = departmentsLookup.items;
+  const lookupError = firstError(categoriesLookup.error, gradesLookup.error, shiftsLookup.error, positionsLookup.error, departmentsLookup.error);
 
   const [leaveBalances, setLeaveBalances] = useState<Awaited<ReturnType<typeof leaveBalancesApi.forEmployee>>>([]);
   const [leaveLoading, setLeaveLoading] = useState(false);
@@ -164,14 +172,6 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
     { label: (e) => e.name },
   );
 
-  useEffect(() => {
-    if (!show) return;
-    employeeCategoriesApi.getAll({ isActive: true }).then(setCategories).catch(() => setCategories([]));
-    gradesApi.getAll({ isActive: true }).then(setGrades).catch(() => setGrades([]));
-    shiftsApi.getAll().then(setShifts).catch(() => setShifts([]));
-    positionsApi.getAll().then(setPositions).catch(() => setPositions([]));
-    departmentsApi.getAll().then(setDepartments).catch(() => setDepartments([]));
-  }, [show]);
 
   useEffect(() => {
     if (crud.mode === 'new') setForm(emptyForm);
@@ -240,7 +240,7 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
             isFetching={crud.isFetching}
             isBusy={crud.isBusy}
           />
-          <StatusNote error={crud.error} status={crud.status} />
+          <StatusNote error={crud.error || lookupError} status={crud.status} />
         </>
       }
       footer={
