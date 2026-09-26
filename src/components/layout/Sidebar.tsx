@@ -45,6 +45,7 @@ const TreeItem: React.FC<{
       'Activities Overview': 'activitiesOverview', 'Inactive Customers': 'inactiveCustomers',
       'Campaigns List': 'campaignsList',
       'Chart of Accounts': 'chartOfAccounts', 'Edit Chart of Accounts': 'editChartOfAccounts',
+      'G/L Account Determination': 'glAccountDetermination',
       'Journal Entry': 'journalEntry',
       'Posting Templates': 'postingTemplates', 'Recurring Postings': 'recurringPostings',
       'Document Printing': 'documentPrintingSelection',

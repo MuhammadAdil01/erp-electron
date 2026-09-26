@@ -73,7 +73,10 @@ export function useWindowManager() {
   const [showEditChartOfAccounts,         setShowEditChartOfAccounts]         = useState(false);
   const [showDataNotProvided,             setShowDataNotProvided]             = useState(false);
   const [showJournalEntry,                setShowJournalEntry]                = useState(false);
+  // Set by openJournalEntry: which entry the Journal Entry window should show.
+  const [journalEntryFocus,               setJournalEntryFocus]               = useState<{ id: string; nonce: number } | null>(null);
   const [showPostingTemplates,            setShowPostingTemplates]            = useState(false);
+  const [showGlAccountDetermination,      setShowGlAccountDetermination]      = useState(false);
   const [showRecurringPostings,           setShowRecurringPostings]           = useState(false);
   const [showDocumentPrintingSelection,   setShowDocumentPrintingSelection]   = useState(false);
   const [showAssetMasterData,             setShowAssetMasterData]             = useState(false);
@@ -298,6 +301,7 @@ export function useWindowManager() {
   const [dataNotProvidedPos,                setDataNotProvidedPos]                = useState(win( 80, 80,  300, 150, 60));
   const [journalEntryWindow,                setJournalEntryWindow]                = useState(win( 80, 80, 1000, 600, 61));
   const [postingTemplatesWindow,            setPostingTemplatesWindow]            = useState(win(100,100,  900, 550, 62));
+  const [glAccountDeterminationWindow,      setGlAccountDeterminationWindow]      = useState(win(120,90,  980, 580, 62));
   const [recurringPostingsWindow,           setRecurringPostingsWindow]           = useState(win(120,120, 1000, 650, 63));
   const [documentPrintingSelectionWindow,   setDocumentPrintingSelectionWindow]   = useState(win(140,140,  600, 500, 64));
   const [assetMasterDataWindow,             setAssetMasterDataWindow]             = useState(win( 50, 50,  900, 650, 65));
@@ -539,6 +543,7 @@ export function useWindowManager() {
       case 'dataNotProvided':            setShowDataNotProvided(true);             bringFront(setDataNotProvidedPos); break;
       case 'journalEntry':               setShowJournalEntry(true);                bringFront(setJournalEntryWindow); break;
       case 'postingTemplates':           setShowPostingTemplates(true);            bringFront(setPostingTemplatesWindow); break;
+      case 'glAccountDetermination':     setShowGlAccountDetermination(true);      bringFront(setGlAccountDeterminationWindow); break;
       case 'recurringPostings':          setShowRecurringPostings(true);           bringFront(setRecurringPostingsWindow); break;
       case 'documentPrintingSelection':  setShowDocumentPrintingSelection(true);   bringFront(setDocumentPrintingSelectionWindow); break;
       case 'assetMasterData':            setShowAssetMasterData(true);             bringFront(setAssetMasterDataWindow); break;
@@ -702,8 +707,16 @@ export function useWindowManager() {
 
   };
 
+  /** Opens Financials → Journal Entry on one entry (JE No links elsewhere in the app). */
+  const openJournalEntry = (id: string) => {
+    setJournalEntryFocus({ id, nonce: Date.now() });
+    openWindow('journalEntry');
+  };
+
   return {
     openWindow,
+    openJournalEntry,
+    journalEntryFocus,
     activeReportTitle,
     // visibility
     showEmployeeMaster, setShowEmployeeMaster,
@@ -780,6 +793,7 @@ export function useWindowManager() {
     showDataNotProvided, setShowDataNotProvided,
     showJournalEntry, setShowJournalEntry,
     showPostingTemplates, setShowPostingTemplates,
+    showGlAccountDetermination, setShowGlAccountDetermination,
     showRecurringPostings, setShowRecurringPostings,
     showDocumentPrintingSelection, setShowDocumentPrintingSelection,
     showAssetMasterData, setShowAssetMasterData,
@@ -984,6 +998,7 @@ export function useWindowManager() {
     dataNotProvidedPos, setDataNotProvidedPos,
     journalEntryWindow, setJournalEntryWindow,
     postingTemplatesWindow, setPostingTemplatesWindow,
+    glAccountDeterminationWindow, setGlAccountDeterminationWindow,
     recurringPostingsWindow, setRecurringPostingsWindow,
     documentPrintingSelectionWindow, setDocumentPrintingSelectionWindow,
     assetMasterDataWindow, setAssetMasterDataWindow,

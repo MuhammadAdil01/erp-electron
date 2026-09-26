@@ -26,6 +26,8 @@ interface Props {
   setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
   onUpdateState?: (patch: Partial<WindowState>) => void;
   onFocus?: () => void;
+  /** Another window asked to show this entry (e.g. Payroll Process → JE No). */
+  focusEntry?: { id: string; nonce: number } | null;
 }
 
 interface DraftLine {
@@ -59,7 +61,7 @@ const STATUS_STYLE: Record<JournalStatus, string> = {
 };
 
 export const JournalEntryWindow: React.FC<Props> = ({
-  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus, focusEntry,
 }) => {
   const { activeCompanyId } = useAuth();
   const qc = useQueryClient();
@@ -77,6 +79,13 @@ export const JournalEntryWindow: React.FC<Props> = ({
     isAdjustment: false,
   });
   const [lines, setLines] = useState<DraftLine[]>([blankLine(), blankLine()]);
+
+  useEffect(() => {
+    if (!focusEntry) return;
+    setMode('browse');
+    setFilterStatus('');
+    setSelectedId(focusEntry.id);
+  }, [focusEntry]);
 
   const listKey = ['journal-entries', companyId, filterStatus];
 

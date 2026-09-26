@@ -25,7 +25,7 @@ export type WindowType =
   | 'monthlyAttendance' | 'payrollProcess' | 'loanApplication' | 'leaveApplication' | 'payrollAdjustments'
   | 'chooseCompany' | 'exchangeRates' | 'companyDetails' | 'generalSettings'
   | 'postingPeriods' | 'documentNumbering' | 'documentSettings'
-  | 'chartOfAccounts' | 'journalEntry' | 'postingTemplates' | 'recurringPostings'
+  | 'chartOfAccounts' | 'journalEntry' | 'postingTemplates' | 'recurringPostings' | 'glAccountDetermination'
   | 'documentPrintingSelection' | 'assetMasterData' | 'capitalization'
   | 'capitalizationCreditMemo' | 'retirement' | 'transfer'
   | 'manualDepreciation' | 'depreciationRun' | 'assetRevaluation' | 'fiscalYearChange'

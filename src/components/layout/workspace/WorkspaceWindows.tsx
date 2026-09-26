@@ -128,6 +128,7 @@ import { EditChartOfAccountsWindow } from '../../financials/GeneralLedger/EditCh
 import { DataNotProvidedWindow } from '../../financials/GeneralLedger/DataNotProvidedWindow';
 import { JournalEntryWindow } from '../../financials/GeneralLedger/JournalEntryWindow';
 import { PostingTemplatesWindow } from '../../financials/GeneralLedger/PostingTemplatesWindow';
+import { GLAccountDeterminationWindow } from '../../financials/Setup/GLAccountDeterminationWindow';
 import { RecurringPostingsWindow } from '../../financials/GeneralLedger/RecurringPostingsWindow';
 // Financials — Documents
 import { DocumentPrintingSelectionWindow } from '../../financials/Documents/DocumentPrintingSelectionWindow';
@@ -299,7 +300,7 @@ export const WorkspaceWindows: React.FC<Props> = ({ wm }) => {
 
       {/* ── HR Payroll Transactions ── */}
       {wm.showMonthlyAttendance   && <MonthlyAttendanceSheetWindow     show={wm.showMonthlyAttendance}   onClose={() => wm.setShowMonthlyAttendance(false)}   windowState={wm.monthlyAttendanceWindowPos}   setWindowState={wm.setMonthlyAttendanceWindowPos} />}
-      {wm.showPayrollProcess      && <PayrollProcessWindow             show={wm.showPayrollProcess}      onClose={() => wm.setShowPayrollProcess(false)}      windowState={wm.payrollProcessWindowPos}      setWindowState={wm.setPayrollProcessWindowPos} />}
+      {wm.showPayrollProcess      && <PayrollProcessWindow             show={wm.showPayrollProcess}      onClose={() => wm.setShowPayrollProcess(false)}      windowState={wm.payrollProcessWindowPos}      setWindowState={wm.setPayrollProcessWindowPos} onOpenJournalEntry={wm.openJournalEntry} />}
       {wm.showLoanApplication     && <LoanApplicationWindow            show={wm.showLoanApplication}     onClose={() => wm.setShowLoanApplication(false)}     windowState={wm.loanApplicationWindowPos}     setWindowState={wm.setLoanApplicationWindowPos} />}
       {wm.showLeaveApplication    && <LeaveApplicationWindow           show={wm.showLeaveApplication}    onClose={() => wm.setShowLeaveApplication(false)}    windowState={wm.leaveApplicationWindowPos}    setWindowState={wm.setLeaveApplicationWindowPos} />}
       {wm.showPayrollAdjustments  && <PayrollMonthlyAdjustmentsWindow  show={wm.showPayrollAdjustments}  onClose={() => wm.setShowPayrollAdjustments(false)}  windowState={wm.payrollAdjustmentsWindowPos}  setWindowState={wm.setPayrollAdjustmentsWindowPos} />}
@@ -394,7 +395,8 @@ export const WorkspaceWindows: React.FC<Props> = ({ wm }) => {
       {wm.showChartOfAccounts          && <ChartOfAccountsWindow          windowState={wm.chartOfAccountsWindowPos}        onClose={() => wm.setShowChartOfAccounts(false)}         onUpdateState={upd(wm.setChartOfAccountsWindowPos)}        onFocus={() => ow('chartOfAccounts')} />}
       {wm.showEditChartOfAccounts      && <EditChartOfAccountsWindow      windowState={wm.editChartOfAccountsPos}          onClose={() => wm.setShowEditChartOfAccounts(false)}     onUpdateState={upd(wm.setEditChartOfAccountsPos)}          onFocus={() => ow('editChartOfAccounts')} wm={wm} />}
       {wm.showDataNotProvided          && <DataNotProvidedWindow          title={wm.activeReportTitle} windowState={wm.dataNotProvidedPos}              onClose={() => wm.setShowDataNotProvided(false)}         onUpdateState={upd(wm.setDataNotProvidedPos)}              onFocus={() => ow('dataNotProvided')} />}
-      {wm.showJournalEntry             && <JournalEntryWindow             windowState={wm.journalEntryWindow}              onClose={() => wm.setShowJournalEntry(false)}             onUpdateState={upd(wm.setJournalEntryWindow)}              onFocus={() => ow('journalEntry')} />}
+      {wm.showJournalEntry             && <JournalEntryWindow             windowState={wm.journalEntryWindow}              onClose={() => wm.setShowJournalEntry(false)}             onUpdateState={upd(wm.setJournalEntryWindow)}              onFocus={() => ow('journalEntry')} focusEntry={wm.journalEntryFocus} />}
+      {wm.showGlAccountDetermination   && <GLAccountDeterminationWindow   windowState={wm.glAccountDeterminationWindow}    onClose={() => wm.setShowGlAccountDetermination(false)}   onUpdateState={upd(wm.setGlAccountDeterminationWindow)}    onFocus={() => ow('glAccountDetermination')} />}
       {wm.showPostingTemplates         && <PostingTemplatesWindow         windowState={wm.postingTemplatesWindow}          onClose={() => wm.setShowPostingTemplates(false)}         onUpdateState={upd(wm.setPostingTemplatesWindow)}          onFocus={() => ow('postingTemplates')} />}
       {wm.showRecurringPostings        && <RecurringPostingsWindow        windowState={wm.recurringPostingsWindow}         onClose={() => wm.setShowRecurringPostings(false)}        onUpdateState={upd(wm.setRecurringPostingsWindow)}         onFocus={() => ow('recurringPostings')} />}
       {wm.showDocumentPrintingSelection && <DocumentPrintingSelectionWindow windowState={wm.documentPrintingSelectionWindow} onClose={() => wm.setShowDocumentPrintingSelection(false)} onUpdateState={upd(wm.setDocumentPrintingSelectionWindow)} onFocus={() => ow('documentPrintingSelection')} />}
