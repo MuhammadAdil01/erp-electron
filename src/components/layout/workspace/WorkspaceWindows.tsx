@@ -129,6 +129,9 @@ import { DataNotProvidedWindow } from '../../financials/GeneralLedger/DataNotPro
 import { JournalEntryWindow } from '../../financials/GeneralLedger/JournalEntryWindow';
 import { PostingTemplatesWindow } from '../../financials/GeneralLedger/PostingTemplatesWindow';
 import { GLAccountDeterminationWindow } from '../../financials/Setup/GLAccountDeterminationWindow';
+import { BanksWindow } from '../../banking/Setup/BanksWindow';
+import { HouseBankAccountsWindow } from '../../banking/Setup/HouseBankAccountsWindow';
+import { PaymentMethodsWindow } from '../../banking/Setup/PaymentMethodsWindow';
 import { RecurringPostingsWindow } from '../../financials/GeneralLedger/RecurringPostingsWindow';
 // Financials — Documents
 import { DocumentPrintingSelectionWindow } from '../../financials/Documents/DocumentPrintingSelectionWindow';
@@ -396,6 +399,9 @@ export const WorkspaceWindows: React.FC<Props> = ({ wm }) => {
       {wm.showEditChartOfAccounts      && <EditChartOfAccountsWindow      windowState={wm.editChartOfAccountsPos}          onClose={() => wm.setShowEditChartOfAccounts(false)}     onUpdateState={upd(wm.setEditChartOfAccountsPos)}          onFocus={() => ow('editChartOfAccounts')} wm={wm} />}
       {wm.showDataNotProvided          && <DataNotProvidedWindow          title={wm.activeReportTitle} windowState={wm.dataNotProvidedPos}              onClose={() => wm.setShowDataNotProvided(false)}         onUpdateState={upd(wm.setDataNotProvidedPos)}              onFocus={() => ow('dataNotProvided')} />}
       {wm.showJournalEntry             && <JournalEntryWindow             windowState={wm.journalEntryWindow}              onClose={() => wm.setShowJournalEntry(false)}             onUpdateState={upd(wm.setJournalEntryWindow)}              onFocus={() => ow('journalEntry')} focusEntry={wm.journalEntryFocus} />}
+      {wm.showBanksSetup && <BanksWindow show={wm.showBanksSetup} onClose={() => wm.setShowBanksSetup(false)} windowState={wm.banksSetupWindowPos} setWindowState={wm.setBanksSetupWindowPos} />}
+      {wm.showHouseBankAccountsSetup && <HouseBankAccountsWindow show={wm.showHouseBankAccountsSetup} onClose={() => wm.setShowHouseBankAccountsSetup(false)} windowState={wm.houseBankAccountsSetupWindowPos} setWindowState={wm.setHouseBankAccountsSetupWindowPos} />}
+      {wm.showPaymentMethodsSetup && <PaymentMethodsWindow show={wm.showPaymentMethodsSetup} onClose={() => wm.setShowPaymentMethodsSetup(false)} windowState={wm.paymentMethodsSetupWindowPos} setWindowState={wm.setPaymentMethodsSetupWindowPos} />}
       {wm.showGlAccountDetermination   && <GLAccountDeterminationWindow   windowState={wm.glAccountDeterminationWindow}    onClose={() => wm.setShowGlAccountDetermination(false)}   onUpdateState={upd(wm.setGlAccountDeterminationWindow)}    onFocus={() => ow('glAccountDetermination')} />}
       {wm.showPostingTemplates         && <PostingTemplatesWindow         windowState={wm.postingTemplatesWindow}          onClose={() => wm.setShowPostingTemplates(false)}         onUpdateState={upd(wm.setPostingTemplatesWindow)}          onFocus={() => ow('postingTemplates')} />}
       {wm.showRecurringPostings        && <RecurringPostingsWindow        windowState={wm.recurringPostingsWindow}         onClose={() => wm.setShowRecurringPostings(false)}        onUpdateState={upd(wm.setRecurringPostingsWindow)}         onFocus={() => ow('recurringPostings')} />}

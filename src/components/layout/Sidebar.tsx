@@ -46,6 +46,8 @@ const TreeItem: React.FC<{
       'Campaigns List': 'campaignsList',
       'Chart of Accounts': 'chartOfAccounts', 'Edit Chart of Accounts': 'editChartOfAccounts',
       'G/L Account Determination': 'glAccountDetermination',
+      // Administration → Setup → Banking
+      'Banks': 'banksSetup', 'House Bank Accounts': 'houseBankAccountsSetup', 'Payment Methods': 'paymentMethodsSetup',
       'Journal Entry': 'journalEntry',
       'Posting Templates': 'postingTemplates', 'Recurring Postings': 'recurringPostings',
       'Document Printing': 'documentPrintingSelection',

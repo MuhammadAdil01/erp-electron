@@ -114,6 +114,12 @@ export interface PayrollRunLine {
   taxDeduction?: string | number | null;
   adjustmentAdditions?: string | number | null;
   adjustmentDeductions?: string | number | null;
+  /**
+   * The Monthly Adjustment deduction types behind adjustmentDeductions, set by
+   * Generate. Server-owned: while it is set, "Other Ded." is read-only and the
+   * server keeps it equal to the split's sum. Never sent back on save.
+   */
+  adjustmentDeductionSplit?: Record<string, number> | null;
   totalEarnings?: string | number | null;
   totalDeductions?: string | number | null;
   netPay?: string | number | null;
@@ -176,6 +182,26 @@ export const payrollRunsApi = {
   /** Reverses a posted run's journal entry (and its recoveries) and flips it to Cancelled. */
   cancel: (id: string, reason?: string) =>
     api.post<PayrollRun>(`${BASE}/payroll-runs/${id}/cancel`, { reason }, POSTING).then((r) => r.data),
+  /** The date Cancel Posting would reverse on (PDF §33), for the confirm dialog. */
+  cancelPreview: (id: string) =>
+    api.get<PayrollCancelPreview>(`${BASE}/payroll-runs/${id}/cancel-preview`).then((r) => r.data),
+};
+
+export interface PayrollCancelPreview {
+  journalEntryNo: string;
+  originalDate: string;
+  originalPeriod: string | null;
+  reversalDate: string;
+  reversalPeriod: string;
+  /** True when the original period is closed and the reversal moves to a later one. */
+  shifted: boolean;
+}
+
+/** Labels for the deduction types in adjustmentDeductionSplit (payroll-calculation.ts). */
+export const DEDUCTION_TYPE_LABELS: Record<string, string> = {
+  messDeduction: 'Mess', carInsLaptopDed: 'Car ins./laptop', carInsLaptopDed2: 'Car ins./laptop 2',
+  generalDeduction: 'General', generalDeduction2: 'General 2', deduction11: 'Deduction 11', deduction12: 'Deduction 12',
+  deduction13: 'Deduction 13', deduction14: 'Deduction 14', deduction15: 'Deduction 15',
 };
 
 // ─── PAYROLL MONTHLY ADJUSTMENTS ───────────────────────────────────────────────

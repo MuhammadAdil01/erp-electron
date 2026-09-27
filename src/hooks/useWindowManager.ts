@@ -77,6 +77,9 @@ export function useWindowManager() {
   const [journalEntryFocus,               setJournalEntryFocus]               = useState<{ id: string; nonce: number } | null>(null);
   const [showPostingTemplates,            setShowPostingTemplates]            = useState(false);
   const [showGlAccountDetermination,      setShowGlAccountDetermination]      = useState(false);
+  const [showBanksSetup,              setShowBanksSetup] = useState(false);
+  const [showHouseBankAccountsSetup,  setShowHouseBankAccountsSetup] = useState(false);
+  const [showPaymentMethodsSetup,     setShowPaymentMethodsSetup] = useState(false);
   const [showRecurringPostings,           setShowRecurringPostings]           = useState(false);
   const [showDocumentPrintingSelection,   setShowDocumentPrintingSelection]   = useState(false);
   const [showAssetMasterData,             setShowAssetMasterData]             = useState(false);
@@ -302,6 +305,9 @@ export function useWindowManager() {
   const [journalEntryWindow,                setJournalEntryWindow]                = useState(win( 80, 80, 1000, 600, 61));
   const [postingTemplatesWindow,            setPostingTemplatesWindow]            = useState(win(100,100,  900, 550, 62));
   const [glAccountDeterminationWindow,      setGlAccountDeterminationWindow]      = useState(win(120,90,  980, 580, 62));
+  const [banksSetupWindowPos, setBanksSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
+  const [houseBankAccountsSetupWindowPos, setHouseBankAccountsSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
+  const [paymentMethodsSetupWindowPos, setPaymentMethodsSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [recurringPostingsWindow,           setRecurringPostingsWindow]           = useState(win(120,120, 1000, 650, 63));
   const [documentPrintingSelectionWindow,   setDocumentPrintingSelectionWindow]   = useState(win(140,140,  600, 500, 64));
   const [assetMasterDataWindow,             setAssetMasterDataWindow]             = useState(win( 50, 50,  900, 650, 65));
@@ -544,6 +550,9 @@ export function useWindowManager() {
       case 'journalEntry':               setShowJournalEntry(true);                bringFront(setJournalEntryWindow); break;
       case 'postingTemplates':           setShowPostingTemplates(true);            bringFront(setPostingTemplatesWindow); break;
       case 'glAccountDetermination':     setShowGlAccountDetermination(true);      bringFront(setGlAccountDeterminationWindow); break;
+      case 'banksSetup': setShowBanksSetup(true); bringFront(setBanksSetupWindowPos); break;
+      case 'houseBankAccountsSetup': setShowHouseBankAccountsSetup(true); bringFront(setHouseBankAccountsSetupWindowPos); break;
+      case 'paymentMethodsSetup': setShowPaymentMethodsSetup(true); bringFront(setPaymentMethodsSetupWindowPos); break;
       case 'recurringPostings':          setShowRecurringPostings(true);           bringFront(setRecurringPostingsWindow); break;
       case 'documentPrintingSelection':  setShowDocumentPrintingSelection(true);   bringFront(setDocumentPrintingSelectionWindow); break;
       case 'assetMasterData':            setShowAssetMasterData(true);             bringFront(setAssetMasterDataWindow); break;
@@ -794,6 +803,9 @@ export function useWindowManager() {
     showJournalEntry, setShowJournalEntry,
     showPostingTemplates, setShowPostingTemplates,
     showGlAccountDetermination, setShowGlAccountDetermination,
+    showBanksSetup, setShowBanksSetup,
+    showHouseBankAccountsSetup, setShowHouseBankAccountsSetup,
+    showPaymentMethodsSetup, setShowPaymentMethodsSetup,
     showRecurringPostings, setShowRecurringPostings,
     showDocumentPrintingSelection, setShowDocumentPrintingSelection,
     showAssetMasterData, setShowAssetMasterData,
@@ -999,6 +1011,9 @@ export function useWindowManager() {
     journalEntryWindow, setJournalEntryWindow,
     postingTemplatesWindow, setPostingTemplatesWindow,
     glAccountDeterminationWindow, setGlAccountDeterminationWindow,
+    banksSetupWindowPos, setBanksSetupWindowPos,
+    houseBankAccountsSetupWindowPos, setHouseBankAccountsSetupWindowPos,
+    paymentMethodsSetupWindowPos, setPaymentMethodsSetupWindowPos,
     recurringPostingsWindow, setRecurringPostingsWindow,
     documentPrintingSelectionWindow, setDocumentPrintingSelectionWindow,
     assetMasterDataWindow, setAssetMasterDataWindow,

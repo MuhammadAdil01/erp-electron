@@ -15,6 +15,7 @@ import {
 } from '../../ui/ClassicWindow';
 import { YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 import { EmployeeDetailsTab } from './tabs/EmployeeDetailsTab';
+import { PaymentDetailsTab } from './tabs/PaymentDetailsTab';
 
 interface Props {
   show: boolean;
@@ -146,7 +147,7 @@ function formToPayload(f: EmployeeFormState): EmployeePayload {
 export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
   show, onClose, windowState, setWindowState, onFocus,
 }) => {
-  const [activeTab, setActiveTab] = useState<'Employee Details' | 'Leave Details'>('Employee Details');
+  const [activeTab, setActiveTab] = useState<'Employee Details' | 'Leave Details' | 'Payment Details'>('Employee Details');
   const [form, setForm] = useState<EmployeeFormState>(emptyForm);
 
   // A failed load is reported, never shown as an empty dropdown.
@@ -294,7 +295,7 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
           {(isForm || crud.selected) && (
             <>
               <div className="flex px-2 border-b border-gray-400 shrink-0 h-[26px] bg-[#ececec]">
-                {(['Employee Details', 'Leave Details'] as const).map((tab) => (
+                {(['Employee Details', 'Leave Details', 'Payment Details'] as const).map((tab) => (
                   <div
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -320,6 +321,11 @@ export const EmployeeCurrentInformationWindow: React.FC<Props> = ({
                     departments={departments}
                     disabled={!isForm}
                   />
+                )}
+                {activeTab === 'Payment Details' && (
+                  crud.selected && crud.mode !== 'new'
+                    ? <PaymentDetailsTab employeeId={crud.selected.id} />
+                    : <div className="p-4 text-[10.5px] text-gray-400">Add the employee first; payment details are saved separately.</div>
                 )}
                 {activeTab === 'Leave Details' && (
                   <div className="p-4">

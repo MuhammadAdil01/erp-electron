@@ -5,6 +5,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { firstError, useLookup } from '../../../hooks/useLookup';
 import { confirmDiscardUnsaved, useUnsavedChangesGuard } from '../../../lib/unsavedChanges';
 import {
+  DEDUCTION_TYPE_LABELS,
   payrollRunsApi,
   PAYROLL_RUN_TYPES,
   type PayrollRun,
@@ -91,6 +92,11 @@ const numCols: NumCol[] = [
 ];
 
 const aggregateKeys = new Set<keyof PayrollRunLine>(['grossPay', 'totalEarnings', 'totalDeductions', 'netPay']);
+
+/** Tooltip for a document-sourced "Other Ded." cell: the types behind it. */
+const splitTitle = (split: Record<string, number>) =>
+  'From the Monthly Adjustment document — change it there, then Generate:\n' +
+  Object.entries(split).map(([k, v]) => `${DEDUCTION_TYPE_LABELS[k] ?? k}: ${v}`).join('\n');
 
 /** Only the fields PayrollRunLineRowDto declares — id/employee/aggregates are never sent back. */
 function toSaveableRow(row: PayrollRunLine) {
@@ -334,7 +340,19 @@ export const PayrollProcessWindow: React.FC<Props> = ({
   };
 
   const handleCancelPosting = () => {
-    if (!window.confirm('Cancel this posted payroll run? This reverses its journal entry and puts recovered loan/advance installments back to unpaid.')) return;
+    // Ask the server which date the reversal will carry before asking the user
+    // (PDF §33): a closed original period moves it to the next open one.
+    void act(setPosting, (id) => payrollRunsApi.cancelPreview(id), (preview) => {
+      const day = (d: string) => new Date(d).toISOString().slice(0, 10);
+      const when = preview.shifted
+        ? `Its period ${preview.originalPeriod ?? ''} is closed, so the reversal will post on ${day(preview.reversalDate)} (period ${preview.reversalPeriod}).`
+        : `The reversal will post on ${day(preview.reversalDate)}, the original date (period ${preview.reversalPeriod}).`;
+      if (!window.confirm(`Cancel this posted payroll run?\n\nThis reverses ${preview.journalEntryNo} and puts recovered loan/advance installments back to unpaid.\n${when}`)) return;
+      runCancel();
+    }, 'Could not work out the reversal date for this run.');
+  };
+
+  const runCancel = () => {
     void act(setPosting, (id) => payrollRunsApi.cancel(id), (updated) => {
       crud.select(updated);
       crud.refetch();
@@ -662,9 +680,18 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                                   />
                                 )}
                             </td>
-                            {numCols.map((c) => (
-                              <td key={c.key} className={cn('border-r border-gray-100 px-1', groupCellTone[c.group])}>
-                                {c.computed || isLocked || !can.update ? (
+                            {numCols.map((c) => {
+                              // "Other Ded." from a Monthly Adjustment document is the sum of
+                              // typed deductions, each posting to its own account: edit the
+                              // document and Generate again, not the total here.
+                              const fromDocument = c.key === 'adjustmentDeductions' && !!row.adjustmentDeductionSplit;
+                              return (
+                              <td
+                                key={c.key}
+                                className={cn('border-r border-gray-100 px-1', groupCellTone[c.group])}
+                                title={fromDocument ? splitTitle(row.adjustmentDeductionSplit!) : undefined}
+                              >
+                                {c.computed || fromDocument || isLocked || !can.update ? (
                                   <div className="h-[18px] leading-[18px] text-right tabular-nums text-[10px] text-[#333]">
                                     {fmt(aggregateKeys.has(c.key) ? totals[c.key as keyof typeof totals] : row[c.key])}
                                   </div>
@@ -677,7 +704,8 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                                   />
                                 )}
                               </td>
-                            ))}
+                              );
+                            })}
                             <td className="text-center">
                               {!isLocked && (
                                 <button onClick={() => removeRow(idx)}><Trash2 className="w-3 h-3 text-red-500 hover:text-red-700" /></button>
