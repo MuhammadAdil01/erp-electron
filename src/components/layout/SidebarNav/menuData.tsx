@@ -94,14 +94,16 @@ export const modulesData: MenuSubItem[] = [
           },
           {
             name: 'Financials', icon: subFolderIcon,
+            // QA D41: items with no backend (Indexes, Period Indicators,
+            // Doubtful Debts, Financial KPI Factors, Fixed Assets, Expense
+            // Types) are hidden until built — a menu item must not open nothing.
+            // The rest have backends and are being built (Currencies first).
             subItems: [
               { name: 'Edit Chart of Accounts', icon: subFileIcon }, { name: 'G/L Account Determination', icon: subFileIcon },
-              { name: 'Currencies', icon: subFileIcon }, { name: 'Indexes', icon: subFileIcon },
+              { name: 'Currencies', icon: subFileIcon },
               { name: 'Transaction Codes', icon: subFileIcon }, { name: 'Projects', icon: subFileIcon },
-              { name: 'Period Indicators', icon: subFileIcon }, { name: 'Doubtful Debts', icon: subFileIcon },
-              { name: 'Cash Flow Line Items', icon: subFileIcon }, { name: 'Financial KPI Factors', icon: subFileIcon },
-              { name: 'Tax', icon: subFolderIcon }, { name: 'Fixed Assets', icon: subFolderIcon },
-              { name: 'Expense Types', icon: subFileIcon },
+              { name: 'Cash Flow Line Items', icon: subFileIcon },
+              { name: 'Tax', icon: subFolderIcon },
             ],
           },
           {
@@ -126,11 +128,11 @@ export const modulesData: MenuSubItem[] = [
           },
           {
             name: 'Banking', icon: subFolderIcon,
+            // QA D41: the credit-card, credit-vendor and bank-charge setups
+            // have no backend yet and are hidden until built.
             subItems: [
               { name: 'Banks', icon: subFileIcon }, { name: 'House Bank Accounts', icon: subFileIcon },
-              { name: 'Credit Cards', icon: subFileIcon }, { name: 'Credit Card Payment', icon: subFileIcon },
-              { name: 'Credit Card Payment Methods', icon: subFileIcon }, { name: 'Credit Vendors', icon: subFileIcon },
-              { name: 'Bank Charges Allocation Codes', icon: subFileIcon }, { name: 'Payment Methods', icon: subFileIcon },
+              { name: 'Payment Methods', icon: subFileIcon },
             ],
           },
           {
@@ -527,8 +529,10 @@ export const modulesData: MenuSubItem[] = [
   {
     name: 'Human Resources',
     icon: <Users className="w-3.5 h-3.5 text-green-600" />,
+    // QA D41: the static "Employee Master Data" mock-up is hidden; employee
+    // records live in HR Payroll → Employee Current Information, opened here too.
     subItems: [
-      { name: 'Employee Master Data' }, { name: 'Time Sheet' }, { name: 'Family Detail' },
+      { name: 'Employee Current Information' }, { name: 'Time Sheet' }, { name: 'Family Detail' },
       { name: 'Next of Kin' }, { name: 'Final Settlement' }, { name: 'TA/DA' },
     ],
   },
