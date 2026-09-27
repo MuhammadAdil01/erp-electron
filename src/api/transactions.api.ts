@@ -167,6 +167,8 @@ export interface PayrollGenerateResult {
   skipped: { employeeId: string; name: string; run: string; reason?: string }[];
   /** Left out because they have no grade, or their grade has no pay-scale stage. */
   noPayScale?: { employeeId: string; name: string; reason: string }[];
+  /** E.g. an attendance sheet for the period that is still Open (QA D30) and so was not used. */
+  warnings?: string[];
 }
 
 const payrollRunsBase = createCrudApi<PayrollRun, PayrollRunPayload>(`${BASE}/payroll-runs`);

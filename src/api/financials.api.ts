@@ -209,7 +209,16 @@ export interface Currency extends Auditable {
   code: string; name: string; intlDescription?: string | null;
   hundredthName?: string | null; decimals: number; rounding?: string | null; isActive: boolean;
 }
-export const currenciesApi = createCrudApi<Currency>('/financials/currencies');
+/** The company's base currency: whether it is in the master, and whether it may still change. */
+export interface BaseCurrency { code: string | null; inMaster: boolean; postedEntries: number; canChange: boolean }
+
+const currenciesBase = createCrudApi<Currency>('/financials/currencies');
+export const currenciesApi = {
+  ...currenciesBase,
+  base: () => api.get<BaseCurrency>('/financials/currencies/base').then((r) => r.data),
+  /** Refused (409) once the company has posted anything. */
+  makeBase: (id: string) => api.post<BaseCurrency>(`/financials/currencies/${id}/make-base`, {}).then((r) => r.data),
+};
 
 export interface ExchangeRate extends Auditable {
   baseCurrency: string; targetCurrency: string; rate: string; date: string; source?: string | null;

@@ -38,6 +38,8 @@ interface Props {
   onFocus?: () => void;
   /** Opens Financials → Journal Entry on this entry (JE No link). */
   onOpenJournalEntry?: (journalEntryId: string) => void;
+  /** Opens Administration → Setup → Financials → Currencies (the currency errors point there). */
+  onOpenCurrencies?: () => void;
 }
 
 const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
@@ -92,6 +94,9 @@ const numCols: NumCol[] = [
 ];
 
 const aggregateKeys = new Set<keyof PayrollRunLine>(['grossPay', 'totalEarnings', 'totalDeductions', 'netPay']);
+
+/** Posting refuses until the base currency is in the master; the message names this window. */
+const pointsAtCurrencies = (error: string) => error.includes('Financials → Currencies');
 
 /** Tooltip for a document-sourced "Other Ded." cell: the types behind it. */
 const splitTitle = (split: Record<string, number>) =>
@@ -171,7 +176,7 @@ const statusTone = (s?: string | null) =>
         : 'bg-[#f0f0f0] text-[#444] border-[#d4d0c8]';
 
 export const PayrollProcessWindow: React.FC<Props> = ({
-  show, onClose, windowState, setWindowState, onFocus, onOpenJournalEntry,
+  show, onClose, windowState, setWindowState, onFocus, onOpenJournalEntry, onOpenCurrencies,
 }) => {
   const [form, setForm] = useState(emptyForm);
   const [formDirty, setFormDirty] = useState(false);
@@ -367,6 +372,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
       setLinesDirty(false);
       const skipped = res.skipped ?? [];
       const unscaled = res.noPayScale ?? [];
+      const warnings = res.warnings ?? [];
       setNote(
         `Generated ${res.lines.length} row${res.lines.length === 1 ? '' : 's'}.` +
           (skipped.length
@@ -376,13 +382,17 @@ export const PayrollProcessWindow: React.FC<Props> = ({
       );
       // Not an error, but not something to skim past either: these people get
       // no row until their grade has a pay scale (or someone adds one by hand).
+      const problems: string[] = [];
       if (unscaled.length) {
-        crud.setError(
+        problems.push(
           `${unscaled.length} employee${unscaled.length === 1 ? '' : 's'} left out — ` +
             unscaled.slice(0, 4).map((u) => `${u.name}: ${u.reason}`).join('; ') + (unscaled.length > 4 ? '…' : '') +
             '. Set the pay scale under HR Payroll → Masters → Grade Pay Scale.',
         );
       }
+      // An Open attendance sheet is not used: its employees are paid as present.
+      problems.push(...warnings);
+      if (problems.length) crud.setError(problems.join(' '));
     }, 'Failed to generate lines.');
   };
 
@@ -456,6 +466,11 @@ export const PayrollProcessWindow: React.FC<Props> = ({
             <span className="text-[10px] text-gray-500 ml-2 italic">Read-only: you can view payroll runs{can.post ? ' and post or cancel them' : ''}.</span>
           )}
           <StatusNote error={crud.error || linesError || lookupError} status={note || crud.status} />
+          {pointsAtCurrencies(crud.error) && onOpenCurrencies && (
+            <button onClick={onOpenCurrencies} className="ml-2 text-[10.5px] text-blue-700 underline hover:text-blue-900">
+              Open Currencies
+            </button>
+          )}
         </>
       }
       footer={<><span>{crud.rows.length} payroll run{crud.rows.length === 1 ? '' : 's'}</span><span>{dirty ? 'Unsaved changes' : 'Payroll Process'}</span></>}

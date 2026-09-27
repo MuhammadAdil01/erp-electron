@@ -266,7 +266,8 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
                   <FieldRow label="Status" labelWidth="90px">
                     <ClassicSel value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className="w-full" disabled={!isForm}>
                       <option value="Open">Open</option>
-                      <option value="Closed">Closed</option>
+                      {/* QA D30: only an Approved sheet feeds payroll. */}
+                      <option value="Approved">Approved</option>
                     </ClassicSel>
                   </FieldRow>
                   <FieldRow label="Year" labelWidth="90px">

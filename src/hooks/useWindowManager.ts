@@ -79,6 +79,7 @@ export function useWindowManager() {
   const [showGlAccountDetermination,      setShowGlAccountDetermination]      = useState(false);
   const [showBanksSetup,              setShowBanksSetup] = useState(false);
   const [showHouseBankAccountsSetup,  setShowHouseBankAccountsSetup] = useState(false);
+  const [showCurrenciesSetup, setShowCurrenciesSetup] = useState(false);
   const [showPaymentMethodsSetup,     setShowPaymentMethodsSetup] = useState(false);
   const [showRecurringPostings,           setShowRecurringPostings]           = useState(false);
   const [showDocumentPrintingSelection,   setShowDocumentPrintingSelection]   = useState(false);
@@ -307,6 +308,7 @@ export function useWindowManager() {
   const [glAccountDeterminationWindow,      setGlAccountDeterminationWindow]      = useState(win(120,90,  980, 580, 62));
   const [banksSetupWindowPos, setBanksSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [houseBankAccountsSetupWindowPos, setHouseBankAccountsSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
+  const [currenciesSetupWindowPos, setCurrenciesSetupWindowPos] = useState({ x: 320, y: 150, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [paymentMethodsSetupWindowPos, setPaymentMethodsSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [recurringPostingsWindow,           setRecurringPostingsWindow]           = useState(win(120,120, 1000, 650, 63));
   const [documentPrintingSelectionWindow,   setDocumentPrintingSelectionWindow]   = useState(win(140,140,  600, 500, 64));
@@ -552,6 +554,7 @@ export function useWindowManager() {
       case 'glAccountDetermination':     setShowGlAccountDetermination(true);      bringFront(setGlAccountDeterminationWindow); break;
       case 'banksSetup': setShowBanksSetup(true); bringFront(setBanksSetupWindowPos); break;
       case 'houseBankAccountsSetup': setShowHouseBankAccountsSetup(true); bringFront(setHouseBankAccountsSetupWindowPos); break;
+      case 'currenciesSetup': setShowCurrenciesSetup(true); bringFront(setCurrenciesSetupWindowPos); break;
       case 'paymentMethodsSetup': setShowPaymentMethodsSetup(true); bringFront(setPaymentMethodsSetupWindowPos); break;
       case 'recurringPostings':          setShowRecurringPostings(true);           bringFront(setRecurringPostingsWindow); break;
       case 'documentPrintingSelection':  setShowDocumentPrintingSelection(true);   bringFront(setDocumentPrintingSelectionWindow); break;
@@ -806,6 +809,7 @@ export function useWindowManager() {
     showBanksSetup, setShowBanksSetup,
     showHouseBankAccountsSetup, setShowHouseBankAccountsSetup,
     showPaymentMethodsSetup, setShowPaymentMethodsSetup,
+    showCurrenciesSetup, setShowCurrenciesSetup,
     showRecurringPostings, setShowRecurringPostings,
     showDocumentPrintingSelection, setShowDocumentPrintingSelection,
     showAssetMasterData, setShowAssetMasterData,
@@ -1014,6 +1018,7 @@ export function useWindowManager() {
     banksSetupWindowPos, setBanksSetupWindowPos,
     houseBankAccountsSetupWindowPos, setHouseBankAccountsSetupWindowPos,
     paymentMethodsSetupWindowPos, setPaymentMethodsSetupWindowPos,
+    currenciesSetupWindowPos, setCurrenciesSetupWindowPos,
     recurringPostingsWindow, setRecurringPostingsWindow,
     documentPrintingSelectionWindow, setDocumentPrintingSelectionWindow,
     assetMasterDataWindow, setAssetMasterDataWindow,
