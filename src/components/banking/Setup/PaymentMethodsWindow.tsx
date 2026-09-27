@@ -21,7 +21,7 @@ interface Props {
  * What a payment made with each means must carry. Outgoing payroll methods
  * (Phase 2) first; the incoming ones A/R uses after.
  */
-export const PAYMENT_MEANS: { value: string; label: string; direction: 'OUTGOING' | 'INCOMING'; needs: string }[] = [
+const PAYMENT_MEANS: { value: string; label: string; direction: 'OUTGOING' | 'INCOMING'; needs: string }[] = [
   { value: 'cash', label: 'Cash', direction: 'OUTGOING', needs: 'Nothing extra; credits Cash in Hand' },
   { value: 'check', label: 'Cheque', direction: 'OUTGOING', needs: 'Cheque no. and date, and the house bank account it is drawn on' },
   { value: 'online', label: 'Online transfer', direction: 'OUTGOING', needs: 'House bank account, transfer reference; employee bank and account no. or IBAN' },
