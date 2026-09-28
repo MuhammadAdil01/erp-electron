@@ -1,7 +1,7 @@
 {
   "name": "erp-electron",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "ERP System",
   "author": "ERP Team",
   "type": "module",
