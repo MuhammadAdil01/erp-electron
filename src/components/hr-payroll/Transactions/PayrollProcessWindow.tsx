@@ -75,6 +75,11 @@ const numCols: NumCol[] = [
   { key: 'entertainment', label: 'Entertainment', group: 'earnings' },
   { key: 'education', label: 'Education', group: 'earnings' },
   { key: 'bigCity', label: 'Big City', group: 'earnings' },
+  // QA D45: the pay scale's allowances — in the gross, so paid.
+  { key: 'utilityAllowance', label: 'Utility', group: 'earnings' },
+  { key: 'medicalAllowance', label: 'Medical', group: 'earnings' },
+  { key: 'adhoc2017', label: 'Ad-hoc 2017', group: 'earnings' },
+  { key: 'adhoc2018', label: 'Ad-hoc 2018', group: 'earnings' },
   { key: 'adjustmentAdditions', label: 'Additions', group: 'earnings' },
   { key: 'perDayRate', label: 'Rate / Day', group: 'earnings', computed: true },
   { key: 'grossPay', label: 'Gross Pay', group: 'earnings', computed: true },
@@ -107,11 +112,13 @@ const splitTitle = (split: Record<string, number>) =>
 function toSaveableRow(row: PayrollRunLine) {
   const { employeeId, totalDaysWorking, lopDays, totalDaysWorked, paidDays, payLeaves,
     basic, entertainment, eligibleBasic, conveyance, education, eligibleConveyance, hra, bigCity, eligibleHra,
+    utilityAllowance, medicalAllowance, adhoc2017, adhoc2018,
     perDayRate, paidLeaveDays, unpaidLeaveDays, lopDeduction, loanDeduction, advanceDeduction, taxableGross,
     taxDeduction, adjustmentAdditions, adjustmentDeductions } = row;
   const numOrUndef = (v: unknown) => (v === '' || v === null || v === undefined ? undefined : Number(v));
   const raw = { totalDaysWorking, lopDays, totalDaysWorked, paidDays, payLeaves,
     basic, entertainment, eligibleBasic, conveyance, education, eligibleConveyance, hra, bigCity, eligibleHra,
+    utilityAllowance, medicalAllowance, adhoc2017, adhoc2018,
     perDayRate, paidLeaveDays, unpaidLeaveDays, lopDeduction, loanDeduction, advanceDeduction, taxableGross,
     taxDeduction, adjustmentAdditions, adjustmentDeductions };
   return {

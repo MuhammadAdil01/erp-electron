@@ -18,6 +18,10 @@ export interface PayrollRowCells {
   entertainment?: unknown;
   education?: unknown;
   bigCity?: unknown;
+  utilityAllowance?: unknown;
+  medicalAllowance?: unknown;
+  adhoc2017?: unknown;
+  adhoc2018?: unknown;
   adjustmentAdditions?: unknown;
   lopDeduction?: unknown;
   loanDeduction?: unknown;
@@ -45,7 +49,8 @@ const money = (n: number): number => (Number.isFinite(n) ? Number(n.toFixed(2)) 
 export function payrollRowTotals(row: PayrollRowCells): PayrollRowTotals {
   const grossPay = money(
     asNum(row.basic) + asNum(row.hra) + asNum(row.conveyance) +
-    asNum(row.entertainment) + asNum(row.education) + asNum(row.bigCity),
+    asNum(row.entertainment) + asNum(row.education) + asNum(row.bigCity) +
+    asNum(row.utilityAllowance) + asNum(row.medicalAllowance) + asNum(row.adhoc2017) + asNum(row.adhoc2018),
   );
   const totalEarnings = money(grossPay + asNum(row.adjustmentAdditions));
   const totalDeductions = money(

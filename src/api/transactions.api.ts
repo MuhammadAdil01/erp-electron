@@ -100,6 +100,11 @@ export interface PayrollRunLine {
   eligibleConveyance?: string | number | null;
   hra?: string | number | null;
   bigCity?: string | number | null;
+  /** QA D45: the pay-scale allowances, filled by Generate and paid. */
+  utilityAllowance?: string | number | null;
+  medicalAllowance?: string | number | null;
+  adhoc2017?: string | number | null;
+  adhoc2018?: string | number | null;
   eligibleHra?: string | number | null;
   // Computed by Generate — earnings, each deduction source, and the net.
   grossPay?: string | number | null;
