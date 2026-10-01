@@ -12,7 +12,8 @@
     "build:win": "tsc && vite build && electron-builder --win",
     "build:pkg": "tsc && vite build && electron-packager . \"ERP System\" --platform=win32 --arch=x64 --electron-version=30.5.1 --out=release --overwrite --ignore=\"node_modules\" --ignore=\"src\" --ignore=\"electron\" --ignore=\"release\"",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:mac": "tsc && vite build && electron-builder --mac dmg --arm64 --x64 --publish never"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -66,6 +67,24 @@
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true
-    }
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.business",
+      "identity": null,
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "${productName} ${version}"
+    },
+    "afterPack": "build/afterPack.cjs"
   }
 }

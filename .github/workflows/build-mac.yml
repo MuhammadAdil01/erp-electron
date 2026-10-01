@@ -1,0 +1,38 @@
+name: Build macOS DMG (testing)
+
+on:
+  push:
+    branches: ['build/mac-dmg']
+  workflow_dispatch:
+
+jobs:
+  dmg:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build renderer and main process
+        run: npx tsc && npx vite build
+      # The release must talk to production, never to a developer's machine.
+      - name: Refuse a localhost API URL in the bundle
+        run: |
+          if grep -rq "localhost:3070" dist dist-electron; then
+            echo "Bundle contains localhost:3070"; exit 1
+          fi
+      - name: Package DMGs (Apple Silicon + Intel)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac dmg --arm64 --x64 --publish never
+      - name: Checksums
+        run: cd release && shasum -a 256 *.dmg | tee SHA256SUMS-mac.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: erp-system-mac-dmg
+          path: |
+            release/*.dmg
+            release/SHA256SUMS-mac.txt
+          retention-days: 14
