@@ -420,7 +420,7 @@ export const budgetLinesApi = {
 };
 
 // ─── G/L ACCOUNT DETERMINATION ────────────────────────────────────────────────
-export type DeterminationArea = 'SALES' | 'PURCHASING' | 'GENERAL' | 'INVENTORY' | 'PAYROLL';
+export type DeterminationArea = 'SALES' | 'PURCHASING' | 'GENERAL' | 'INVENTORY' | 'PAYROLL' | 'PRODUCTION' | 'PROJECTS' | 'SERVICE';
 export interface AccountDetermination {
   id: string; area: DeterminationArea; key: string;
   accountId: string; account?: CodedRef & { type: AccountType };
