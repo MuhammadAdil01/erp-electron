@@ -65,6 +65,9 @@ const emptyHeader = {
   remarks: '',
 };
 
+/** Prefill requests already turned into a draft (by nonce), across remounts. */
+const consumedPrefills = new Set<number>();
+
 const TITLES: Record<CapitalizationKind, string> = {
   CAPITALIZATION: 'Capitalization',
   CREDIT_MEMO: 'Capitalization Credit Memo',
@@ -172,8 +175,12 @@ export const CapitalizationDocumentWindow: React.FC<CapitalizationWindowProps & 
     };
   };
 
+  // A prefill is used once per click on Capitalize… / Credit Memo…: the
+  // lookups refetch after every post and the window remounts when reopened,
+  // and re-running it would throw the posted document away for a fresh draft.
   useEffect(() => {
-    if (!prefill || !lk) return;
+    if (!prefill || !lk || consumedPrefills.has(prefill.nonce)) return;
+    consumedPrefills.add(prefill.nonce);
     startNew(prefill.assetId);
     if (!assetById.has(prefill.assetId)) {
       setError(isCredit

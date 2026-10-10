@@ -129,7 +129,7 @@ export const AssetClassesWindow: React.FC<Props> = ({ show, onClose, windowState
           <table className="w-full border-collapse text-[10.5px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-[#f0f0f0] border-b border-[#d4d0c8]">
-                {['Code', 'Name', 'Method', 'Life (months)', 'Asset Account', 'Clearing', 'Assets', 'Status'].map((h) => (
+                {['Code', 'Name', 'Method', 'Life (months)', 'APC Account', 'Clearing', 'Assets', 'Status'].map((h) => (
                   <th key={h} className="text-left py-1 px-2 border-r border-[#d4d0c8] font-bold text-[#444] whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -174,10 +174,10 @@ export const AssetClassesWindow: React.FC<Props> = ({ show, onClose, windowState
               <FieldRow label="Name">{crud.selected.name}</FieldRow>
               <FieldRow label="Method">{methodLabel(crud.selected.depreciationMethod)}</FieldRow>
               <FieldRow label="Useful Life">{crud.selected.usefulLifeMonths} months</FieldRow>
-              <FieldRow label="Asset Account">{acct(crud.selected.assetAccount)}</FieldRow>
+              <FieldRow label="APC Account">{acct(crud.selected.assetAccount)}</FieldRow>
               <FieldRow label="Accum. Depreciation">{acct(crud.selected.accumulatedDepreciationAccount)}</FieldRow>
               <FieldRow label="Depr. Expense">{acct(crud.selected.depreciationExpenseAccount)}</FieldRow>
-              <FieldRow label="Asset Clearing">{acct(crud.selected.clearingAccount)}</FieldRow>
+              <FieldRow label="Acquisition Clearing">{acct(crud.selected.clearingAccount)}</FieldRow>
               <FieldRow label="Assets">{crud.selected._count?.assets ?? 0}</FieldRow>
               <FieldRow label="Remarks">{crud.selected.remarks ?? '—'}</FieldRow>
               {can.update && <div className="mt-3"><YellowBtn onClick={() => crud.openEdit(crud.selected!)}>Edit</YellowBtn></div>}
@@ -222,8 +222,9 @@ export const AssetClassesWindow: React.FC<Props> = ({ show, onClose, windowState
               </FieldRow>
               {crud.mode === 'edit' && !!crud.selected?._count?.assets && (
                 <div className="text-[10px] text-gray-600 mt-1">
-                  Used by {crud.selected._count.assets} asset(s). Accounts can no longer change once those assets are capitalized;
-                  the default method and life apply to assets created from now on.
+                  Used by {crud.selected._count.assets} asset(s). Once they are capitalized, the APC and accumulated depreciation
+                  accounts can no longer change (that would strand the balance); expense and clearing still can. The default method and
+                  life apply to assets created from now on.
                 </div>
               )}
               <div className="flex gap-2 mt-4">
