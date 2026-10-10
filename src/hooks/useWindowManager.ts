@@ -80,6 +80,14 @@ export function useWindowManager() {
   const [showBanksSetup,              setShowBanksSetup] = useState(false);
   const [showHouseBankAccountsSetup,  setShowHouseBankAccountsSetup] = useState(false);
   const [showCurrenciesSetup, setShowCurrenciesSetup] = useState(false);
+  const [showAssetClassesSetup, setShowAssetClassesSetup] = useState(false);
+  const [showDepreciationAreasSetup, setShowDepreciationAreasSetup] = useState(false);
+  // Fixed assets: one window asking another to show (or start) something.
+  const [assetFocus, setAssetFocus] = useState<{ id: string; nonce: number } | null>(null);
+  const [capitalizationPrefill, setCapitalizationPrefill] = useState<{ assetId: string; nonce: number } | null>(null);
+  const [creditMemoPrefill, setCreditMemoPrefill] = useState<{ assetId: string; nonce: number } | null>(null);
+  const [capitalizationFocus, setCapitalizationFocus] = useState<{ id: string; nonce: number } | null>(null);
+  const [creditMemoFocus, setCreditMemoFocus] = useState<{ id: string; nonce: number } | null>(null);
   const [showPaymentMethodsSetup,     setShowPaymentMethodsSetup] = useState(false);
   const [showRecurringPostings,           setShowRecurringPostings]           = useState(false);
   const [showDocumentPrintingSelection,   setShowDocumentPrintingSelection]   = useState(false);
@@ -309,12 +317,14 @@ export function useWindowManager() {
   const [banksSetupWindowPos, setBanksSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [houseBankAccountsSetupWindowPos, setHouseBankAccountsSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [currenciesSetupWindowPos, setCurrenciesSetupWindowPos] = useState({ x: 320, y: 150, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
+  const [assetClassesSetupWindowPos, setAssetClassesSetupWindowPos] = useState({ x: 260, y: 120, width: 1100, height: 560, isMinimized: false, isMaximized: false, zIndex: 51 });
+  const [depreciationAreasSetupWindowPos, setDepreciationAreasSetupWindowPos] = useState({ x: 300, y: 150, width: 860, height: 460, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [paymentMethodsSetupWindowPos, setPaymentMethodsSetupWindowPos] = useState({ x: 300, y: 160, width: 900, height: 520, isMinimized: false, isMaximized: false, zIndex: 51 });
   const [recurringPostingsWindow,           setRecurringPostingsWindow]           = useState(win(120,120, 1000, 650, 63));
   const [documentPrintingSelectionWindow,   setDocumentPrintingSelectionWindow]   = useState(win(140,140,  600, 500, 64));
-  const [assetMasterDataWindow,             setAssetMasterDataWindow]             = useState(win( 50, 50,  900, 650, 65));
-  const [capitalizationWindow,              setCapitalizationWindow]              = useState(win(100,100,  900, 650, 66));
-  const [capitalizationCreditMemoWindow,    setCapitalizationCreditMemoWindow]    = useState(win(110,110,  900, 650, 67));
+  const [assetMasterDataWindow,             setAssetMasterDataWindow]             = useState(win( 50, 50, 1120, 680, 65));
+  const [capitalizationWindow,              setCapitalizationWindow]              = useState(win(100,100, 1080, 640, 66));
+  const [capitalizationCreditMemoWindow,    setCapitalizationCreditMemoWindow]    = useState(win(110,110, 1080, 640, 67));
   const [retirementWindow,                  setRetirementWindow]                  = useState(win(120,120, 1000, 680, 68));
   const [transferWindow,                    setTransferWindow]                    = useState(win(130,130, 1050, 680, 69));
   const [manualDepreciationWindow,          setManualDepreciationWindow]          = useState(win(140,140,  950, 680, 70));
@@ -555,6 +565,8 @@ export function useWindowManager() {
       case 'banksSetup': setShowBanksSetup(true); bringFront(setBanksSetupWindowPos); break;
       case 'houseBankAccountsSetup': setShowHouseBankAccountsSetup(true); bringFront(setHouseBankAccountsSetupWindowPos); break;
       case 'currenciesSetup': setShowCurrenciesSetup(true); bringFront(setCurrenciesSetupWindowPos); break;
+      case 'assetClassesSetup': setShowAssetClassesSetup(true); bringFront(setAssetClassesSetupWindowPos); break;
+      case 'depreciationAreasSetup': setShowDepreciationAreasSetup(true); bringFront(setDepreciationAreasSetupWindowPos); break;
       case 'paymentMethodsSetup': setShowPaymentMethodsSetup(true); bringFront(setPaymentMethodsSetupWindowPos); break;
       case 'recurringPostings':          setShowRecurringPostings(true);           bringFront(setRecurringPostingsWindow); break;
       case 'documentPrintingSelection':  setShowDocumentPrintingSelection(true);   bringFront(setDocumentPrintingSelectionWindow); break;
@@ -725,10 +737,35 @@ export function useWindowManager() {
     openWindow('journalEntry');
   };
 
+  /** Opens Asset Master Data on one asset (asset links in the capitalization documents). */
+  const openAsset = (id: string) => {
+    setAssetFocus({ id, nonce: Date.now() });
+    openWindow('assetMasterData');
+  };
+
+  /** Asset Master Data → Capitalize… / Credit Memo…: a new document with this asset on line 1. */
+  const openCapitalizationFor = (assetId: string, kind: 'CAPITALIZATION' | 'CREDIT_MEMO') => {
+    if (kind === 'CREDIT_MEMO') { setCreditMemoPrefill({ assetId, nonce: Date.now() }); openWindow('capitalizationCreditMemo'); }
+    else { setCapitalizationPrefill({ assetId, nonce: Date.now() }); openWindow('capitalization'); }
+  };
+
+  /** Shows one capitalization or credit memo (document links in the asset history). */
+  const openCapitalizationDocument = (id: string, kind: 'CAPITALIZATION' | 'CREDIT_MEMO') => {
+    if (kind === 'CREDIT_MEMO') { setCreditMemoFocus({ id, nonce: Date.now() }); openWindow('capitalizationCreditMemo'); }
+    else { setCapitalizationFocus({ id, nonce: Date.now() }); openWindow('capitalization'); }
+  };
+
   return {
     openWindow,
     openJournalEntry,
     journalEntryFocus,
+    openAsset, assetFocus,
+    openCapitalizationFor, capitalizationPrefill, creditMemoPrefill,
+    openCapitalizationDocument, capitalizationFocus, creditMemoFocus,
+    showAssetClassesSetup, setShowAssetClassesSetup,
+    showDepreciationAreasSetup, setShowDepreciationAreasSetup,
+    assetClassesSetupWindowPos, setAssetClassesSetupWindowPos,
+    depreciationAreasSetupWindowPos, setDepreciationAreasSetupWindowPos,
     activeReportTitle,
     // visibility
     showEmployeeMaster, setShowEmployeeMaster,

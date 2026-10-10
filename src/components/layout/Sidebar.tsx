@@ -49,6 +49,7 @@ const TreeItem: React.FC<{
       // Administration → Setup → Banking
       'Banks': 'banksSetup', 'House Bank Accounts': 'houseBankAccountsSetup', 'Payment Methods': 'paymentMethodsSetup',
       'Currencies': 'currenciesSetup',
+      'Asset Classes': 'assetClassesSetup', 'Depreciation Areas': 'depreciationAreasSetup',
       'Journal Entry': 'journalEntry',
       'Posting Templates': 'postingTemplates', 'Recurring Postings': 'recurringPostings',
       'Document Printing': 'documentPrintingSelection',

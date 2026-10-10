@@ -436,39 +436,7 @@ export const accountDeterminationApi = {
       .then((r) => r.data),
 };
 
-// ─── FIXED ASSETS ─────────────────────────────────────────────────────────────
-export interface FixedAsset extends Auditable {
-  code: string; name: string; assetClass?: string | null;
-  status: 'NEW' | 'CAPITALIZED' | 'RETIRED' | 'SOLD';
-  capitalizedAt?: string | null; retiredAt?: string | null;
-  usefulLifeMonths: number; depreciationMethod: DepreciationMethod;
-  acquisitionCost: string; salvageValue: string;
-  accumulatedDepreciation: string; netBookValue: string; currency: string;
-  costAccountId?: string | null; depreciationAccountId?: string | null;
-  accumulatedAccountId?: string | null; costCenterId?: string | null;
-  serialNumber?: string | null; location?: string | null; remarks?: string | null;
-}
-const assetsBase = createCrudApi<FixedAsset>('/financials/fixed-assets');
-export const fixedAssetsApi = {
-  ...assetsBase,
-  capitalize: (id: string, payload: { postingDate: string; amount: number; remarks?: string }) =>
-    api.post<FixedAsset>(`/financials/fixed-assets/${id}/capitalize`, payload).then((r) => r.data),
-  retire: (id: string, payload: { postingDate: string; remarks?: string }) =>
-    api.post<FixedAsset>(`/financials/fixed-assets/${id}/retire`, payload).then((r) => r.data),
-  forecast: (id: string, months = 12) =>
-    api.get<{
-      assetId: string; code: string; name: string;
-      rows: { month: number; date: string; charge: string; accumulated: string; netBookValue: string }[];
-    }>(`/financials/fixed-assets/${id}/forecast`, { params: { months } }).then((r) => r.data),
-  depreciationRun: (payload: { postingDate: string; assetIds?: string[]; dryRun?: boolean }) =>
-    api.post<{
-      postingDate: string; dryRun: boolean; assetsProcessed: number; totalCharge: string;
-      results: {
-        assetId: string; code: string; name: string; charge: string;
-        accumulated: string; netBookValue: string; posted: boolean; note?: string;
-      }[];
-    }>('/financials/fixed-assets/depreciation-run', payload).then((r) => r.data),
-};
+// Fixed assets (Asset Master Data, Capitalization, setup) live in fixed-assets.api.ts.
 
 // ─── REPORTS ──────────────────────────────────────────────────────────────────
 export interface ReportRangeParams {
