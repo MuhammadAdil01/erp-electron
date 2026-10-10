@@ -90,6 +90,39 @@ const AREAS: { area: DeterminationArea; label: string; keys: KeyDef[] }[] = [
       { key: 'retained_earnings', label: 'Retained Earnings', type: 'EQUITY', usedBy: 'Period-End Closing', live: true },
     ],
   },
+  {
+    area: 'INVENTORY', label: 'Inventory',
+    keys: [
+      { key: 'inventory_asset', label: 'Inventory Asset', type: 'ASSET', usedBy: 'Inventory Receipt / Issue', live: false },
+      { key: 'inventory_adjustment_gain', label: 'Inventory Adjustment Gain', type: 'INCOME', usedBy: 'Inventory Adjustment', live: false },
+      { key: 'inventory_adjustment_loss', label: 'Inventory Adjustment Loss', type: 'EXPENSE', usedBy: 'Inventory Adjustment', live: false },
+      { key: 'cogs', label: 'Cost of Goods Sold (COGS)', type: 'EXPENSE', usedBy: 'Sales Invoice / Inventory Issue', live: false },
+    ],
+  },
+  {
+    area: 'PRODUCTION', label: 'Production / MRP',
+    keys: [
+      { key: 'raw_material_inventory', label: 'Raw Material Inventory', type: 'ASSET', usedBy: 'Production Issue', live: false },
+      { key: 'work_in_progress', label: 'Work In Progress (WIP)', type: 'ASSET', usedBy: 'Production Issue / Receipt', live: false },
+      { key: 'finished_goods', label: 'Finished Goods', type: 'ASSET', usedBy: 'Production Receipt', live: false },
+      { key: 'production_variance', label: 'Production Variance', type: 'EXPENSE', usedBy: 'Production Order Close', live: false },
+    ],
+  },
+  {
+    area: 'PROJECTS', label: 'Project Management',
+    keys: [
+      { key: 'project_revenue', label: 'Project Revenue', type: 'INCOME', usedBy: 'Project Billing', live: false },
+      { key: 'project_cost', label: 'Project Cost', type: 'EXPENSE', usedBy: 'Project Timesheets / Expenses', live: false },
+      { key: 'project_wip', label: 'Project WIP', type: 'ASSET', usedBy: 'Project Billing', live: false },
+    ],
+  },
+  {
+    area: 'SERVICE', label: 'Service',
+    keys: [
+      { key: 'service_revenue', label: 'Service Revenue', type: 'INCOME', usedBy: 'Service Invoice', live: false },
+      { key: 'service_expense', label: 'Service Expense', type: 'EXPENSE', usedBy: 'Service Call Completion', live: false },
+    ],
+  },
 ];
 
 export const GLAccountDeterminationWindow: React.FC<Props> = ({

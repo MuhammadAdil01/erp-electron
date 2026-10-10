@@ -148,6 +148,8 @@ export interface JournalEntry extends Auditable {
   ref2?: string | null;
   ref3?: string | null;
   isAdjustment: boolean;
+  templateId?: string | null;
+  template?: { id: string; code: string; description: string } | null;
   postedAt?: string | null;
   reversalOf?: { id: string; number: string } | null;
   reversal?: { id: string; number: string } | null;
@@ -363,7 +365,25 @@ export interface PostingTemplateLine {
 export interface PostingTemplate extends Auditable {
   code: string; description: string; isActive: boolean; lines: PostingTemplateLine[];
 }
-export const postingTemplatesApi = createCrudApi<PostingTemplate>('/financials/posting-templates');
+export interface PostingTemplatePayload {
+  code: string; description: string; isActive?: boolean;
+  lines: { accountId: string; description?: string; percentage: number; side: 'debit' | 'credit'; ordering?: number }[];
+}
+/** A template spread over one amount: journal-entry lines to review before posting. */
+export interface AppliedPostingTemplate {
+  templateId: string; code: string; description: string; amount: string;
+  lines: {
+    accountId: string; account?: CodedRef; description?: string | null;
+    percentage: string; side: 'debit' | 'credit'; debit: string; credit: string;
+  }[];
+}
+const postingTemplatesBase = createCrudApi<PostingTemplate, PostingTemplatePayload>('/financials/posting-templates');
+export const postingTemplatesApi = {
+  ...postingTemplatesBase,
+  apply: (id: string, amount: number) =>
+    api.get<AppliedPostingTemplate>(`/financials/posting-templates/${id}/apply`, { params: { amount } })
+      .then((r) => r.data),
+};
 
 export interface RecurringPostingLine {
   id?: string; accountId: string; account?: CodedRef;
@@ -374,16 +394,41 @@ export interface RecurringPosting extends Auditable {
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUALLY' | 'ANNUALLY' | 'ONE_TIME';
   nextExecution: string; validUntil?: string | null; executionCount: number;
   maxExecutions?: number | null; currency: string; isActive: boolean;
+  lastExecutedAt?: string | null;
   lines: RecurringPostingLine[];
 }
-const recurringBase = createCrudApi<RecurringPosting>('/financials/recurring-postings');
+export interface RecurringPostingPayload {
+  code: string; description: string; frequency: RecurringPosting['frequency'];
+  nextExecution: string; validUntil?: string | null; maxExecutions?: number | null;
+  isActive?: boolean;
+  lines: { accountId: string; debit?: number; credit?: number; description?: string; ordering?: number }[];
+}
+/** One executed instance: the journal entry it posted and the advanced schedule. */
+export interface RecurringExecution {
+  instance: number;
+  journalEntry: { id: string; number: string; date: string; totalDebit: string };
+  recurringPosting: RecurringPosting;
+}
+export interface RecurringPostedEntry {
+  id: string; number: string; date: string; status: JournalEntry['status'];
+  reference?: string | null; totalDebit: string;
+  reversal?: { id: string; number: string } | null;
+}
+const recurringBase = createCrudApi<RecurringPosting, RecurringPostingPayload>('/financials/recurring-postings');
 export const recurringPostingsApi = {
   ...recurringBase,
   due: (asOf?: string) =>
     api.get<RecurringPosting[]>('/financials/recurring-postings/due', { params: { asOf } })
       .then((r) => r.data),
+  /** Posts the next instance as a journal entry and advances the schedule, atomically. */
+  execute: (id: string, postingDate?: string) =>
+    api.post<RecurringExecution>(`/financials/recurring-postings/${id}/execute`, { postingDate })
+      .then((r) => r.data),
+  /** Skips the next instance without posting it. */
   advance: (id: string) =>
     api.post<RecurringPosting>(`/financials/recurring-postings/${id}/advance`).then((r) => r.data),
+  entries: (id: string) =>
+    api.get<RecurringPostedEntry[]>(`/financials/recurring-postings/${id}/entries`).then((r) => r.data),
 };
 
 // ─── BUDGETS ──────────────────────────────────────────────────────────────────
@@ -420,7 +465,7 @@ export const budgetLinesApi = {
 };
 
 // ─── G/L ACCOUNT DETERMINATION ────────────────────────────────────────────────
-export type DeterminationArea = 'SALES' | 'PURCHASING' | 'GENERAL' | 'INVENTORY' | 'PAYROLL';
+export type DeterminationArea = 'SALES' | 'PURCHASING' | 'GENERAL' | 'INVENTORY' | 'PAYROLL' | 'PRODUCTION' | 'PROJECTS' | 'SERVICE';
 export interface AccountDetermination {
   id: string; area: DeterminationArea; key: string;
   accountId: string; account?: CodedRef & { type: AccountType };

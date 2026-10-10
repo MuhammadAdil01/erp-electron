@@ -1,254 +1,439 @@
-import React from 'react';
-import { X, Minus, Square, ChevronDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FileStack, Plus, Trash2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import { useCrudResource } from '../../../hooks/useCrudResource';
+import {
+  accountsApi,
+  postingTemplatesApi,
+  type AppliedPostingTemplate,
+  type PostingTemplate,
+  type PostingTemplatePayload,
+} from '../../../api/financials.api';
+import { ClassicWindow, CrudToolbar, StatusNote, ListPlaceholder, ToolBtn, type WindowState } from '../../ui/ClassicWindow';
+import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
-interface PostingTemplatesWindowProps {
+interface Props {
+  show?: boolean;
   onClose: () => void;
-  onFocus: () => void;
-  windowState: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    isMinimized: boolean;
-    isMaximized: boolean;
-    zIndex: number;
-  };
-  onUpdateState: (state: Partial<PostingTemplatesWindowProps['windowState']>) => void;
+  onFocus?: () => void;
+  windowState: WindowState;
+  setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
+  onUpdateState?: (patch: Partial<WindowState>) => void;
 }
 
-export const PostingTemplatesWindow: React.FC<PostingTemplatesWindowProps> = ({
-  onClose,
-  onFocus,
-  windowState,
-  onUpdateState,
+interface DraftLine {
+  key: string;
+  accountId: string;
+  description: string;
+  debitPct: string;
+  creditPct: string;
+}
+
+const blankLine = (): DraftLine => ({
+  key: Math.random().toString(36).slice(2),
+  accountId: '', description: '', debitPct: '', creditPct: '',
+});
+
+const emptyForm = { code: '', description: '', isActive: true };
+
+const num = (s: string) => {
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const pct = (n: number) => `${n.toLocaleString('en-US', { maximumFractionDigits: 4 })}%`;
+
+const money = (n: number) =>
+  n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Financials → Posting Templates. A template holds percentages, not amounts:
+ * each side (debit / credit) must total 100%. In Journal Entry the user picks a
+ * template, types one amount and the lines are filled in by these percentages.
+ * A template that entries were built from can only be deactivated, not deleted.
+ */
+export const PostingTemplatesWindow: React.FC<Props> = ({
+  show = true, onClose, onFocus, windowState, setWindowState, onUpdateState,
 }) => {
-  const isMaximized = windowState.isMaximized;
+  const { hasPermission, activeCompanyId } = useAuth();
+  const qc = useQueryClient();
+  const can = {
+    create: hasPermission('financials.posting_template.create'),
+    update: hasPermission('financials.posting_template.update'),
+    remove: hasPermission('financials.posting_template.delete'),
+  };
+  const crud = useCrudResource<PostingTemplate, PostingTemplatePayload>(
+    'posting-templates', postingTemplatesApi, { label: (t) => t.code },
+  );
 
-  const sapLabelStyle = "text-[11px] text-[#333333] font-medium whitespace-nowrap";
-  const sapInputStyle = "text-[11px] border border-gray-400 px-1 py-0.5 bg-white focus:border-blue-500 focus:outline-none rounded-[1px]";
-  const sapCheckboxStyle = "w-3.5 h-3.5 border-gray-400 rounded-[1px] accent-blue-600 cursor-pointer";
-  const sapGoldButtonStyle = "px-4 py-0.5 text-[11px] font-bold border border-gray-600 rounded-[1px] shadow-sm hover:brightness-95 transition-all bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60";
+  const [form, setForm] = useState(emptyForm);
+  const [lines, setLines] = useState<DraftLine[]>([blankLine(), blankLine()]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFocus();
-    if (isMaximized) return;
+  const [note, setNote] = useState('');
+  const [previewAmount, setPreviewAmount] = useState('');
+  const [preview, setPreview] = useState<AppliedPostingTemplate | null>(null);
+  const [previewError, setPreviewError] = useState('');
 
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
+  // Same picker as Journal Entry: Title accounts can never be posted to.
+  const { data: accounts = [] } = useQuery({
+    queryKey: ['accounts-postable', activeCompanyId],
+    queryFn: () => accountsApi.getAll({ take: 2000, isActive: true, isTitle: false }),
+    enabled: !!activeCompanyId && show,
+  });
 
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      onUpdateState({
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY,
-      });
-    };
+  useEffect(() => {
+    if (crud.mode === 'new') {
+      setForm(emptyForm);
+      setLines([blankLine(), blankLine()]);
+    } else if (crud.mode === 'edit' && crud.selected) {
+      const t = crud.selected;
+      setForm({ code: t.code, description: t.description, isActive: t.isActive });
+      setLines(t.lines.map((l) => ({
+        key: Math.random().toString(36).slice(2),
+        accountId: l.accountId,
+        description: l.description ?? '',
+        debitPct: l.side === 'debit' ? String(Number(l.percentage)) : '',
+        creditPct: l.side === 'credit' ? String(Number(l.percentage)) : '',
+      })));
+    }
+  }, [crud.mode, crud.selected]);
 
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+  // A preview belongs to the template it was run against.
+  useEffect(() => { setPreview(null); setPreviewError(''); }, [crud.selected?.id]);
+  useEffect(() => { if (crud.mode !== 'view') setNote(''); }, [crud.mode]);
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+  const totals = useMemo(() => {
+    const debit = lines.reduce((s, l) => s + num(l.debitPct), 0);
+    const credit = lines.reduce((s, l) => s + num(l.creditPct), 0);
+    return { debit, credit, debitOk: Math.abs(debit - 100) < 0.0001, creditOk: Math.abs(credit - 100) < 0.0001 };
+  }, [lines]);
+
+  const setLine = (key: string, patch: Partial<DraftLine>) =>
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+
+  const handleSave = () => {
+    if (!form.code.trim() || !form.description.trim()) {
+      crud.setError('A posting template needs a code and a description.');
+      return;
+    }
+    const filled = lines.filter((l) => l.accountId || num(l.debitPct) || num(l.creditPct));
+    for (const [i, l] of filled.entries()) {
+      if (!l.accountId) { crud.setError(`Line ${i + 1}: choose a G/L account.`); return; }
+      if (num(l.debitPct) > 0 && num(l.creditPct) > 0) {
+        crud.setError(`Line ${i + 1}: enter either a debit % or a credit %, not both.`); return;
+      }
+      if (!(num(l.debitPct) > 0) && !(num(l.creditPct) > 0)) {
+        crud.setError(`Line ${i + 1}: enter a debit % or a credit % above 0.`); return;
+      }
+    }
+    if (!totals.debitOk || !totals.creditOk) {
+      crud.setError(`Debit % must total 100 (now ${pct(totals.debit)}) and credit % must total 100 (now ${pct(totals.credit)}).`);
+      return;
+    }
+    crud.save({
+      code: form.code.trim(),
+      description: form.description.trim(),
+      isActive: form.isActive,
+      lines: filled.map((l, i) => {
+        const debit = num(l.debitPct) > 0;
+        return {
+          accountId: l.accountId,
+          description: l.description.trim() || undefined,
+          percentage: debit ? num(l.debitPct) : num(l.creditPct),
+          side: debit ? 'debit' : 'credit',
+          ordering: i,
+        };
+      }),
+    });
   };
 
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFocus();
-    
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
-
-      let newX = windowState.x;
-      let newY = windowState.y;
-      let newWidth = windowState.width;
-      let newHeight = windowState.height;
-
-      if (direction.includes('e')) newWidth = Math.max(800, startWidth + deltaX);
-      if (direction.includes('s')) newHeight = Math.max(500, startHeight + deltaY);
-      
-      if (direction.includes('w')) {
-        newWidth = Math.max(800, startWidth - deltaX);
-        if (newWidth > 800) newX = startXPos + deltaX;
-      }
-      
-      if (direction.includes('n')) {
-        newHeight = Math.max(500, startHeight - deltaY);
-        if (newHeight > 500) newY = startYPos + deltaY;
-      }
-
-      onUpdateState({ x: newX, y: newY, width: newWidth, height: newHeight });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  // Deactivating is how a used template is retired — the backend refuses to
+  // delete one that journal entries point at. Only the flag is sent, so the
+  // lines are left untouched.
+  const toggleActive = (t: PostingTemplate) => {
+    setNote('');
+    postingTemplatesApi.update(t.id, { isActive: !t.isActive })
+      .then((row) => {
+        void qc.invalidateQueries({ queryKey: ['posting-templates'] });
+        crud.select(row);
+        setNote(`${row.code} ${row.isActive ? 'activated' : 'deactivated'}.`);
+      })
+      .catch((e) => crud.setError(e instanceof Error ? e.message : 'Could not change the template.'));
   };
+
+  const runPreview = () => {
+    if (!crud.selected) return;
+    const amount = num(previewAmount);
+    if (!(amount > 0)) { setPreviewError('Enter an amount above 0.'); return; }
+    setPreviewError('');
+    postingTemplatesApi.apply(crud.selected.id, amount)
+      .then(setPreview)
+      .catch((e) => { setPreview(null); setPreviewError(e instanceof Error ? e.message : 'Could not apply the template.'); });
+  };
+
+  const isForm = crud.mode === 'new' || crud.mode === 'edit';
+  const selected = crud.selected;
 
   return (
-    <div
-      onClick={onFocus}
-      style={{
-        position: 'absolute',
-        left: isMaximized ? 0 : windowState.x,
-        top: isMaximized ? 0 : windowState.y,
-        width: isMaximized ? '100%' : windowState.width,
-        height: isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex,
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#f0f0f0',
-        border: '1px solid #999',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-        userSelect: 'none',
-      }}
-      className="posting-templates-window"
-    >
-      {/* Resize Handles */}
-      {!isMaximized && (
+    <ClassicWindow
+      title="Posting Templates"
+      icon={<FileStack className="w-3.5 h-3.5 text-gray-600" />}
+      accent="#e8a01c"
+      show={show}
+      onClose={onClose}
+      onFocus={onFocus}
+      windowState={windowState}
+      setWindowState={setWindowState}
+      onUpdateState={onUpdateState}
+      minWidth={900}
+      minHeight={520}
+      toolbar={
         <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
+          <CrudToolbar
+            onNew={can.create ? crud.openNew : () => crud.setError('You do not have permission to add posting templates (financials.posting_template.create).')}
+            onEdit={() => selected && crud.openEdit(selected)}
+            onDelete={() => crud.remove()}
+            onRefresh={crud.refetch}
+            canEdit={!!selected && can.update}
+            canDelete={!!selected && can.remove}
+            isFetching={crud.isFetching}
+            isBusy={crud.isBusy}
+          />
+          <StatusNote error={crud.error} status={crud.status || note} />
         </>
-      )}
-
-      {/* Title Bar */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="h-7 bg-gradient-to-b from-[#fdfdfd] to-[#dcdcdc] flex items-center justify-between px-2 cursor-default border-b border-[#999]"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] font-bold text-[#444]">Posting Templates</span>
-        </div>
-        <div className="flex items-center">
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpdateState({ isMinimized: true }); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-gray-300 transition-colors"
-          >
-            <Minus className="w-3.5 h-3.5 text-[#555]" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpdateState({ isMaximized: !isMaximized }); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-gray-300 transition-colors"
-          >
-            <Square className="w-3 h-3 text-[#555]" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Gold accent bar */}
-      <div className="h-1 bg-[#e8a01c] w-full shrink-0" />
-
-      {/* Top Form Section */}
-      <div className="p-2 space-y-1 bg-[#f0f0f0] shrink-0 border-b border-[#ccc]">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <span className={sapLabelStyle}>Code</span>
-            <span className={`${sapLabelStyle} pl-[100px]`}>Template Description</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="text" className={`${sapInputStyle} w-24 bg-[#ffed99] border-black/30 shadow-inner`} />
-            <input type="text" className={`${sapInputStyle} flex-1`} />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-8 pt-1">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className={sapCheckboxStyle} />
-            <span className={sapLabelStyle}>Automatic VAT</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer opacity-50">
-            <input type="checkbox" className={sapCheckboxStyle} disabled />
-            <span className={sapLabelStyle}>Manage Deferred Tax</span>
-          </label>
-          <div className="flex-1" />
-          <label className="flex items-center gap-2 cursor-pointer opacity-50 pr-4">
-            <input type="checkbox" className={sapCheckboxStyle} disabled />
-            <span className={sapLabelStyle}>Manage WTax</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Data Table Section */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white p-1">
-        <div className="flex-1 overflow-auto border border-[#ccc]">
-          <table className="w-full text-[10.5px] border-collapse min-w-[1000px]">
-            <thead>
-              <tr className="bg-[#e4e4e4] sticky top-0 z-10 border-b border-[#ccc]">
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium">G/L Acct/BP Code</th>
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium">G/L Account/BP Name</th>
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium">Debit %</th>
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium">Credit %</th>
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium flex items-center justify-between">
-                  <span>Tax Group</span>
-                  <ChevronDown className="w-3 h-3 text-gray-500" />
-                </th>
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium">Distr. Rule</th>
-                <th className="border-r border-[#ccc] p-0.5 text-left font-medium">Project</th>
-                <th className="p-0.5 text-left font-medium bg-[#f0f0f0]">Cost Element</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...Array(20)].map((_, i) => (
-                <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-[#f7f8fa]'} border-b border-[#eee] hover:bg-blue-50/50`}>
-                  <td className="border-r border-[#ccc] p-0.5 h-5"></td>
-                  <td className="border-r border-[#ccc] p-0.5"></td>
-                  <td className="border-r border-[#ccc] p-0.5"></td>
-                  <td className="border-r border-[#ccc] p-0.5"></td>
-                  <td className="border-r border-[#ccc] p-0.5"></td>
-                  <td className="border-r border-[#ccc] p-0.5"></td>
-                  <td className="border-r border-[#ccc] p-0.5"></td>
-                  <td className="p-0.5 bg-[#f0f0f0]/30"></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Area Footer */}
-        <div className="bg-[#f0f0f0] border border-t-0 border-[#ccc] p-1">
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center">
-              <span className={`${sapLabelStyle} w-[150px] bg-[#e4e4e4] border border-[#ccc] px-2`}>Total:</span>
-              <div className="w-[100px] bg-[#e4e4e4] border border-l-0 border-[#ccc] h-[18px]"></div>
-              <div className="w-[100px] bg-[#e4e4e4] border border-l-0 border-[#ccc] h-[18px]"></div>
+      }
+      footer={<><span>{crud.rows.length} template{crud.rows.length === 1 ? '' : 's'}</span><span>Posting Templates</span></>}
+    >
+      <div className="flex flex-1 min-h-0">
+        {/* Template list */}
+        <div className="w-[240px] shrink-0 border-r border-[#d4d0c8] bg-white overflow-auto custom-scrollbar">
+          <ListPlaceholder
+            noCompany={crud.noCompany}
+            isLoading={crud.isLoading}
+            isEmpty={!crud.isLoading && crud.rows.length === 0}
+            emptyText="No posting templates yet. Click New."
+          />
+          {crud.rows.map((t) => (
+            <div
+              key={t.id}
+              onClick={() => crud.select(t)}
+              onDoubleClick={() => can.update && crud.openEdit(t)}
+              className={cn(
+                'px-2 py-1.5 border-b border-[#f0f0f0] cursor-default',
+                selected?.id === t.id ? 'bg-[#ffed99]' : 'hover:bg-blue-50/60',
+              )}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-mono text-[10.5px] font-medium">{t.code}</span>
+                {!t.isActive && <span className="text-[8.5px] px-1 rounded-[1px] bg-gray-100 text-gray-500">INACTIVE</span>}
+              </div>
+              <div className="text-[9.5px] text-gray-600 truncate">{t.description}</div>
+              <div className="text-[9.5px] text-gray-400">{t.lines.length} line{t.lines.length === 1 ? '' : 's'}</div>
             </div>
-            <div className="flex items-center">
-               <span className={`${sapLabelStyle} w-[150px] bg-[#e4e4e4] border border-[#ccc] px-2`}>To Balance:</span>
-               <div className="w-[100px] bg-[#e4e4e4] border border-l-0 border-[#ccc] h-[18px]"></div>
-               <div className="w-[100px] bg-[#e4e4e4] border border-l-0 border-[#ccc] h-[18px]"></div>
+          ))}
+        </div>
+
+        {/* Viewer / editor */}
+        <div className="flex-1 min-w-0 flex flex-col bg-[#f0f0f0]">
+          {!isForm && !selected && (
+            <div className="flex-1 flex items-center justify-center text-[11px] text-gray-400">
+              Select a template, or click New to create one.
             </div>
-          </div>
+          )}
+
+          {!isForm && selected && (
+            <div className="flex-1 overflow-auto p-3">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-[13px] font-bold font-mono">{selected.code}</span>
+                <span className="text-[11px]">{selected.description}</span>
+                <span className={cn('text-[9px] px-1.5 py-0.5 rounded-[1px]', selected.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600')}>
+                  {selected.isActive ? 'ACTIVE' : 'INACTIVE'}
+                </span>
+              </div>
+
+              <table className="w-full border-collapse text-[10.5px] bg-white border border-[#ccc]">
+                <thead>
+                  <tr className="bg-[#e4e4e4] border-b border-[#ccc]">
+                    <th className="text-left p-1 border-r border-[#ccc]">G/L Account</th>
+                    <th className="text-left p-1 border-r border-[#ccc]">Details</th>
+                    <th className="text-right p-1 border-r border-[#ccc] w-[90px]">Debit %</th>
+                    <th className="text-right p-1 w-[90px]">Credit %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.lines.map((l, i) => (
+                    <tr key={l.id ?? i} className={i % 2 ? 'bg-[#fafafa]' : 'bg-white'}>
+                      <td className="p-1 border-r border-[#eee] font-mono">{l.account ? `${l.account.code} ${l.account.name}` : '—'}</td>
+                      <td className="p-1 border-r border-[#eee]">{l.description ?? ''}</td>
+                      <td className="p-1 border-r border-[#eee] text-right font-mono">{l.side === 'debit' ? pct(Number(l.percentage)) : ''}</td>
+                      <td className="p-1 text-right font-mono">{l.side === 'credit' ? pct(Number(l.percentage)) : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div className="flex gap-2 mt-3">
+                {can.update && <YellowBtn onClick={() => crud.openEdit(selected)}>Edit</YellowBtn>}
+                {can.update && (
+                  <GreyBtn onClick={() => toggleActive(selected)} disabled={crud.isBusy}>
+                    {selected.isActive ? 'Deactivate' : 'Activate'}
+                  </GreyBtn>
+                )}
+              </div>
+
+              {/* Try the split before using the template in a journal entry. */}
+              <div className="mt-4 border-t border-[#ccc] pt-2">
+                <div className="text-[11px] font-bold text-[#333] mb-1">Preview split</div>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <span>Amount</span>
+                  <ClassicInput
+                    type="number" step="0.01" min="0"
+                    value={previewAmount}
+                    onChange={(e) => setPreviewAmount(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') runPreview(); }}
+                    className="w-32 text-right font-mono"
+                  />
+                  <ToolBtn onClick={runPreview} disabled={!selected.isActive}>Preview</ToolBtn>
+                  {!selected.isActive && <span className="text-[10px] text-gray-500">Activate the template to use it.</span>}
+                  {previewError && <span className="text-[10px] text-red-700">{previewError}</span>}
+                </div>
+                {preview && (
+                  <table className="w-full border-collapse text-[10.5px] bg-white border border-[#ccc] mt-2">
+                    <thead>
+                      <tr className="bg-[#e4e4e4] border-b border-[#ccc]">
+                        <th className="text-left p-1 border-r border-[#ccc]">G/L Account</th>
+                        <th className="text-right p-1 border-r border-[#ccc] w-[110px]">Debit</th>
+                        <th className="text-right p-1 w-[110px]">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.lines.map((l, i) => (
+                        <tr key={i} className={i % 2 ? 'bg-[#fafafa]' : 'bg-white'}>
+                          <td className="p-1 border-r border-[#eee] font-mono">{l.account ? `${l.account.code} ${l.account.name}` : l.accountId}</td>
+                          <td className="p-1 border-r border-[#eee] text-right font-mono">{Number(l.debit) ? money(Number(l.debit)) : ''}</td>
+                          <td className="p-1 text-right font-mono">{Number(l.credit) ? money(Number(l.credit)) : ''}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-[#f0f0f0] font-bold border-t border-[#ccc]">
+                        <td className="p-1">Totals</td>
+                        <td className="p-1 text-right font-mono">{money(Number(preview.amount))}</td>
+                        <td className="p-1 text-right font-mono">{money(Number(preview.amount))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isForm && (
+            <>
+              <div className="p-2 shrink-0 border-b border-[#ccc] bg-white">
+                <div className="text-[11px] font-bold text-[#333] mb-1">
+                  {crud.mode === 'new' ? 'New Posting Template' : `Edit — ${selected?.code}`}
+                </div>
+                <div className="grid grid-cols-[1fr_2fr] gap-x-4">
+                  <FieldRow label="Template Code" labelWidth="100px" required>
+                    <ClassicInput value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))} className="w-full bg-[#ffed99]" autoFocus />
+                  </FieldRow>
+                  <FieldRow label="Description" labelWidth="80px" required>
+                    <ClassicInput value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="w-full" />
+                  </FieldRow>
+                </div>
+                <FieldRow label="Active" labelWidth="100px">
+                  <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} />
+                </FieldRow>
+              </div>
+
+              <div className="flex-1 overflow-auto bg-white min-h-0">
+                <table className="w-full border-collapse text-[10.5px]">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-[#e4e4e4] border-b border-[#ccc]">
+                      <th className="w-7 p-1 border-r border-[#ccc]">#</th>
+                      <th className="text-left p-1 border-r border-[#ccc] w-[260px]">G/L Account</th>
+                      <th className="text-left p-1 border-r border-[#ccc]">Details</th>
+                      <th className="text-right p-1 border-r border-[#ccc] w-[90px]">Debit %</th>
+                      <th className="text-right p-1 border-r border-[#ccc] w-[90px]">Credit %</th>
+                      <th className="w-7 p-1" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.map((l, i) => (
+                      <tr key={l.key} className={i % 2 ? 'bg-[#fafafa]' : 'bg-white'}>
+                        <td className="text-center text-gray-400 border-r border-[#eee]">{i + 1}</td>
+                        <td className="border-r border-[#eee] p-0.5">
+                          <ClassicSel value={l.accountId} onChange={(e) => setLine(l.key, { accountId: e.target.value })} className="w-full">
+                            <option value="">— select account —</option>
+                            {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
+                          </ClassicSel>
+                        </td>
+                        <td className="border-r border-[#eee] p-0.5">
+                          <ClassicInput value={l.description} onChange={(e) => setLine(l.key, { description: e.target.value })} className="w-full" />
+                        </td>
+                        <td className="border-r border-[#eee] p-0.5">
+                          <ClassicInput
+                            type="number" step="0.0001" min="0" max="100"
+                            value={l.debitPct}
+                            // A line is a debit or a credit; typing one side clears the other.
+                            onChange={(e) => setLine(l.key, { debitPct: e.target.value, creditPct: '' })}
+                            className="w-full text-right font-mono"
+                          />
+                        </td>
+                        <td className="border-r border-[#eee] p-0.5">
+                          <ClassicInput
+                            type="number" step="0.0001" min="0" max="100"
+                            value={l.creditPct}
+                            onChange={(e) => setLine(l.key, { creditPct: e.target.value, debitPct: '' })}
+                            className="w-full text-right font-mono"
+                          />
+                        </td>
+                        <td className="text-center">
+                          <button
+                            onClick={() => setLines((p) => p.filter((x) => x.key !== l.key))}
+                            disabled={lines.length <= 2}
+                            className="text-gray-400 hover:text-red-600 disabled:opacity-30"
+                            title={lines.length <= 2 ? 'A template needs at least a debit and a credit line' : 'Remove line'}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="sticky bottom-0">
+                    <tr className="bg-[#f0f0f0] border-t border-[#ccc] font-bold">
+                      <td colSpan={3} className="p-1 text-right">Totals</td>
+                      <td className={cn('p-1 text-right font-mono', !totals.debitOk && 'text-red-700')}>{pct(totals.debit)}</td>
+                      <td className={cn('p-1 text-right font-mono', !totals.creditOk && 'text-red-700')}>{pct(totals.credit)}</td>
+                      <td />
+                    </tr>
+                    <tr className={cn('border-t', totals.debitOk && totals.creditOk ? 'bg-green-50' : 'bg-red-50')}>
+                      <td colSpan={6} className="p-1 text-center text-[10px]">
+                        {totals.debitOk && totals.creditOk
+                          ? <span className="text-green-800">Debit and credit each total 100%</span>
+                          : <span className="text-red-700">Debit % and credit % must each total 100%</span>}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+                <div className="p-2">
+                  <ToolBtn onClick={() => setLines((p) => [...p, blankLine()])}>
+                    <Plus className="w-3 h-3" /> Add line
+                  </ToolBtn>
+                </div>
+              </div>
+
+              <div className="h-10 px-3 bg-[#f0f0f0] border-t border-[#ccc] flex items-center gap-2 shrink-0">
+                <YellowBtn onClick={handleSave} disabled={crud.isBusy}>
+                  {crud.isBusy ? 'Saving…' : crud.mode === 'new' ? 'Add' : 'Update'}
+                </YellowBtn>
+                <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
+              </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Footer Area */}
-      <div className="h-10 px-3 bg-[#f0f0f0] border-t border-[#ccc] flex items-center gap-2 shrink-0">
-        <button className={sapGoldButtonStyle}>Add</button>
-        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={sapGoldButtonStyle}>Cancel</button>
-      </div>
-    </div>
+    </ClassicWindow>
   );
 };

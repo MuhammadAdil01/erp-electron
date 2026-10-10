@@ -59,7 +59,8 @@ const money = (v: string | number | null | undefined) =>
 const day = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : '');
 /** dd.mm.yyyy, as SAP shows dates. */
 const shown = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '');
-const MAX_AMOUNT = 999_999_999_999_999.99;
+// 999,999,999,999,999.99 (QA FA-D13), as close as a double gets.
+const MAX_AMOUNT = 1e15 - 0.01;
 const twoDecimals = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim());
 
 /** The last day of a life of `months` from `start` (the server's rule, for a draft row). */

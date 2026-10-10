@@ -39,12 +39,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** dd.mm.yyyy, as SAP shows dates. */
 const day = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '');
 const num = (s: string) => (Number.isFinite(Number(s)) ? Number(s) : 0);
-const MAX_AMOUNT = 999_999_999_999_999.99;
+// 999,999,999,999,999.99 (QA FA-D13), as close as a double gets.
+const MAX_AMOUNT = 1e15 - 0.01;
 /** QA FA-D13: a positive amount with at most 2 decimals. */
 const isAmount = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim()) && Number(s) > 0 && Number(s) <= MAX_AMOUNT;
 const money = (v: string | number | null | undefined) =>
   v === null || v === undefined || v === '' ? '' : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+/** What the user has entered, without the row keys: compared to tell whether there is anything to lose. */
+const snapshot = (header: object, lines: DraftLine[]) =>
+  JSON.stringify({ header, lines: lines.map((l) => [l.assetId, l.apBillLineId, l.amount, l.quantity, l.remarks]) });
 const blankLine = (): DraftLine => ({ key: newKey(), assetId: '', apBillLineId: '', amount: '', quantity: '', remarks: '' });
 
 const emptyHeader = {
@@ -134,7 +138,7 @@ export const CapitalizationDocumentWindow: React.FC<CapitalizationWindowProps & 
   });
   const [pristine, setPristine] = useState('');
   const isNewMode = mode === 'new';
-  const dirty = isNewMode && pristine !== '' && JSON.stringify({ header, lines: lines.map(({ key: _k, ...l }) => l) }) !== pristine;
+  const dirty = isNewMode && pristine !== '' && snapshot(header, lines) !== pristine;
   useUnsavedChangesGuard(title, dirty);
   const discardOk = (action: string) => !dirty || window.confirm(`${title} has an unposted document. ${action} will discard it. Continue?`);
 
@@ -150,7 +154,7 @@ export const CapitalizationDocumentWindow: React.FC<CapitalizationWindowProps & 
     setHeader(h);
     setIdempotencyKey(newKey());
     setLines(ls);
-    setPristine(JSON.stringify({ header: h, lines: (firstAssetId ? [blankLine()] : ls).map(({ key: _k, ...l }) => l) }));
+    setPristine(snapshot(h, firstAssetId ? [blankLine()] : ls));
   };
 
   // Defaults for a line once its asset is chosen: the planned purchase cost as
