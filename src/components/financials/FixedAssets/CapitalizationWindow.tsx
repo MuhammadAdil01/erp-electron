@@ -330,7 +330,7 @@ export const CapitalizationWindow: React.FC<CapitalizationProps> = ({
         left: windowState.isMaximized ? 0 : windowState.x,
         top: windowState.isMaximized ? 0 : windowState.y,
         width: windowState.isMaximized ? '100%' : windowState.width,
-        height: windowState.isMaximized ? 'calc(100vh - 40px)' : windowState.height,
+        height: windowState.isMaximized ? '100%' : windowState.height,
         zIndex: windowState.zIndex,
       }}
     >

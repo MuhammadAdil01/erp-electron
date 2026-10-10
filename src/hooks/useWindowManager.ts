@@ -6,6 +6,44 @@ const win = (x: number, y: number, w: number, h: number, z: number): WindowState
   x, y, width: w, height: h, isMinimized: false, isMaximized: false, zIndex: z,
 });
 
+// ─── Full-screen windows ──────────────────────────────────────────────────────
+// Every Financials screen opens maximized to fill the workspace. Small helper
+// dialogs launched from these screens (Data Not Provided, Aging Properties,
+// Blanket Agreements list) are deliberately left out — they stay floating.
+const FULL_SCREEN_WINDOWS: ReadonlySet<WindowType> = new Set<WindowType>([
+  // General Ledger
+  'chartOfAccounts', 'editChartOfAccounts', 'journalEntry', 'postingTemplates',
+  'recurringPostings', 'documentPrintingSelection',
+  // Fixed Assets
+  'assetMasterData', 'capitalization', 'capitalizationCreditMemo', 'retirement',
+  'transfer', 'manualDepreciation', 'depreciationRun', 'assetRevaluation', 'fiscalYearChange',
+  'assetDepreciationForecast', 'assetHistorySheet', 'assetStatusReport', 'assetTransactionReport',
+  // Internal Reconciliations
+  'reconciliation', 'managePreviousReconciliations',
+  // Budget Setup
+  'budgetScenarios', 'budgetDistributionMethods', 'budget', 'pmsSurchargeRate',
+  // Cost Accounting
+  'dimensions', 'costCenters', 'costCenterTable', 'distributionRules', 'costCenterHierarchy',
+  'costCenterReport', 'distributionReport', 'costAccountingSummary', 'budgetVersusCostAccounting',
+  'accrualTypes', 'costAccountingReconciliation', 'costAccountingAdjustment', 'costElements',
+  // Financial Reports — Electronic
+  'electronicReport_RESector', 'electronicReport_RERealEstateType',
+  'electronicReport_CRC_Schedule', 'electronicReport_CRC_General',
+  'electronicReport_Challan', 'electronicReport_MonthWise', 'electronicReport_YearWise',
+  'electronicReport_DHAB', 'electronicReport_FixAsset',
+  'electronicReport_Surcharge', 'electronicReport_Surcharge2',
+  // Financial Reports — Accounting
+  'glAccountsAndBP', 'generalLedger', 'customerReceivablesAging', 'vendorLiabilitiesAging',
+  'transactionJournalReport', 'transactionReportByProjects', 'documentJournal',
+  'taxReport', 'withholdingTaxReport',
+  // Financial Reports — Financial / Comparison / Budget
+  'balanceSheet', 'trialBalance', 'profitAndLossStatement', 'cashFlow',
+  'statementOfCashFlows', 'cashFlowForecast',
+  'balanceSheetComparison', 'trialBalanceComparison', 'profitLossComparison',
+  'budgetReport', 'balanceSheetBudget', 'trialBalanceBudget', 'profitLossBudget',
+  'budgetReportCategorized',
+]);
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useWindowManager() {
   const [zIndex, setZIndex] = useState(10);
@@ -480,13 +518,16 @@ export function useWindowManager() {
 
 
   // ── openWindow ────────────────────────────────────────────────────────────
-  const openWindow = (type: WindowType, title?: string) => {
+  // `focusOnly` is for a click on an already-open window: it raises it without
+  // re-maximizing, so a user who restored a full-screen window keeps that size.
+  const openWindow = (type: WindowType, title?: string, focusOnly = false) => {
     const nextZ = zIndex + 1;
     setZIndex(nextZ);
     if (title) setActiveReportTitle(title);
 
+    const maximize = !focusOnly && FULL_SCREEN_WINDOWS.has(type);
     const bringFront = <T extends WindowState>(setter: React.Dispatch<React.SetStateAction<T>>) =>
-      setter(prev => ({ ...prev, isMinimized: false, zIndex: nextZ }));
+      setter(prev => ({ ...prev, isMinimized: false, zIndex: nextZ, ...(maximize && { isMaximized: true }) }));
 
     switch (type) {
       case 'employee':                   setShowEmployeeMaster(true);              bringFront(setEmployeeWindow); break;
@@ -725,8 +766,11 @@ export function useWindowManager() {
     openWindow('journalEntry');
   };
 
+  const focusWindow = (type: WindowType) => openWindow(type, undefined, true);
+
   return {
     openWindow,
+    focusWindow,
     openJournalEntry,
     journalEntryFocus,
     activeReportTitle,
