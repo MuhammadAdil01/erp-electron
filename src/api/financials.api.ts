@@ -598,3 +598,105 @@ export const financialReportsApi = {
       }[];
     }>('/financials/reports/document-journal', { params }).then((r) => r.data),
 };
+
+// ─── DOCUMENT PRINTING ────────────────────────────────────────────────────────
+// Financials → Document Printing: find posted documents by the Selection
+// Criteria window, load them for printing, and record the Printed / E-Mailed
+// flags once output is confirmed.
+export type PrintDocumentType =
+  | 'journal_entry' | 'ar_invoice' | 'incoming_payment' | 'ap_invoice' | 'outgoing_payment';
+export type PrintPropertyMode = 'ignore' | 'and' | 'or';
+
+export interface DocumentPrintingLookups {
+  companyName: string;
+  documentTypes: { key: PrintDocumentType; label: string; allowed: boolean }[];
+  series: { id: string; name: string; isDefault: boolean }[];
+  customerGroups: { id: string; code: string; name: string }[];
+  vendorGroups: { id: string; code: string; name: string }[];
+  printPreferences: Record<string, unknown>;
+  emailConfigured: boolean;
+}
+
+export interface DocumentPrintingCriteria {
+  documentType: PrintDocumentType;
+  postingDateFrom?: string;
+  postingDateTo?: string;
+  seriesId?: string;
+  accountFrom?: string;
+  accountTo?: string;
+  bpCodeFrom?: string;
+  bpCodeTo?: string;
+  customerGroupId?: string;
+  vendorGroupId?: string;
+  properties?: number[];
+  propertiesMode?: PrintPropertyMode;
+  onlyNotPrinted?: boolean;
+  onlyNotEmailed?: boolean;
+  internalNumberFrom?: number;
+  internalNumberTo?: number;
+}
+
+export interface PrintListRow {
+  id: string;
+  number: string;
+  internalNumber: number | null;
+  postingDate: string;
+  bpCode: string | null;
+  bpName: string | null;
+  total: string;
+  currency: string;
+  status: string;
+  isCancelled: boolean;
+  printed: boolean;
+  printCount: number;
+  lastPrintedAt: string | null;
+  emailed: boolean;
+  emailCount: number;
+  lastEmailedAt: string | null;
+}
+
+export interface PrintableDocument {
+  id: string;
+  documentType: PrintDocumentType;
+  title: string;
+  number: string;
+  postingDate: string;
+  dueDate: string | null;
+  reference: string | null;
+  remarks: string | null;
+  currency: string;
+  status: string;
+  isDraft: boolean;
+  isCancelled: boolean;
+  printCount: number;
+  partner: {
+    code: string; name: string; email: string | null; phone: string | null;
+    taxId: string | null; address: string | null;
+  } | null;
+  columns: string[];
+  lines: string[][];
+  totals: { label: string; value: string }[];
+}
+
+export interface EmailDocumentsResult {
+  sent: number;
+  failed: number;
+  results: { id: string; number: string | null; ok: boolean; to?: string; error?: string }[];
+}
+
+export const documentPrintingApi = {
+  lookups: () =>
+    api.get<DocumentPrintingLookups>('/financials/document-printing/lookups').then((r) => r.data),
+  search: (criteria: DocumentPrintingCriteria) =>
+    api.post<{ rows: PrintListRow[]; truncated: boolean }>('/financials/document-printing/search', criteria)
+      .then((r) => r.data),
+  documents: (documentType: PrintDocumentType, ids: string[]) =>
+    api.post<PrintableDocument[]>('/financials/document-printing/documents', { documentType, ids })
+      .then((r) => r.data),
+  mark: (documentType: PrintDocumentType, ids: string[], output: 'print' | 'email') =>
+    api.post<{ marked: number }>('/financials/document-printing/mark', { documentType, ids, output })
+      .then((r) => r.data),
+  email: (documentType: PrintDocumentType, documents: { id: string; html: string }[]) =>
+    api.post<EmailDocumentsResult>('/financials/document-printing/email', { documentType, documents })
+      .then((r) => r.data),
+};
