@@ -1,315 +1,495 @@
-import React from 'react';
-import { X, Minus, Square, ChevronDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Printer } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../../../context/AuthContext';
+import {
+  documentPrintingApi,
+  type DocumentPrintingCriteria,
+  type PrintDocumentType,
+  type PrintListRow,
+  type PrintPropertyMode,
+} from '../../../api/financials.api';
+import { ClassicWindow, ListPlaceholder, StatusNote, type WindowState } from '../../ui/ClassicWindow';
+import { ClassicInput, ClassicSel, GreyBtn, YellowBtn, cn } from '../../ui/ClassicERPUI';
+import { DocumentPrintingResultsWindow } from './DocumentPrintingResultsWindow';
 
 interface DocumentPrintingSelectionWindowProps {
   onClose: () => void;
   onFocus: () => void;
-  windowState: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    isMinimized: boolean;
-    isMaximized: boolean;
-    zIndex: number;
-  };
-  onUpdateState: (state: Partial<DocumentPrintingSelectionWindowProps['windowState']>) => void;
+  windowState: WindowState;
+  onUpdateState: (state: Partial<WindowState>) => void;
 }
 
+/**
+ * SAP's Document Type list. Only the types the backend keeps documents for
+ * carry a `key`; the rest are shown, disabled, so the list reads like SAP's.
+ */
+const TYPE_OPTIONS: { group: string; items: { label: string; key?: PrintDocumentType }[] }[] = [
+  {
+    group: 'Sales',
+    items: [
+      { label: 'Sales Quotations' }, { label: 'Sales Orders' }, { label: 'Deliveries' },
+      { label: 'Return Request' }, { label: 'Returns' }, { label: 'A/R Down Payment' },
+      { label: 'A/R Invoices', key: 'ar_invoice' }, { label: 'A/R Credit Memos' },
+    ],
+  },
+  {
+    group: 'Purchase',
+    items: [
+      { label: 'Purchase Request' }, { label: 'Purchase Quotation' }, { label: 'Purchase Orders' },
+      { label: 'Goods Receipt PO' }, { label: 'Goods Return Request' }, { label: 'Goods Return' },
+      { label: 'A/P Down Payment' }, { label: 'A/P Invoices', key: 'ap_invoice' }, { label: 'A/P Credit Memos' },
+    ],
+  },
+  {
+    group: 'Banking',
+    items: [
+      { label: 'Incoming Payments', key: 'incoming_payment' }, { label: 'Deposits' },
+      { label: 'Outgoing Payments', key: 'outgoing_payment' }, { label: 'Checks for Payment' },
+      { label: 'Journal Entries', key: 'journal_entry' },
+    ],
+  },
+];
+
+const TYPE_LABEL: Record<PrintDocumentType, string> = {
+  journal_entry: 'Journal Entries',
+  ar_invoice: 'A/R Invoices',
+  incoming_payment: 'Incoming Payments',
+  ap_invoice: 'A/P Invoices',
+  outgoing_payment: 'Outgoing Payments',
+};
+
+/** Which partners a type carries — decides which group filter applies. */
+const SIDE: Record<PrintDocumentType, 'customer' | 'vendor' | 'any'> = {
+  journal_entry: 'any',
+  ar_invoice: 'customer',
+  incoming_payment: 'customer',
+  ap_invoice: 'vendor',
+  outgoing_payment: 'vendor',
+};
+
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const initialForm = () => {
+  const now = new Date();
+  return {
+    documentType: 'outgoing_payment' as PrintDocumentType,
+    postingDateFrom: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
+    postingDateTo: iso(now),
+    seriesId: '',
+    accountFrom: '', accountTo: '',
+    bpCodeFrom: '', bpCodeTo: '',
+    customerGroupId: '', vendorGroupId: '',
+    properties: [] as number[],
+    propertiesMode: 'ignore' as PrintPropertyMode,
+    onlyNotPrinted: false,
+    onlyNotEmailed: false,
+    useLayoutSettings: true,
+    internalNumberFrom: '', internalNumberTo: '',
+    copies: '1',
+  };
+};
+type Form = ReturnType<typeof initialForm>;
+
+const errText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
+
+interface ResultsState {
+  key: number;
+  criteria: DocumentPrintingCriteria;
+  rows: PrintListRow[];
+  truncated: boolean;
+  copies: number;
+  useLayoutSettings: boolean;
+}
+
+/**
+ * Financials → Document Printing — Selection Criteria.
+ *
+ * Picks the posted documents of one type to print. OK finds them and opens
+ * the Document Printing list, where they are previewed, printed or e-mailed.
+ * Fields that do not apply to the chosen type are disabled rather than
+ * silently ignored.
+ */
 export const DocumentPrintingSelectionWindow: React.FC<DocumentPrintingSelectionWindowProps> = ({
   onClose,
   onFocus,
   windowState,
   onUpdateState,
 }) => {
-  const isMaximized = windowState.isMaximized;
+  const { activeCompanyId } = useAuth();
+  const noCompany = !activeCompanyId;
+  const [form, setForm] = useState<Form>(initialForm);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [showProps, setShowProps] = useState(false);
+  const [results, setResults] = useState<ResultsState | null>(null);
+  const [resultsState, setResultsState] = useState<WindowState>(() => ({
+    x: windowState.x + 60, y: windowState.y + 30, width: 860, height: 480,
+    isMinimized: false, isMaximized: false, zIndex: windowState.zIndex + 1,
+  }));
 
-  const sapLabelStyle = "text-[11px] text-[#333333] font-normal whitespace-nowrap";
-  const sapInputStyle = "text-[11.5px] border border-gray-400 px-1 py-0.5 bg-white focus:border-blue-500 focus:outline-none rounded-[1px]";
-  const sapCheckboxStyle = "w-4 h-4 border-gray-400 rounded-[1px] accent-blue-600 cursor-pointer";
-  const sapGoldButtonStyle = "px-6 py-0.5 text-[11px] font-medium border border-gray-600 rounded-[1px] shadow-sm hover:brightness-95 transition-all bg-gradient-to-b from-[#fff6d5] via-[#ffec99] to-[#ffd700]/60";
+  const lookupsQ = useQuery({
+    queryKey: ['document-printing-lookups', activeCompanyId],
+    queryFn: documentPrintingApi.lookups,
+    enabled: !noCompany,
+  });
+  const lookups = lookupsQ.data;
+  const allowed = useMemo(
+    () => new Set((lookups?.documentTypes ?? []).filter((t) => t.allowed).map((t) => t.key)),
+    [lookups],
+  );
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFocus();
-    if (isMaximized) return;
-
-    const startX = e.clientX - windowState.x;
-    const startY = e.clientY - windowState.y;
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      onUpdateState({
-        x: moveEvent.clientX - startX,
-        y: moveEvent.clientY - startY,
-      });
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => {
+    setError('');
+    setForm((f) => ({ ...f, [k]: v }));
   };
 
-  const handleResize = (direction: string) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onFocus();
-    
-    const startWidth = windowState.width;
-    const startHeight = windowState.height;
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startXPos = windowState.x;
-    const startYPos = windowState.y;
+  const side = SIDE[form.documentType];
+  const isJournal = form.documentType === 'journal_entry';
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
-      const deltaY = moveEvent.clientY - startY;
+  // Series and groups belong to particular types; clear them when they stop applying.
+  useEffect(() => {
+    setForm((f) => ({
+      ...f,
+      seriesId: f.documentType === 'journal_entry' ? f.seriesId : '',
+      customerGroupId: SIDE[f.documentType] === 'vendor' ? '' : f.customerGroupId,
+      vendorGroupId: SIDE[f.documentType] === 'customer' ? '' : f.vendorGroupId,
+    }));
+  }, [form.documentType]);
 
-      let newX = windowState.x;
-      let newY = windowState.y;
-      let newWidth = windowState.width;
-      let newHeight = windowState.height;
-
-      if (direction.includes('e')) newWidth = Math.max(550, startWidth + deltaX);
-      if (direction.includes('s')) newHeight = Math.max(450, startHeight + deltaY);
-      
-      if (direction.includes('w')) {
-        newWidth = Math.max(550, startWidth - deltaX);
-        if (newWidth > 550) newX = startXPos + deltaX;
-      }
-      
-      if (direction.includes('n')) {
-        newHeight = Math.max(450, startHeight - deltaY);
-        if (newHeight > 450) newY = startYPos + deltaY;
-      }
-
-      onUpdateState({ x: newX, y: newY, width: newWidth, height: newHeight });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+  const validate = (): string | null => {
+    if (!allowed.has(form.documentType)) return `You are not allowed to print ${TYPE_LABEL[form.documentType]}`;
+    const pairs: [string, string, string][] = [
+      ['Posting Date', form.postingDateFrom, form.postingDateTo],
+      ['Account', form.accountFrom.trim(), form.accountTo.trim()],
+      ['BP Code', form.bpCodeFrom.trim(), form.bpCodeTo.trim()],
+    ];
+    for (const [label, from, to] of pairs) {
+      if (from && to && from > to) return `${label} "From" must not be after "To"`;
+    }
+    for (const v of [form.internalNumberFrom, form.internalNumberTo]) {
+      if (v.trim() && !/^\d+$/.test(v.trim())) return 'Internal Number must be a whole number';
+    }
+    if (
+      form.internalNumberFrom.trim() && form.internalNumberTo.trim() &&
+      Number(form.internalNumberFrom) > Number(form.internalNumberTo)
+    ) return 'Internal Number "From" must not be after "To"';
+    const copies = Number(form.copies);
+    if (!Number.isInteger(copies) || copies < 1 || copies > 99) return 'No. of Copies must be between 1 and 99';
+    if (form.propertiesMode !== 'ignore' && form.properties.length === 0) {
+      return 'Choose at least one property, or set Properties to Ignore';
+    }
+    return null;
   };
+
+  const criteria = (): DocumentPrintingCriteria => {
+    const opt = (s: string) => s.trim() || undefined;
+    const num = (s: string) => (s.trim() ? Number(s) : undefined);
+    return {
+      documentType: form.documentType,
+      postingDateFrom: opt(form.postingDateFrom),
+      postingDateTo: opt(form.postingDateTo),
+      seriesId: isJournal ? opt(form.seriesId) : undefined,
+      accountFrom: opt(form.accountFrom),
+      accountTo: opt(form.accountTo),
+      bpCodeFrom: opt(form.bpCodeFrom),
+      bpCodeTo: opt(form.bpCodeTo),
+      customerGroupId: side !== 'vendor' ? opt(form.customerGroupId) : undefined,
+      vendorGroupId: side !== 'customer' ? opt(form.vendorGroupId) : undefined,
+      properties: form.propertiesMode !== 'ignore' ? form.properties : undefined,
+      propertiesMode: form.propertiesMode !== 'ignore' ? form.propertiesMode : undefined,
+      onlyNotPrinted: form.onlyNotPrinted || undefined,
+      onlyNotEmailed: form.onlyNotEmailed || undefined,
+      internalNumberFrom: num(form.internalNumberFrom),
+      internalNumberTo: num(form.internalNumberTo),
+    };
+  };
+
+  const onOk = async () => {
+    const problem = validate();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const c = criteria();
+      const res = await documentPrintingApi.search(c);
+      if (res.rows.length === 0) {
+        setError('No matching records found');
+        return;
+      }
+      setResults((prev) => ({
+        key: (prev?.key ?? 0) + 1,
+        criteria: c,
+        rows: res.rows,
+        truncated: res.truncated,
+        copies: Number(form.copies),
+        useLayoutSettings: form.useLayoutSettings,
+      }));
+      setResultsState((s) => ({ ...s, isMinimized: false, zIndex: windowState.zIndex + 1 }));
+    } catch (e) {
+      setError(errText(e, 'Could not find documents'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const label = 'text-[10.5px] text-[#333] whitespace-nowrap';
+  const row = 'grid grid-cols-[130px_1fr] items-center gap-x-3 mb-1';
+  const range = (from: keyof Form, to: keyof Form, opts: { type?: string; disabled?: boolean; width?: string } = {}) => (
+    <div className="flex items-center gap-2">
+      <ClassicInput
+        type={opts.type ?? 'text'}
+        className={cn(opts.width ?? 'w-32', 'disabled:bg-[#f4f4f4]')}
+        disabled={opts.disabled}
+        value={form[from] as string}
+        onChange={(e) => set(from, e.target.value as never)}
+      />
+      <span className={label}>To</span>
+      <ClassicInput
+        type={opts.type ?? 'text'}
+        className={cn(opts.width ?? 'w-32', 'disabled:bg-[#f4f4f4]')}
+        disabled={opts.disabled}
+        value={form[to] as string}
+        onChange={(e) => set(to, e.target.value as never)}
+      />
+    </div>
+  );
+  const check = (k: 'onlyNotPrinted' | 'onlyNotEmailed' | 'useLayoutSettings', text: string) => (
+    <label className="flex items-center gap-2 cursor-pointer mb-1">
+      <input type="checkbox" className="w-3.5 h-3.5 accent-orange-500" checked={form[k]} onChange={(e) => set(k, e.target.checked)} />
+      <span className={label}>{text}</span>
+    </label>
+  );
 
   return (
-    <div
-      onClick={onFocus}
-      style={{
-        position: 'absolute',
-        left: isMaximized ? 0 : windowState.x,
-        top: isMaximized ? 0 : windowState.y,
-        width: isMaximized ? '100%' : windowState.width,
-        height: isMaximized ? '100%' : windowState.height,
-        zIndex: windowState.zIndex,
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#f0f0f0',
-        border: '1px solid #999',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-        userSelect: 'none',
-      }}
-      className="document-printing-selection-window"
-    >
-      {/* Resize Handles */}
-      {!isMaximized && (
-        <>
-          <div onMouseDown={handleResize('n')} className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('s')} className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize z-[60]" />
-          <div onMouseDown={handleResize('e')} className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('w')} className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize z-[60]" />
-          <div onMouseDown={handleResize('se')} className="absolute bottom-0 right-0 w-2 h-2 cursor-nwse-resize z-[70]" />
-        </>
-      )}
-
-      {/* Title Bar */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="h-7 bg-gradient-to-b from-[#fdfdfd] to-[#dcdcdc] flex items-center justify-between px-2 cursor-default border-b border-[#999]"
+    <>
+      <ClassicWindow
+        title="Document Printing - Selection Criteria"
+        icon={<Printer className="w-3.5 h-3.5 text-gray-600" />}
+        windowState={windowState}
+        onUpdateState={onUpdateState}
+        onFocus={onFocus}
+        onClose={onClose}
+        minWidth={560}
+        minHeight={470}
+        footer={
+          <>
+            <span className="flex items-center">
+              <StatusNote error={error || (lookupsQ.error ? errText(lookupsQ.error, 'Could not load lookups') : '')} />
+            </span>
+            <span />
+          </>
+        }
       >
-        <div className="flex items-center gap-2">
-          <span className="text-[12px] font-normal text-[#444]">Document Printing - Selection Criteria</span>
+        {noCompany ? (
+          <ListPlaceholder noCompany />
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 relative">
+            {/* Document type, dates, series */}
+            <div className={row}>
+              <span className={label}>Document Type</span>
+              <ClassicSel
+                className="w-full"
+                value={form.documentType}
+                onChange={(e) => set('documentType', e.target.value as PrintDocumentType)}
+              >
+                {TYPE_OPTIONS.map((g) => (
+                  <optgroup key={g.group} label={g.group}>
+                    {g.items.map((it) => (
+                      <option
+                        key={it.label}
+                        value={it.key ?? `unavailable:${it.label}`}
+                        disabled={!it.key || (lookups ? !allowed.has(it.key) : false)}
+                      >
+                        {it.label}
+                        {!it.key ? ' (not available yet)' : lookups && !allowed.has(it.key) ? ' (no permission)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </ClassicSel>
+            </div>
+            <div className={row}>
+              <span className={label}>Posting Date From</span>
+              {range('postingDateFrom', 'postingDateTo', { type: 'date', width: 'w-32' })}
+            </div>
+            <div className={row}>
+              <span className={label}>Series</span>
+              <ClassicSel
+                className="w-full disabled:bg-[#f4f4f4]"
+                disabled={!isJournal}
+                value={form.seriesId}
+                onChange={(e) => set('seriesId', e.target.value)}
+                title={isJournal ? '' : 'Series can only be chosen for journal entries'}
+              >
+                <option value="">All</option>
+                {isJournal && lookups?.series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </ClassicSel>
+            </div>
+
+            {/* Account, partner, groups, properties */}
+            <div className="pt-3">
+              <div className={row}>
+                <span className={label}>Account From</span>
+                {range('accountFrom', 'accountTo')}
+              </div>
+              <div className={row}>
+                <span className={label}>BP Code From</span>
+                {range('bpCodeFrom', 'bpCodeTo')}
+              </div>
+              <div className={row}>
+                <span className={label}>Customer Group</span>
+                <ClassicSel
+                  className="w-full disabled:bg-[#f4f4f4]"
+                  disabled={side === 'vendor'}
+                  value={form.customerGroupId}
+                  onChange={(e) => set('customerGroupId', e.target.value)}
+                >
+                  <option value="">All</option>
+                  {lookups?.customerGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </ClassicSel>
+              </div>
+              <div className={row}>
+                <span className={label}>Vendor Group</span>
+                <ClassicSel
+                  className="w-full disabled:bg-[#f4f4f4]"
+                  disabled={side === 'customer'}
+                  value={form.vendorGroupId}
+                  onChange={(e) => set('vendorGroupId', e.target.value)}
+                >
+                  <option value="">All</option>
+                  {lookups?.vendorGroups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </ClassicSel>
+              </div>
+              <div className={row}>
+                <YellowBtn className="py-0.5" onClick={() => setShowProps(true)}>
+                  Properties{form.properties.length ? ` (${form.properties.length})` : ''}
+                </YellowBtn>
+                <ClassicSel
+                  className="w-full"
+                  value={form.propertiesMode}
+                  onChange={(e) => set('propertiesMode', e.target.value as PrintPropertyMode)}
+                >
+                  <option value="ignore">Ignore</option>
+                  <option value="and">And</option>
+                  <option value="or">Or</option>
+                </ClassicSel>
+              </div>
+            </div>
+
+            {/* Status and printer options */}
+            <div className="pt-2">
+              {check('onlyNotPrinted', 'Only Documents Still to Be Printed')}
+              {check('onlyNotEmailed', 'Only Documents Still to Be E-Mailed')}
+              <div className="h-2" />
+              {check('useLayoutSettings', 'Obtain printer settings from default printing layout')}
+            </div>
+
+            {/* Number range and copies */}
+            <div className="pt-3">
+              <div className={row}>
+                <span className={label}>Internal Number From</span>
+                {range('internalNumberFrom', 'internalNumberTo')}
+              </div>
+              <div className={row}>
+                <span className={label}>No. of Copies</span>
+                <ClassicInput
+                  type="number"
+                  min={1}
+                  max={99}
+                  className="w-32"
+                  value={form.copies}
+                  onChange={(e) => set('copies', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {showProps && (
+              <PropertiesDialog
+                selected={form.properties}
+                onCancel={() => setShowProps(false)}
+                onOk={(props) => {
+                  setShowProps(false);
+                  setForm((f) => ({
+                    ...f,
+                    properties: props,
+                    // Picking properties with the filter still on Ignore would do nothing.
+                    propertiesMode: props.length && f.propertiesMode === 'ignore' ? 'and' : props.length ? f.propertiesMode : 'ignore',
+                  }));
+                  setError('');
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        <div className="h-10 px-4 bg-[#f0f0f0] border-t border-[#ccc] flex items-center gap-2 shrink-0">
+          <YellowBtn onClick={() => void onOk()} disabled={busy || noCompany || lookupsQ.isLoading} className="disabled:opacity-50 min-w-[70px]">
+            {busy ? 'Searching…' : 'OK'}
+          </YellowBtn>
+          <GreyBtn onClick={onClose} className="min-w-[70px]">Cancel</GreyBtn>
         </div>
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpdateState({ isMinimized: true }); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-gray-300 transition-colors"
-          >
-            <Minus className="w-3.5 h-3.5 text-[#555]" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onUpdateState({ isMaximized: !isMaximized }); }}
-            className="w-6 h-5 flex items-center justify-center hover:bg-gray-300 transition-colors"
-          >
-            <Square className="w-3 h-3 text-[#555]" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="w-10 h-5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+      </ClassicWindow>
+
+      {results && lookups && (
+        <DocumentPrintingResultsWindow
+          key={results.key}
+          criteria={results.criteria}
+          typeLabel={TYPE_LABEL[results.criteria.documentType]}
+          initialRows={results.rows}
+          truncated={results.truncated}
+          lookups={lookups}
+          copies={results.copies}
+          useLayoutSettings={results.useLayoutSettings}
+          windowState={resultsState}
+          onUpdateState={(p) => setResultsState((s) => ({ ...s, ...p }))}
+          onFocus={() => setResultsState((s) => ({ ...s, zIndex: windowState.zIndex + 1 }))}
+          onClose={() => setResults(null)}
+        />
+      )}
+    </>
+  );
+};
+
+/** SAP's 64 business partner properties, ticked to filter by. */
+const PropertiesDialog: React.FC<{
+  selected: number[];
+  onOk: (props: number[]) => void;
+  onCancel: () => void;
+}> = ({ selected, onOk, onCancel }) => {
+  const [picked, setPicked] = useState<Set<number>>(() => new Set(selected));
+  const toggle = (n: number) =>
+    setPicked((p) => {
+      const next = new Set(p);
+      if (next.has(n)) next.delete(n);
+      else next.add(n);
+      return next;
+    });
+
+  return (
+    <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-[80]">
+      <div className="bg-[#ececec] border border-[#404040]/60 shadow-lg w-[420px]">
+        <div className="h-[22px] bg-gradient-to-b from-[#fefefe] to-[#d1d1d1] border-b border-gray-400 px-2 flex items-center text-[11px] font-medium">
+          Properties
         </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 p-4 overflow-y-auto space-y-4">
-        {/* Top Section */}
-        <div className="space-y-1">
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Document Type</span>
-            <div className="flex items-center border border-gray-400 rounded-[1px] bg-white pr-1">
-              <select className="flex-1 text-[11.5px] px-1 py-0.5 appearance-none focus:outline-none bg-white">
-                <option>Outgoing Payments</option>
-                <optgroup label="Sales">
-                  <option>Sales Quotations</option>
-                  <option>Sales Orders</option>
-                  <option>Deliveries</option>
-                  <option>Return Request</option>
-                  <option>Returns</option>
-                  <option>A/R Down Payment</option>
-                  <option>A/R Invoices</option>
-                  <option>A/R Credit Memos</option>
-                </optgroup>
-                <optgroup label="Purchase">
-                  <option>Purchase Request</option>
-                  <option>Purchase Quotation</option>
-                  <option>Purchase Orders</option>
-                  <option>Goods Receipt PO</option>
-                  <option>Goods Return Request</option>
-                  <option>Goods Return</option>
-                  <option>A/P Down Payment</option>
-                  <option>A/P Invoices</option>
-                  <option>A/P Credit Memos</option>
-                </optgroup>
-                <optgroup label="Banking">
-                  <option>Incoming Payments</option>
-                  <option>Deposits</option>
-                  <option>Outgoing Payments</option>
-                  <option>Checks for Payment</option>
-                  <option>Journal Entries</option>
-                </optgroup>
-              </select>
-              <ChevronDown className="w-3 h-3 text-gray-500" />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Posting Date From</span>
-            <div className="flex items-center gap-2">
-              <input type="text" className={`${sapInputStyle} w-24`} defaultValue="01.09.25" />
-              <span className={sapLabelStyle}>To</span>
-              <input type="text" className={`${sapInputStyle} w-24`} defaultValue="25.09.25" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Series</span>
-            <div className="flex items-center border border-gray-400 rounded-[1px] bg-white pr-1">
-              <select className="flex-1 text-[11.5px] px-1 py-0.5 appearance-none focus:outline-none bg-white">
-                <option>All</option>
-              </select>
-              <ChevronDown className="w-3 h-3 text-gray-500" />
-            </div>
-          </div>
+        <div className="p-3 grid grid-cols-4 gap-x-3 gap-y-0.5 max-h-[280px] overflow-y-auto bg-white m-2 border border-[#d4d0c8]">
+          {Array.from({ length: 64 }, (_, i) => i + 1).map((n) => (
+            <label key={n} className="flex items-center gap-1.5 text-[10.5px] cursor-pointer">
+              <input type="checkbox" className="w-3 h-3 accent-orange-500" checked={picked.has(n)} onChange={() => toggle(n)} />
+              Property {n}
+            </label>
+          ))}
         </div>
-
-        {/* Middle Section */}
-        <div className="space-y-1 pt-4">
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Account From</span>
-            <div className="flex items-center gap-2">
-              <input type="text" className={`${sapInputStyle} w-32`} />
-              <span className={sapLabelStyle}>To</span>
-              <input type="text" className={`${sapInputStyle} w-32`} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>BP Code From</span>
-            <div className="flex items-center gap-2">
-               <input type="text" className={`${sapInputStyle} w-32`} />
-               <span className={sapLabelStyle}>To</span>
-               <input type="text" className={`${sapInputStyle} w-32`} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Customer Group</span>
-            <div className="flex items-center border border-gray-400 rounded-[1px] bg-white pr-1">
-              <select className="flex-1 text-[11.5px] px-1 py-0.5 appearance-none focus:outline-none bg-white">
-                <option>All</option>
-              </select>
-              <ChevronDown className="w-3 h-3 text-gray-500" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Vendor Group</span>
-            <div className="flex items-center border border-gray-400 rounded-[1px] bg-white pr-1">
-              <select className="flex-1 text-[11.5px] px-1 py-0.5 appearance-none focus:outline-none bg-white">
-                <option>All</option>
-              </select>
-              <ChevronDown className="w-3 h-3 text-gray-500" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4 pt-1">
-            <button className={sapGoldButtonStyle}>Properties</button>
-            <div className="flex items-center border border-gray-400 rounded-[1px] bg-white pr-1">
-              <select className="flex-1 text-[11.5px] px-1 py-0.5 appearance-none focus:outline-none bg-white">
-                <option>Ignore</option>
-              </select>
-              <ChevronDown className="w-3 h-3 text-gray-500" />
-            </div>
-          </div>
+        <div className="flex gap-2 px-3 pb-3">
+          <YellowBtn onClick={() => onOk([...picked].sort((a, b) => a - b))}>OK</YellowBtn>
+          <GreyBtn onClick={onCancel}>Cancel</GreyBtn>
+          <div className="flex-1" />
+          <GreyBtn onClick={() => setPicked(new Set())}>Clear All</GreyBtn>
         </div>
-
-        {/* Checkboxes Section */}
-        <div className="space-y-1 pt-2">
-           <label className="flex items-center gap-2 cursor-pointer group">
-              <input type="checkbox" className={sapCheckboxStyle} />
-              <span className={sapLabelStyle}>Only Documents Still to Be Printed</span>
-           </label>
-           <label className="flex items-center gap-2 cursor-pointer group">
-              <input type="checkbox" className={sapCheckboxStyle} />
-              <span className={sapLabelStyle}>Only Documents Still to Be E-Mailed</span>
-           </label>
-           <div className="h-2" />
-           <label className="flex items-center gap-2 cursor-pointer group">
-              <input type="checkbox" className={sapCheckboxStyle} />
-              <span className={sapLabelStyle}>Obtain printer settings from default printing layout</span>
-           </label>
-        </div>
-
-        {/* Bottom Section */}
-        <div className="space-y-1 pt-4">
-           <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>Internal Number From</span>
-            <div className="flex items-center gap-2">
-               <input type="text" className={`${sapInputStyle} w-32`} />
-               <span className={sapLabelStyle}>To</span>
-               <input type="text" className={`${sapInputStyle} w-32`} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-[130px_1fr] items-center gap-x-4">
-            <span className={sapLabelStyle}>No. of Copies</span>
-            <input type="text" className={`${sapInputStyle} w-32`} defaultValue="1" />
-          </div>
-        </div>
-      </div>
-
-      {/* Footer Area */}
-      <div className="h-10 px-4 bg-[#f0f0f0] border-t border-[#ccc] flex items-center gap-2 shrink-0">
-        <button className={sapGoldButtonStyle}>OK</button>
-        <button onClick={(e) => { e.stopPropagation(); onClose(); }} className={sapGoldButtonStyle}>Cancel</button>
       </div>
     </div>
   );
