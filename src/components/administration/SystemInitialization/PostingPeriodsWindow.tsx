@@ -41,7 +41,9 @@ const STATUS_STYLE: Record<PeriodStatus, string> = {
   LOCKED: 'bg-red-100 text-red-800',
 };
 
-const d = (v?: string | null) => (v ? new Date(v).toLocaleDateString() : '—');
+import { formatAppDate } from '../../../utils/dateFormatter';
+
+const d = (v?: string | null) => formatAppDate(v);
 
 /** Date inputs need `yyyy-mm-dd`; the API returns full ISO timestamps. */
 const isoDay = (v?: string | null) => (v ? String(v).slice(0, 10) : '');

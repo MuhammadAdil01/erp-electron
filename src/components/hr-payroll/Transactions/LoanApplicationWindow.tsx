@@ -27,6 +27,8 @@ interface Props {
   onFocus?: () => void;
 }
 
+import { formatAppDate } from '../../../utils/dateFormatter';
+
 const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -261,7 +263,7 @@ export const LoanApplicationWindow: React.FC<Props> = ({
                         <td className="border-r border-gray-200 px-1 text-[10.5px]">{i + 1}</td>
                         <td className="border-r border-gray-200 px-1 text-[10.5px]">{s.month ?? '—'}</td>
                         <td className="border-r border-gray-200 px-1 text-[10.5px]">{s.year ?? '—'}</td>
-                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{toDateInput(s.dueDate) || '—'}</td>
+                        <td className="border-r border-gray-200 px-1 text-[10.5px]">{formatAppDate(s.dueDate)}</td>
                         <td className="border-r border-gray-200 px-1 text-[10.5px]">{Number(s.amount).toFixed(2)}</td>
                         <td className="px-1 text-[10.5px]">{s.status ?? '—'}</td>
                       </tr>
@@ -298,9 +300,9 @@ export const LoanApplicationWindow: React.FC<Props> = ({
               <FieldRow label="Loan Type">{crud.selected.loanType?.description ?? '—'}</FieldRow>
               <FieldRow label="Loan Amount">{Number(crud.selected.loanAmount).toFixed(2)}</FieldRow>
               <FieldRow label="Sanctioned">{crud.selected.sanctionedAmount != null ? Number(crud.selected.sanctionedAmount).toFixed(2) : '—'}</FieldRow>
-              <FieldRow label="Doc Date">{toDateInput(crud.selected.documentDate)}</FieldRow>
+              <FieldRow label="Doc Date">{formatAppDate(crud.selected.documentDate)}</FieldRow>
               <FieldRow label="Status">{crud.selected.status ?? '—'}</FieldRow>
-              <FieldRow label="Effective Date">{toDateInput(crud.selected.effectiveDate) || '—'}</FieldRow>
+              <FieldRow label="Effective Date">{formatAppDate(crud.selected.effectiveDate)}</FieldRow>
               <FieldRow label="No. Of Installments">{crud.selected.noOfInstallments ?? '—'}</FieldRow>
               <FieldRow label="Amount / Month">{crud.selected.amountPerMonth != null ? Number(crud.selected.amountPerMonth).toFixed(2) : '—'}</FieldRow>
               <FieldRow label="Approved">{crud.selected.approved ? 'Yes' : 'No'}</FieldRow>

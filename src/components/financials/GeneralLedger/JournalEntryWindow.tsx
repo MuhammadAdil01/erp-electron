@@ -17,7 +17,8 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { cn, ClassicInput, ClassicSel } from '../../ui/ClassicERPUI';
+import { cn, ClassicInput, ClassicDateInput, ClassicSel } from '../../ui/ClassicERPUI';
+import { formatAppDate } from '../../../utils/dateFormatter';
 
 interface Props {
   show?: boolean;
@@ -358,7 +359,7 @@ export const JournalEntryWindow: React.FC<Props> = ({
                 </span>
               </div>
               <div className="text-[9.5px] text-gray-500">
-                {new Date(e.date).toLocaleDateString()} · {money(Number(e.totalDebit))}
+                {formatAppDate(e.date)} · {money(Number(e.totalDebit))}
               </div>
               {e.description && (
                 <div className="text-[9.5px] text-gray-600 truncate">{e.description}</div>
@@ -395,7 +396,7 @@ export const JournalEntryWindow: React.FC<Props> = ({
               </div>
 
               <div className="grid grid-cols-4 gap-x-4 gap-y-1 text-[10.5px] mb-3">
-                <div><span className="text-gray-500">Posting Date</span><div>{new Date(selected.date).toLocaleDateString()}</div></div>
+                <div><span className="text-gray-500">Posting Date</span><div>{formatAppDate(selected.date)}</div></div>
                 <div><span className="text-gray-500">Period</span><div>{selected.period?.name ?? '—'}</div></div>
                 <div><span className="text-gray-500">Currency</span><div>{selected.currency}</div></div>
                 <div><span className="text-gray-500">Source</span><div>{selected.source ?? 'manual'}</div></div>
@@ -445,29 +446,29 @@ export const JournalEntryWindow: React.FC<Props> = ({
                 <div className="flex items-center gap-3 flex-wrap text-[11px]">
                   <label className="flex items-center gap-1">
                     <span className="text-[#333]">Posting Date</span>
-                    <ClassicInput
-                      type="date"
+                    <ClassicDateInput
                       value={header.date}
                       onChange={(e) => setHeader((h) => ({ ...h, date: e.target.value }))}
-                      className="w-32"
+                      className="w-28"
+                      wrapperClassName="w-28"
                     />
                   </label>
                   <label className="flex items-center gap-1">
                     <span className="text-[#333]">Doc. Date</span>
-                    <ClassicInput
-                      type="date"
+                    <ClassicDateInput
                       value={header.docDate}
                       onChange={(e) => setHeader((h) => ({ ...h, docDate: e.target.value }))}
-                      className="w-32"
+                      className="w-28"
+                      wrapperClassName="w-28"
                     />
                   </label>
                   <label className="flex items-center gap-1">
                     <span className="text-[#333]">Due Date</span>
-                    <ClassicInput
-                      type="date"
+                    <ClassicDateInput
                       value={header.dueDate}
                       onChange={(e) => setHeader((h) => ({ ...h, dueDate: e.target.value }))}
-                      className="w-32"
+                      className="w-28"
+                      wrapperClassName="w-28"
                     />
                   </label>
                   <label className="flex items-center gap-1">

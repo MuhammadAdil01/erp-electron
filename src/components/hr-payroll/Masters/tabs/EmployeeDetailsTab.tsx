@@ -3,6 +3,7 @@ import type { EmployeeCategory, Grade } from '../../../../api/payroll-masters.ap
 import type { Shift, Position } from '../../../../api/hr.api';
 import type { Department } from '../../../../api/departments.api';
 import type { EmployeeFormState } from '../EmployeeCurrentInformationWindow';
+import { ClassicDateInput } from '../../../ui/ClassicERPUI';
 
 interface Props {
   form: EmployeeFormState;
@@ -94,7 +95,7 @@ export const EmployeeDetailsTab: React.FC<Props> = ({
         </div>
         <div className={row}>
           <label className={label}>Date of Birth</label>
-          <input type="date" className={inputCls} value={form.dateOfBirth} onChange={set('dateOfBirth')} disabled={disabled} />
+          <ClassicDateInput value={form.dateOfBirth} onChange={set('dateOfBirth')} disabled={disabled} />
         </div>
         <div className={row}>
           <label className={label}>Nationality</label>
@@ -118,11 +119,15 @@ export const EmployeeDetailsTab: React.FC<Props> = ({
         </div>
         <div className={row}>
           <label className={label}>Date of Joining</label>
-          <input type="date" className={inputCls} value={form.dateOfJoining} onChange={set('dateOfJoining')} disabled={disabled} />
+          <ClassicDateInput value={form.dateOfJoining} onChange={set('dateOfJoining')} disabled={disabled} />
+        </div>
+        <div className={row}>
+          <label className={label}>Expiry Date</label>
+          <ClassicDateInput value={form.expiryDate} onChange={set('expiryDate')} disabled={disabled} title="Contract or employment expiry date" />
         </div>
         <div className={row}>
           <label className={label}>Original Date of Birth</label>
-          <input type="date" className={inputCls} value={form.originalDateOfBirth} onChange={set('originalDateOfBirth')} disabled={disabled} />
+          <ClassicDateInput value={form.originalDateOfBirth} onChange={set('originalDateOfBirth')} disabled={disabled} />
         </div>
         <div className={row}>
           <label className={label}>Insurance Policy No</label>

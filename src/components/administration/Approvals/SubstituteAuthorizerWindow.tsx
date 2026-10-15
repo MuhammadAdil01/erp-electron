@@ -36,6 +36,8 @@ const emptyForm = {
   isActive: true,
 };
 
+import { formatAppDate } from '../../../utils/dateFormatter';
+
 const day = (v?: string | null) => (v ? String(v).slice(0, 10) : '');
 
 /**
@@ -182,10 +184,10 @@ export const SubstituteAuthorizerWindow: React.FC<Props> = ({
                   {r.template?.name ?? 'every template'}
                 </td>
                 <td className="px-2 py-1 border-r border-[#f0f0f0]">
-                  {r.validFrom ? new Date(r.validFrom).toLocaleDateString() : '—'}
+                  {formatAppDate(r.validFrom)}
                 </td>
                 <td className="px-2 py-1 border-r border-[#f0f0f0]">
-                  {r.validTo ? new Date(r.validTo).toLocaleDateString() : '—'}
+                  {formatAppDate(r.validTo)}
                 </td>
                 <td className="px-2 py-1">{r.isActive ? 'Yes' : 'No'}</td>
               </tr>

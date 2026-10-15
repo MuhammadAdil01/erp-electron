@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { Toolbar } from './components/layout/Toolbar';
 import { Sidebar } from './components/layout/Sidebar';
 import { WorkspaceWindows } from './components/layout/workspace/WorkspaceWindows';
@@ -5,6 +6,8 @@ import { useWindowManager } from './hooks/useWindowManager';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { settingsApi } from './api/administration.api';
+import { setActiveDateFormat } from './utils/dateFormatter';
 
 function MainApp() {
   const wm = useWindowManager();
@@ -55,10 +58,27 @@ function AppRouter() {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <MainApp /> : <LoginScreen />;
 }
+function SystemSettingsSync() {
+  const { activeCompanyId } = useAuth();
+  useQuery({
+    queryKey: ['settings-group', activeCompanyId, 'display'],
+    queryFn: async () => {
+      const data = await settingsApi.getGroup('display');
+      if (data && typeof data.dateFormat === 'string') {
+        setActiveDateFormat(data.dateFormat);
+      }
+      return data;
+    },
+    enabled: !!activeCompanyId,
+    staleTime: 5 * 60 * 1000,
+  });
+  return null;
+}
 
 function App() {
   return (
     <AuthProvider>
+      <SystemSettingsSync />
       <AppRouter />
     </AuthProvider>
   );

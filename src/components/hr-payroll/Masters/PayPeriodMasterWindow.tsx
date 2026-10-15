@@ -9,7 +9,7 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { ClassicInput, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
+import { ClassicInput, ClassicDateInput, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
 interface Props {
   show: boolean;
@@ -18,6 +18,8 @@ interface Props {
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
   onFocus?: () => void;
 }
+
+import { formatAppDate } from '../../../utils/dateFormatter';
 
 const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
 
@@ -161,8 +163,8 @@ export const PayPeriodMasterWindow: React.FC<Props> = ({
                 >
                   <td className="py-1 px-2 border-r border-[#f0f0f0] font-mono">{p.code}</td>
                   <td className="py-1 px-2 border-r border-[#f0f0f0]">{p.name}</td>
-                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{toDateInput(p.fromDate)}</td>
-                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{toDateInput(p.toDate)}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{formatAppDate(p.fromDate)}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{formatAppDate(p.toDate)}</td>
                   <td className="py-1 px-2">
                     {p.isActive
                       ? <span className="text-green-700">{p.status || 'Active'}</span>
@@ -200,8 +202,8 @@ export const PayPeriodMasterWindow: React.FC<Props> = ({
               <FieldRow label="Code">{crud.selected.code}</FieldRow>
               <FieldRow label="Name">{crud.selected.name}</FieldRow>
               <FieldRow label="Status">{crud.selected.status || '—'}</FieldRow>
-              <FieldRow label="From">{toDateInput(crud.selected.fromDate)}</FieldRow>
-              <FieldRow label="To">{toDateInput(crud.selected.toDate)}</FieldRow>
+              <FieldRow label="From">{formatAppDate(crud.selected.fromDate)}</FieldRow>
+              <FieldRow label="To">{formatAppDate(crud.selected.toDate)}</FieldRow>
               <FieldRow label="Pay Month">{crud.selected.payMonth || '—'}</FieldRow>
               <FieldRow label="Working Days">{crud.selected.workingDays ?? '—'}</FieldRow>
               <FieldRow label="Saturdays">{crud.selected.saturdays ?? '—'}</FieldRow>
@@ -242,16 +244,14 @@ export const PayPeriodMasterWindow: React.FC<Props> = ({
                 />
               </FieldRow>
               <FieldRow label="From Date" required>
-                <ClassicInput
-                  type="date"
+                <ClassicDateInput
                   value={form.fromDate}
                   onChange={(e) => setForm((f) => ({ ...f, fromDate: e.target.value }))}
                   className="w-full"
                 />
               </FieldRow>
               <FieldRow label="To Date" required>
-                <ClassicInput
-                  type="date"
+                <ClassicDateInput
                   value={form.toDate}
                   onChange={(e) => setForm((f) => ({ ...f, toDate: e.target.value }))}
                   className="w-full"

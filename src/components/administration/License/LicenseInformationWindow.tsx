@@ -19,7 +19,9 @@ interface Props {
   onFocus?: () => void;
 }
 
-const date = (v?: string | null) => (v ? new Date(v).toLocaleDateString() : '—');
+import { formatAppDate } from '../../../utils/dateFormatter';
+
+const date = (v?: string | null) => formatAppDate(v);
 
 export const LicenseInformationWindow: React.FC<Props> = ({
   show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,

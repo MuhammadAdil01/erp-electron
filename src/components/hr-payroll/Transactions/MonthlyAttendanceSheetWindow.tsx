@@ -18,7 +18,7 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
+import { ClassicInput, ClassicDateInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
 interface Props {
   show: boolean;
@@ -249,10 +249,10 @@ export const MonthlyAttendanceSheetWindow: React.FC<Props> = ({
                     </ClassicSel>
                   </FieldRow>
                   <FieldRow label="From Date" labelWidth="90px" required>
-                    <ClassicInput type="date" value={form.fromDate} onChange={(e) => setForm((f) => ({ ...f, fromDate: e.target.value }))} className="w-full" disabled={!isForm} />
+                    <ClassicDateInput value={form.fromDate} onChange={(e) => setForm((f) => ({ ...f, fromDate: e.target.value }))} className="w-full" disabled={!isForm} />
                   </FieldRow>
                   <FieldRow label="To Date" labelWidth="90px" required>
-                    <ClassicInput type="date" value={form.toDate} onChange={(e) => setForm((f) => ({ ...f, toDate: e.target.value }))} className="w-full" disabled={!isForm} />
+                    <ClassicDateInput value={form.toDate} onChange={(e) => setForm((f) => ({ ...f, toDate: e.target.value }))} className="w-full" disabled={!isForm} />
                   </FieldRow>
                   <FieldRow label="Pay Period Month" labelWidth="90px">
                     <ClassicInput value={form.payPeriodMonth} onChange={(e) => setForm((f) => ({ ...f, payPeriodMonth: e.target.value }))} className="w-full" disabled={!isForm} />

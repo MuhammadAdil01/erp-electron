@@ -17,7 +17,7 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
+import { ClassicInput, ClassicDateInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
 interface Props {
   show: boolean;
@@ -211,7 +211,7 @@ export const PayrollMonthlyAdjustmentsWindow: React.FC<Props> = ({
                     </ClassicSel>
                   </FieldRow>
                   <FieldRow label="Document Date" labelWidth="100px">
-                    <ClassicInput type="date" value={form.documentDate} onChange={(e) => setForm((f) => ({ ...f, documentDate: e.target.value }))} className="w-full" disabled={!isForm} />
+                    <ClassicDateInput value={form.documentDate} onChange={(e) => setForm((f) => ({ ...f, documentDate: e.target.value }))} className="w-full" disabled={!isForm} />
                   </FieldRow>
                   <FieldRow label="Status" labelWidth="100px">
                     <ClassicSel value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className="w-full" disabled={!isForm}>

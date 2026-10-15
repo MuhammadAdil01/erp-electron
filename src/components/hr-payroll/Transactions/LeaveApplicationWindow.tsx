@@ -10,7 +10,7 @@ import {
 import { firstError, useLookup } from '../../../hooks/useLookup';
 import { EmployeePicker, type EmployeeOption } from '../../ui/EmployeePicker';
 import { ClassicWindow, StatusNote, ListPlaceholder, ToolBtn, type WindowState } from '../../ui/ClassicWindow';
-import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
+import { ClassicInput, ClassicDateInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
 interface Props {
   show: boolean;
@@ -19,6 +19,8 @@ interface Props {
   setWindowState: React.Dispatch<React.SetStateAction<WindowState>>;
   onFocus?: () => void;
 }
+
+import { formatAppDate } from '../../../utils/dateFormatter';
 
 const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
 const daysBetween = (a: string, b: string) => {
@@ -215,7 +217,7 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
                   )}
                 >
                   <td className="py-1 px-2 border-r border-[#f0f0f0] truncate">{r.employee?.name ?? employeeName(r.employeeId)}</td>
-                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{toDateInput(r.startDate)} → {toDateInput(r.endDate)}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{formatAppDate(r.startDate)} → {formatAppDate(r.endDate)}</td>
                   <td className="py-1 px-2">
                     <span className={cn(
                       r.status === 'APPROVED' || r.status === 'TAKEN' ? 'text-green-700'
@@ -239,8 +241,8 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
             <div className="text-[10.5px] text-[#333]">
               <div className="font-bold text-[11px] mb-2">{selected.employee?.name ?? employeeName(selected.employeeId)} — {selected.leaveType?.name}</div>
               <div className="grid grid-cols-2 gap-x-8 gap-y-1 max-w-[640px]">
-                <FieldRow label="From" labelWidth="150px">{toDateInput(selected.startDate)}</FieldRow>
-                <FieldRow label="To" labelWidth="150px">{toDateInput(selected.endDate)}</FieldRow>
+                <FieldRow label="From" labelWidth="150px">{formatAppDate(selected.startDate)}</FieldRow>
+                <FieldRow label="To" labelWidth="150px">{formatAppDate(selected.endDate)}</FieldRow>
                 <FieldRow label="Days" labelWidth="150px">{selected.days}</FieldRow>
                 <FieldRow label="Duration Type" labelWidth="150px">{selected.leaveDurationType ?? 'Full'}</FieldRow>
                 <FieldRow label="Signed By" labelWidth="150px">{selected.signedBy || '—'}</FieldRow>
@@ -285,8 +287,8 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
                     />
                   </FieldRow>
                   <FieldRow label="Designation" labelWidth="150px">{selectedEmployee?.position || '—'}</FieldRow>
-                  <FieldRow label="Last Leave From" labelWidth="150px">{lastLeave ? toDateInput(lastLeave.startDate) : '—'}</FieldRow>
-                  <FieldRow label="Last Leave To" labelWidth="150px">{lastLeave ? toDateInput(lastLeave.endDate) : '—'}</FieldRow>
+                  <FieldRow label="Last Leave From" labelWidth="150px">{lastLeave ? formatAppDate(lastLeave.startDate) : '—'}</FieldRow>
+                  <FieldRow label="Last Leave To" labelWidth="150px">{lastLeave ? formatAppDate(lastLeave.endDate) : '—'}</FieldRow>
                   <FieldRow label="Leave Code" required labelWidth="150px">
                     <ClassicSel value={form.leaveTypeId} onChange={(e) => setForm((f) => ({ ...f, leaveTypeId: e.target.value }))} className="w-full">
                       <option value="">—</option>
@@ -294,10 +296,10 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
                     </ClassicSel>
                   </FieldRow>
                   <FieldRow label="From Date" required labelWidth="150px">
-                    <ClassicInput type="date" value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value, days: daysBetween(e.target.value, f.endDate) }))} className="w-full" />
+                    <ClassicDateInput value={form.startDate} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value, days: daysBetween(e.target.value, f.endDate) }))} className="w-full" />
                   </FieldRow>
                   <FieldRow label="To Date" required labelWidth="150px">
-                    <ClassicInput type="date" value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value, days: daysBetween(f.startDate, e.target.value) }))} className="w-full" />
+                    <ClassicDateInput value={form.endDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value, days: daysBetween(f.startDate, e.target.value) }))} className="w-full" />
                   </FieldRow>
                   <FieldRow label="No. Of Days" labelWidth="150px">
                     <ClassicInput type="number" step="0.5" min="0.5" value={form.days} onChange={(e) => setForm((f) => ({ ...f, days: e.target.value }))} className="w-full" />
@@ -312,7 +314,7 @@ export const LeaveApplicationWindow: React.FC<Props> = ({
                       <option value="Half">Half</option>
                     </ClassicSel>
                   </FieldRow>
-                  <FieldRow label="DOJ" labelWidth="150px">{selectedEmployee?.hireDate ? toDateInput(selectedEmployee.hireDate) : '—'}</FieldRow>
+                  <FieldRow label="DOJ" labelWidth="150px">{selectedEmployee?.hireDate ? formatAppDate(selectedEmployee.hireDate) : '—'}</FieldRow>
                   <FieldRow label="Signed By" labelWidth="150px">
                     <ClassicInput value={form.signedBy} onChange={(e) => setForm((f) => ({ ...f, signedBy: e.target.value }))} className="w-full" />
                   </FieldRow>

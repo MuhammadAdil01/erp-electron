@@ -31,6 +31,7 @@ export interface Employee {
   nationality?: string | null;
   mobilePhone2?: string | null;
   dateOfJoining?: string | null;
+  expiryDate?: string | null;
   insurancePolicyNo?: string | null;
   pfNo?: string | null;
   esiNo?: string | null;
@@ -78,6 +79,7 @@ export interface EmployeePayload {
   nationality?: string;
   mobilePhone2?: string;
   dateOfJoining?: string;
+  expiryDate?: string;
   insurancePolicyNo?: string;
   pfNo?: string;
   esiNo?: string;

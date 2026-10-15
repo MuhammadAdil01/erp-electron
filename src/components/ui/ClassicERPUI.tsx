@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Calendar } from 'lucide-react';
+import { useDateFormat } from '../../utils/dateFormatter';
 
 export const cn = (...classes: (string | boolean | undefined)[]) => classes.filter(Boolean).join(' ');
 
@@ -31,6 +33,138 @@ export const ClassicInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>>
     )}
   />
 );
+
+export interface ClassicDateInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
+  value?: string | null;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onValueChange?: (isoDate: string) => void;
+  wrapperClassName?: string;
+}
+
+/**
+ * ClassicDateInput
+ * Form input for dates that automatically respects the global system date format
+ * (from Administration -> General Settings -> Display -> Date Format).
+ * Displays dates formatted per system settings, and emits ISO YYYY-MM-DD on change.
+ */
+export const ClassicDateInput: React.FC<ClassicDateInputProps> = ({
+  value,
+  onChange,
+  onValueChange,
+  className,
+  wrapperClassName,
+  placeholder,
+  disabled,
+  ...rest
+}) => {
+  const { dateFormat, placeholder: defaultPlaceholder, formatDate, parseToIso } = useDateFormat();
+
+  const formattedValue = useMemo(() => {
+    return value ? formatDate(value, '') : '';
+  }, [value, dateFormat, formatDate]);
+
+  const [text, setText] = useState(formattedValue);
+
+  useEffect(() => {
+    setText(formattedValue);
+  }, [formattedValue]);
+
+  const hiddenPickerRef = useRef<HTMLInputElement>(null);
+
+  const emitIso = (isoDate: string) => {
+    onValueChange?.(isoDate);
+    if (onChange) {
+      const syntheticEvent = {
+        target: {
+          name: rest.name || '',
+          value: isoDate,
+        },
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange(syntheticEvent);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setText(raw);
+    if (!raw.trim()) {
+      emitIso('');
+      return;
+    }
+    const iso = parseToIso(raw);
+    if (iso) {
+      emitIso(iso);
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    rest.onBlur?.(e);
+    if (!text.trim()) {
+      emitIso('');
+      return;
+    }
+    const iso = parseToIso(text);
+    if (iso) {
+      setText(formatDate(iso, ''));
+      emitIso(iso);
+    } else {
+      setText(formattedValue);
+    }
+  };
+
+  const handleNativePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const iso = e.target.value;
+    setText(iso ? formatDate(iso, '') : '');
+    emitIso(iso);
+  };
+
+  const openPicker = () => {
+    if (disabled) return;
+    try {
+      hiddenPickerRef.current?.showPicker();
+    } catch {
+      hiddenPickerRef.current?.focus();
+    }
+  };
+
+  return (
+    <div className={cn("relative inline-flex items-center", wrapperClassName || "w-full")}>
+      <input
+        type="text"
+        value={text}
+        onChange={handleInputChange}
+        onBlur={handleBlur}
+        disabled={disabled}
+        placeholder={placeholder || defaultPlaceholder}
+        className={cn(
+          "h-[18px] border border-[#d4d0c8] px-1 pr-5 text-[10.5px] outline-none focus:border-orange-400 bg-white shadow-inner w-full disabled:bg-gray-100",
+          className
+        )}
+        {...rest}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={openPicker}
+        disabled={disabled}
+        className="absolute right-0.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-600 disabled:opacity-40 p-0.5 cursor-pointer flex items-center justify-center"
+        title={`Pick date (${defaultPlaceholder})`}
+      >
+        <Calendar className="w-3 h-3" />
+      </button>
+      <input
+        ref={hiddenPickerRef}
+        type="date"
+        tabIndex={-1}
+        aria-hidden="true"
+        value={value ? String(value).slice(0, 10) : ''}
+        onChange={handleNativePickerChange}
+        className="sr-only pointer-events-none absolute opacity-0"
+      />
+    </div>
+  );
+};
 
 export const ClassicSel: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => (
   <select 

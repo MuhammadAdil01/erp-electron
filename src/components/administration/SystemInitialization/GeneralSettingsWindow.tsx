@@ -3,6 +3,7 @@ import { Settings2, RefreshCw, RotateCcw, Save } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../context/AuthContext';
 import { settingsApi } from '../../../api/administration.api';
+import { setActiveDateFormat } from '../../../utils/dateFormatter';
 import {
   ClassicWindow,
   ToolBtn,
@@ -85,6 +86,12 @@ export const GeneralSettingsWindow: React.FC<Props> = ({
   const stored = useMemo(() => seed(tab, groupQuery.data), [tab, groupQuery.data]);
   const values = edits[tab.key] ?? stored;
 
+  useEffect(() => {
+    if (tab.group === 'display' && groupQuery.data && typeof groupQuery.data.dateFormat === 'string') {
+      setActiveDateFormat(groupQuery.data.dateFormat);
+    }
+  }, [tab.group, groupQuery.data]);
+
   const dirtyKeys = useMemo(() => {
     const current = edits[tab.key];
     if (!current) return [] as string[];
@@ -124,6 +131,10 @@ export const GeneralSettingsWindow: React.FC<Props> = ({
       return settingsApi.saveGroup(tab.group, payload);
     },
     onSuccess: () => {
+      const current = edits[tab.key];
+      if (tab.group === 'display' && current && typeof current.dateFormat === 'string') {
+        setActiveDateFormat(current.dateFormat);
+      }
       void qc.invalidateQueries({ queryKey: ['settings-group', companyId, tab.group] });
       setEdits((prev) => {
         const next = { ...prev };

@@ -10,6 +10,7 @@ import {
   type WindowState,
 } from '../../ui/ClassicWindow';
 import { cn, ClassicInput, ClassicSel } from '../../ui/ClassicERPUI';
+import { formatAppDate } from '../../../utils/dateFormatter';
 
 interface Props {
   show?: boolean;
@@ -255,9 +256,9 @@ export const Customer360Window: React.FC<Props> = ({
                     {data.arInvoices.map((inv, i) => (
                       <tr key={inv.id} className={i % 2 ? 'bg-[#fafafa]' : 'bg-white'}>
                         <td className="p-1 border-r border-[#eee] font-mono">{inv.number}</td>
-                        <td className="p-1 border-r border-[#eee]">{new Date(inv.issueDate).toLocaleDateString()}</td>
+                        <td className="p-1 border-r border-[#eee]">{formatAppDate(inv.issueDate)}</td>
                         <td className="p-1 border-r border-[#eee]">
-                          {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}
+                          {formatAppDate(inv.dueDate)}
                         </td>
                         <td className="p-1 border-r border-[#eee]">{inv.status}</td>
                         <td className="p-1 border-r border-[#eee] text-right font-mono">{money(inv.total)}</td>
@@ -315,7 +316,7 @@ export const Customer360Window: React.FC<Props> = ({
                     )}
                     {data.activities.map((a, i) => (
                       <tr key={a.id} className={i % 2 ? 'bg-[#fafafa]' : 'bg-white'}>
-                        <td className="p-1 border-r border-[#eee]">{new Date(a.startDate).toLocaleDateString()}</td>
+                        <td className="p-1 border-r border-[#eee]">{formatAppDate(a.startDate)}</td>
                         <td className="p-1 border-r border-[#eee]">{a.kind}</td>
                         <td className="p-1 border-r border-[#eee]">{a.subject}</td>
                         <td className="p-1 border-r border-[#eee]">{a.assignedTo?.name ?? '—'}</td>

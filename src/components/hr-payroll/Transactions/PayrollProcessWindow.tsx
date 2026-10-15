@@ -26,7 +26,7 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
+import { ClassicInput, ClassicDateInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 import { EmployeePicker } from '../../ui/EmployeePicker';
 import { asNum, payrollRowTotals } from './payrollRowTotals';
 
@@ -41,6 +41,8 @@ interface Props {
   /** Opens Administration → Setup → Financials → Currencies (the currency errors point there). */
   onOpenCurrencies?: () => void;
 }
+
+import { formatAppDate } from '../../../utils/dateFormatter';
 
 const toDateInput = (iso?: string | null) => (iso ? iso.slice(0, 10) : '');
 const today = () => new Date().toISOString().slice(0, 10);
@@ -496,7 +498,7 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                     crud.selected?.id === s.id ? 'bg-[#ffed99]' : i % 2 === 0 ? 'bg-white hover:bg-blue-50/50' : 'bg-[#fafafa] hover:bg-blue-50/50',
                   )}
                 >
-                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{s.jeNo || s.payPeriod?.name || s.payMonth || toDateInput(s.documentDate)}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0]">{s.jeNo || s.payPeriod?.name || s.payMonth || formatAppDate(s.documentDate)}</td>
                   <td className="py-1 px-2 border-r border-[#f0f0f0]">{s.runType ?? 'Regular'}</td>
                   <td className="py-1 px-2">{s.status ?? 'Open'}</td>
                 </tr>
@@ -540,13 +542,13 @@ export const PayrollProcessWindow: React.FC<Props> = ({
                     <ClassicInput value={form.payMonth} onChange={(e) => setField('payMonth', e.target.value)} className="w-full" disabled={!isForm} placeholder="e.g. January 2026" />
                   </FieldRow>
                   <FieldRow label="From Date" labelWidth="100px">
-                    <ClassicInput type="date" value={form.fromDate} onChange={(e) => setField('fromDate', e.target.value)} className="w-full" disabled={!isForm} />
+                    <ClassicDateInput value={form.fromDate} onChange={(e) => setField('fromDate', e.target.value)} className="w-full" disabled={!isForm} />
                   </FieldRow>
                   <FieldRow label="To Date" labelWidth="100px">
-                    <ClassicInput type="date" value={form.toDate} onChange={(e) => setField('toDate', e.target.value)} className="w-full" disabled={!isForm} />
+                    <ClassicDateInput value={form.toDate} onChange={(e) => setField('toDate', e.target.value)} className="w-full" disabled={!isForm} />
                   </FieldRow>
                   <FieldRow label="Document Date" labelWidth="100px">
-                    <ClassicInput type="date" value={form.documentDate} onChange={(e) => setField('documentDate', e.target.value)} className="w-full" disabled={!isForm} title="The posting date of the payroll journal entry" />
+                    <ClassicDateInput value={form.documentDate} onChange={(e) => setField('documentDate', e.target.value)} className="w-full" disabled={!isForm} title="The posting date of the payroll journal entry" />
                   </FieldRow>
 
                   {/* JE No, Status and Cancellation JE No are written by Post/Cancel

@@ -5,6 +5,7 @@ import {
 } from '../../../../api/payment-details.api';
 import { StatusNote } from '../../../ui/ClassicWindow';
 import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../../ui/ClassicERPUI';
+import { formatAppDateTime } from '../../../../utils/dateFormatter';
 
 const FIELD_LABEL: Record<PaymentDetailChange['field'], string> = {
   paymentMethod: 'Payment method', bank: 'Bank', accountTitle: 'Account title', accountNo: 'Account no.', iban: 'IBAN',
@@ -114,7 +115,7 @@ export const PaymentDetailsTab: React.FC<{ employeeId: string }> = ({ employeeId
             <FieldRow label="Account Title">{shown?.accountTitle ?? '—'}</FieldRow>
             <FieldRow label="Account No.">{shown?.accountNo ?? '—'}</FieldRow>
             <FieldRow label="IBAN">{shown?.iban ?? '—'}</FieldRow>
-            <FieldRow label="Last Changed">{shown?.bankDetailsChangedAt ? new Date(shown.bankDetailsChangedAt).toLocaleString() : '—'}</FieldRow>
+            <FieldRow label="Last Changed">{shown?.bankDetailsChangedAt ? formatAppDateTime(shown.bankDetailsChangedAt) : '—'}</FieldRow>
             {canUpdate && <div className="mt-3"><YellowBtn onClick={startEdit}>Change</YellowBtn></div>}
           </>
         )}
@@ -159,7 +160,7 @@ export const PaymentDetailsTab: React.FC<{ employeeId: string }> = ({ employeeId
             <tbody>
               {history.map((h) => (
                 <tr key={h.id} className="border-b border-[#f0f0f0]">
-                  <td className="py-1 px-2 border-r border-[#f0f0f0] whitespace-nowrap">{new Date(h.changedAt).toLocaleString()}</td>
+                  <td className="py-1 px-2 border-r border-[#f0f0f0] whitespace-nowrap">{formatAppDateTime(h.changedAt)}</td>
                   <td className="py-1 px-2 border-r border-[#f0f0f0]">{FIELD_LABEL[h.field] ?? h.field}</td>
                   <td className="py-1 px-2 border-r border-[#f0f0f0] font-mono">{h.oldValue ?? '—'}</td>
                   <td className="py-1 px-2 font-mono">{h.newValue ?? '—'}</td>

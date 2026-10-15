@@ -17,6 +17,7 @@ import {
   type WindowState,
 } from '../../ui/ClassicWindow';
 import { cn, ClassicInput, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
+import { formatAppDate } from '../../../utils/dateFormatter';
 
 interface Props {
   show?: boolean;
@@ -326,9 +327,9 @@ export const ApprovalTemplatesWindow: React.FC<Props> = ({
                 </div>
                 <div className="text-[10.5px]">
                   <b>Valid:</b>{' '}
-                  {selected.validFrom ? new Date(selected.validFrom).toLocaleDateString() : 'always'}
+                  {selected.validFrom ? formatAppDate(selected.validFrom) : 'always'}
                   {' → '}
-                  {selected.validTo ? new Date(selected.validTo).toLocaleDateString() : 'no end'}
+                  {selected.validTo ? formatAppDate(selected.validTo) : 'no end'}
                 </div>
                 <div className="text-[10.5px]">
                   <b>Originators:</b>{' '}

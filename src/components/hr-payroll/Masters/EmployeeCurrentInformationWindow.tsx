@@ -43,6 +43,7 @@ export interface EmployeeFormState {
   mobilePhone2: string;
   email: string;
   dateOfJoining: string;
+  expiryDate: string;
   originalDateOfBirth: string;
   insurancePolicyNo: string;
   pfNo: string;
@@ -63,7 +64,7 @@ export interface EmployeeFormState {
 const emptyForm: EmployeeFormState = {
   employeeNumber: '', name: '', fatherName: '', employeeCategoryId: '', gradeId: '', gender: 'Male',
   currentShiftId: '', positionId: '', departmentId: '', sectionType: '', dateOfBirth: '', nationality: '',
-  homePhone: '', phone: '', mobilePhone2: '', email: '', dateOfJoining: '', originalDateOfBirth: '',
+  homePhone: '', phone: '', mobilePhone2: '', email: '', dateOfJoining: '', expiryDate: '', originalDateOfBirth: '',
   insurancePolicyNo: '', pfNo: '', otherInfo: '', fuelLiters: '', address1: '', address2: '', address3: '',
   city: '', pinCode: '', state: '', status: 'ACTIVE', serialNo: '', locationProjectSite: '', esiNo: '',
 };
@@ -90,6 +91,7 @@ function employeeToForm(e: Employee): EmployeeFormState {
     mobilePhone2: e.mobilePhone2 ?? '',
     email: e.email ?? '',
     dateOfJoining: toDateInput(e.dateOfJoining),
+    expiryDate: toDateInput(e.expiryDate),
     originalDateOfBirth: toDateInput(e.originalDateOfBirth),
     insurancePolicyNo: e.insurancePolicyNo ?? '',
     pfNo: e.pfNo ?? '',
@@ -126,6 +128,7 @@ function formToPayload(f: EmployeeFormState): EmployeePayload {
     mobilePhone2: f.mobilePhone2.trim() || undefined,
     email: f.email.trim() || undefined,
     dateOfJoining: f.dateOfJoining || undefined,
+    expiryDate: f.expiryDate || undefined,
     originalDateOfBirth: f.originalDateOfBirth || undefined,
     insurancePolicyNo: f.insurancePolicyNo.trim() || undefined,
     pfNo: f.pfNo.trim() || undefined,
