@@ -7,6 +7,8 @@ export interface SystemModule {
   description?: string;
   icon?: string;
   isActive: boolean;
+  /** Always enabled for every company and cannot be switched off (Financials). */
+  isCore?: boolean;
 }
 
 export interface CompanyModule {

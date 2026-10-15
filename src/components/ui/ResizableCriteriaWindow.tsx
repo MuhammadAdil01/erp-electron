@@ -88,6 +88,7 @@ export const ResizableCriteriaWindow: React.FC<ResizableCriteriaWindowProps> = (
 
     e.preventDefault();
     onFocus();
+    if (windowState.isMaximized) return;
     setIsDragging(true);
 
     const startX = e.clientX;
@@ -206,7 +207,7 @@ export const ResizableCriteriaWindow: React.FC<ResizableCriteriaWindowProps> = (
       {footer}
 
       {/* Resize Handles */}
-      {RESIZE_HANDLES.map(({ direction, className }) => (
+      {!windowState.isMaximized && RESIZE_HANDLES.map(({ direction, className }) => (
         <div
           key={direction}
           onMouseDown={(e) => handleResizeStart(e, direction)}

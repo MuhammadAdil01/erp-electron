@@ -6,6 +6,7 @@ import {
   journalEntriesApi,
   accountsApi,
   postingPeriodsApi,
+  postingTemplatesApi,
   type JournalEntry,
   type JournalStatus,
 } from '../../../api/financials.api';
@@ -81,6 +82,14 @@ export const JournalEntryWindow: React.FC<Props> = ({
   });
   const [lines, setLines] = useState<DraftLine[]>([blankLine(), blankLine()]);
 
+  // Posting template: pick one, type the total, and the lines are filled from
+  // its percentages. `appliedTemplateId` is what gets saved on the entry — set
+  // only once the template has actually been applied.
+  const [templatePick, setTemplatePick] = useState('');
+  const [templateAmount, setTemplateAmount] = useState('');
+  const [appliedTemplateId, setAppliedTemplateId] = useState('');
+  const [applying, setApplying] = useState(false);
+
   useEffect(() => {
     if (!focusEntry) return;
     setMode('browse');
@@ -108,6 +117,12 @@ export const JournalEntryWindow: React.FC<Props> = ({
     queryKey: ['bp-lookup', companyId],
     queryFn: () => businessPartnersApi.lookup({ take: 500 }),
     enabled: !!companyId,
+  });
+
+  const { data: templates = [] } = useQuery({
+    queryKey: ['posting-templates', companyId, { isActive: true }],
+    queryFn: () => postingTemplatesApi.getAll({ isActive: true }),
+    enabled: !!companyId && mode === 'new',
   });
 
   const { data: detail } = useQuery({
@@ -148,6 +163,7 @@ export const JournalEntryWindow: React.FC<Props> = ({
         ref2: header.ref2 || undefined,
         ref3: header.ref3 || undefined,
         isAdjustment: header.isAdjustment,
+        templateId: appliedTemplateId || undefined,
         post,
         lines: lines
           .filter((l) => l.accountId && (num(l.debit) > 0 || num(l.credit) > 0))
@@ -211,11 +227,40 @@ export const JournalEntryWindow: React.FC<Props> = ({
       isAdjustment: false,
     });
     setLines([blankLine(), blankLine()]);
+    setTemplatePick('');
+    setTemplateAmount('');
+    setAppliedTemplateId('');
   };
 
   useEffect(() => {
     if (mode === 'new') { setError(''); setStatus(''); }
   }, [mode]);
+
+  const applyTemplate = () => {
+    const amount = num(templateAmount);
+    if (!templatePick) { setError('Choose a posting template first.'); return; }
+    if (!(amount > 0)) { setError('Enter the total amount to spread across the template.'); return; }
+    const hasLines = lines.some((l) => l.accountId || num(l.debit) || num(l.credit));
+    if (hasLines && !window.confirm('Replace the lines already entered with the template lines?')) return;
+
+    setError('');
+    setApplying(true);
+    postingTemplatesApi.apply(templatePick, amount)
+      .then((res) => {
+        setLines(res.lines.map((l) => ({
+          ...blankLine(),
+          accountId: l.accountId,
+          description: l.description ?? '',
+          debit: Number(l.debit) ? String(Number(l.debit)) : '',
+          credit: Number(l.credit) ? String(Number(l.credit)) : '',
+        })));
+        setAppliedTemplateId(res.templateId);
+        setHeader((h) => ({ ...h, description: h.description || res.description }));
+        setStatus(`Template ${res.code} applied — review the lines, then post.`);
+      })
+      .catch(onErr)
+      .finally(() => setApplying(false));
+  };
 
   // Totals are recomputed on every keystroke so the balance indicator is the
   // same check the backend will apply on save.
@@ -400,6 +445,12 @@ export const JournalEntryWindow: React.FC<Props> = ({
                 <div><span className="text-gray-500">Period</span><div>{selected.period?.name ?? '—'}</div></div>
                 <div><span className="text-gray-500">Currency</span><div>{selected.currency}</div></div>
                 <div><span className="text-gray-500">Source</span><div>{selected.source ?? 'manual'}</div></div>
+                {selected.template && (
+                  <div className="col-span-4">
+                    <span className="text-gray-500">Posting Template</span>
+                    <div>{selected.template.code} — {selected.template.description}</div>
+                  </div>
+                )}
                 <div className="col-span-2"><span className="text-gray-500">Remarks</span><div>{selected.description ?? '—'}</div></div>
                 <div className="col-span-2"><span className="text-gray-500">Reference</span><div>{selected.reference ?? '—'}</div></div>
               </div>
@@ -508,6 +559,47 @@ export const JournalEntryWindow: React.FC<Props> = ({
                       className="w-28"
                     />
                   </label>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                  <label className="flex items-center gap-1">
+                    <span className="text-[#333]">Template</span>
+                    <ClassicSel
+                      value={templatePick}
+                      onChange={(e) => setTemplatePick(e.target.value)}
+                      className="w-56"
+                    >
+                      <option value="">— none —</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.code} — {t.description}</option>
+                      ))}
+                    </ClassicSel>
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <span className="text-[#333]">Amount</span>
+                    <ClassicInput
+                      type="number" step="0.01" min="0"
+                      value={templateAmount}
+                      onChange={(e) => setTemplateAmount(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') applyTemplate(); }}
+                      className="w-28 text-right font-mono"
+                      disabled={!templatePick}
+                    />
+                  </label>
+                  <ToolBtn onClick={applyTemplate} disabled={!templatePick || applying || isBusy}>
+                    {applying ? 'Applying…' : 'Apply'}
+                  </ToolBtn>
+                  {appliedTemplateId && (
+                    <span className="text-[10px] text-gray-600">
+                      Built from {templates.find((t) => t.id === appliedTemplateId)?.code ?? 'template'}
+                      <button
+                        onClick={() => setAppliedTemplateId('')}
+                        className="ml-1 text-gray-400 hover:text-red-600"
+                        title="Don't record the template on this entry"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
                 </div>
               </div>
 

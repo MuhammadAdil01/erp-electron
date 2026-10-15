@@ -698,7 +698,10 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
         ) : (
           <div className="grid grid-cols-3 gap-2">
             {allModules.map(mod => {
-              const enabled = isEnabled(mod.id);
+              // A core module (Financials) is on for every company; the server
+              // refuses switching it off, so the switch is not offered.
+              const locked = !!mod.isCore;
+              const enabled = locked || isEnabled(mod.id);
               const busy = toggling === mod.id;
               const colorClass = iconColors[mod.slug] ?? 'bg-gray-100 text-gray-600';
               return (
@@ -715,11 +718,12 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
                     </div>
                     <button
                       onClick={() => handleToggle(mod.id)}
-                      disabled={busy}
+                      disabled={busy || locked}
+                      title={locked ? `${mod.name} is a core module and is always enabled.` : undefined}
                       className={cn(
                         'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none shadow-inner',
                         enabled ? 'bg-orange-500' : 'bg-gray-300',
-                        busy && 'opacity-50 cursor-not-allowed'
+                        (busy || locked) && 'opacity-50 cursor-not-allowed'
                       )}
                     >
                       <span
@@ -735,7 +739,7 @@ const ModulesTab: React.FC<{ companyId: string }> = ({ companyId }) => {
                     {mod.description && <div className="text-[9.5px] text-gray-500 mt-0.5 leading-tight">{mod.description}</div>}
                   </div>
                   <div className="text-[9px] font-semibold mt-auto">
-                    <span className={enabled ? 'text-orange-600' : 'text-gray-400'}>{enabled ? 'Enabled' : 'Disabled'}</span>
+                    <span className={enabled ? 'text-orange-600' : 'text-gray-400'}>{locked ? 'Always on (core)' : enabled ? 'Enabled' : 'Disabled'}</span>
                   </div>
                 </div>
               );

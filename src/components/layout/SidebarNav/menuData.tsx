@@ -95,15 +95,23 @@ export const modulesData: MenuSubItem[] = [
           {
             name: 'Financials', icon: subFolderIcon,
             // QA D41: items with no backend (Indexes, Period Indicators,
-            // Doubtful Debts, Financial KPI Factors, Fixed Assets, Expense
-            // Types) are hidden until built — a menu item must not open nothing.
-            // The rest have backends and are being built (Currencies first).
+            // Doubtful Debts, Financial KPI Factors, Expense Types) are hidden
+            // until built — a menu item must not open nothing. The rest have
+            // backends and are being built (Currencies first). Fixed Assets
+            // came back with Asset Classes and Depreciation Areas (20261009).
             subItems: [
               { name: 'Edit Chart of Accounts', icon: subFileIcon }, { name: 'G/L Account Determination', icon: subFileIcon },
               { name: 'Currencies', icon: subFileIcon },
               { name: 'Transaction Codes', icon: subFileIcon }, { name: 'Projects', icon: subFileIcon },
               { name: 'Cash Flow Line Items', icon: subFileIcon },
               { name: 'Tax', icon: subFolderIcon },
+              {
+                name: 'Fixed Assets', icon: subFolderIcon,
+                subItems: [
+                  { name: 'Asset Classes', icon: subFileIcon },
+                  { name: 'Depreciation Areas', icon: subFileIcon },
+                ],
+              },
             ],
           },
           {

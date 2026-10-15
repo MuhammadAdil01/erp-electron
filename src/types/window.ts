@@ -27,6 +27,7 @@ export type WindowType =
   | 'postingPeriods' | 'documentNumbering' | 'documentSettings'
   | 'chartOfAccounts' | 'journalEntry' | 'postingTemplates' | 'recurringPostings' | 'glAccountDetermination'
   | 'banksSetup' | 'houseBankAccountsSetup' | 'paymentMethodsSetup' | 'currenciesSetup'
+  | 'assetClassesSetup' | 'depreciationAreasSetup'
   | 'documentPrintingSelection' | 'assetMasterData' | 'capitalization'
   | 'capitalizationCreditMemo' | 'retirement' | 'transfer'
   | 'manualDepreciation' | 'depreciationRun' | 'assetRevaluation' | 'fiscalYearChange'
