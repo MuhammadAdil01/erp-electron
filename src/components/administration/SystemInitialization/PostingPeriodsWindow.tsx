@@ -16,7 +16,7 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { cn, ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
+import { cn, ClassicInput, ClassicDateInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
 
 interface Props {
   show?: boolean;
@@ -443,28 +443,28 @@ export const PostingPeriodsWindow: React.FC<Props> = ({
             <div />
 
             <FieldRow label="Start Date" labelWidth="90px" required>
-              <ClassicInput type="date" value={form.startDate}
+              <ClassicDateInput value={form.startDate}
                 onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))} className="w-full" />
             </FieldRow>
             <FieldRow label="End Date" labelWidth="90px" required>
-              <ClassicInput type="date" value={form.endDate}
+              <ClassicDateInput value={form.endDate}
                 onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} className="w-full" />
             </FieldRow>
             <FieldRow label="Active From" labelWidth="90px">
-              <ClassicInput type="date" value={form.activeFrom}
+              <ClassicDateInput value={form.activeFrom}
                 onChange={(e) => setForm((f) => ({ ...f, activeFrom: e.target.value }))} className="w-full" />
             </FieldRow>
             <FieldRow label="Active To" labelWidth="90px">
-              <ClassicInput type="date" value={form.activeTo}
+              <ClassicDateInput value={form.activeTo}
                 onChange={(e) => setForm((f) => ({ ...f, activeTo: e.target.value }))} className="w-full" />
             </FieldRow>
 
             <FieldRow label="Due From" labelWidth="90px">
-              <ClassicInput type="date" value={form.dueDateFrom}
+              <ClassicDateInput value={form.dueDateFrom}
                 onChange={(e) => setForm((f) => ({ ...f, dueDateFrom: e.target.value }))} className="w-full" />
             </FieldRow>
             <FieldRow label="Due To" labelWidth="90px">
-              <ClassicInput type="date" value={form.dueDateTo}
+              <ClassicDateInput value={form.dueDateTo}
                 onChange={(e) => setForm((f) => ({ ...f, dueDateTo: e.target.value }))} className="w-full" />
             </FieldRow>
           </div>

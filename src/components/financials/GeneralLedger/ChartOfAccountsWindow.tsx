@@ -1,14 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Landmark, Search } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, Landmark, Search, Settings } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useCrudResource } from '../../../hooks/useCrudResource';
 import { useAuth } from '../../../context/AuthContext';
 import {
   accountsApi,
+  coaDrawersApi,
   type Account,
   type AccountNode,
   type AccountType,
   type AccountSubtype,
+  type CoaDrawerConfig,
 } from '../../../api/financials.api';
 import {
   ClassicWindow,
@@ -18,6 +20,7 @@ import {
   type WindowState,
 } from '../../ui/ClassicWindow';
 import { cn, ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn } from '../../ui/ClassicERPUI';
+import { ConfigureCoaDrawersModal } from './ConfigureCoaDrawersModal';
 
 interface Props {
   /** WorkspaceWindows gates this window with `{wm.showChartOfAccounts && …}`. */
@@ -29,13 +32,12 @@ interface Props {
   onFocus?: () => void;
 }
 
-/** The five drawers across the top of the SAP Chart of Accounts window. */
-const DRAWERS: { type: AccountType; label: string }[] = [
-  { type: 'ASSET', label: 'Assets' },
-  { type: 'LIABILITY', label: 'Liabilities' },
-  { type: 'EQUITY', label: 'Equity' },
-  { type: 'INCOME', label: 'Turnover' },
-  { type: 'EXPENSE', label: 'Cost of Sales' },
+const DEFAULT_DRAWERS: CoaDrawerConfig[] = [
+  { type: 'ASSET', code: '10', label: 'Assets', visible: true, order: 0 },
+  { type: 'LIABILITY', code: '20', label: 'Liabilities', visible: true, order: 1 },
+  { type: 'EQUITY', code: '30', label: 'Equity', visible: true, order: 2 },
+  { type: 'INCOME', code: '40', label: 'Turnover', visible: true, order: 3 },
+  { type: 'EXPENSE', code: '50', label: 'Cost of Sales', visible: true, order: 4 },
 ];
 
 const SUBTYPES: AccountSubtype[] = [
@@ -58,10 +60,37 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
 }) => {
   const { activeCompanyId } = useAuth();
   const [drawer, setDrawer] = useState<AccountType>('ASSET');
+  const [showDrawerConfig, setShowDrawerConfig] = useState(false);
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [form, setForm] = useState(emptyForm);
+  const [loadingCode, setLoadingCode] = useState(false);
+  const [segmentInput, setSegmentInput] = useState('');
+
+  // Fetch per-company drawer labels, visibility & ordering
+  const { data: drawerConfigs = [] } = useQuery({
+    queryKey: ['coa-drawers', activeCompanyId],
+    queryFn: () => coaDrawersApi.get(),
+    enabled: !!activeCompanyId,
+  });
+
+  const drawers = useMemo(() => {
+    if (!drawerConfigs || drawerConfigs.length === 0) return DEFAULT_DRAWERS;
+    return drawerConfigs;
+  }, [drawerConfigs]);
+
+  const visibleDrawers = useMemo(() => {
+    const list = drawers.filter((d) => d.visible);
+    return list.length > 0 ? list : DEFAULT_DRAWERS;
+  }, [drawers]);
+
+  // Ensure active drawer tab stays on a visible drawer
+  useEffect(() => {
+    if (visibleDrawers.length > 0 && !visibleDrawers.some((d) => d.type === drawer)) {
+      setDrawer(visibleDrawers[0].type);
+    }
+  }, [visibleDrawers, drawer]);
 
   const crud = useCrudResource<Account>('accounts', accountsApi, {
     params: { take: 2000 },
@@ -90,7 +119,20 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
 
   useEffect(() => {
     if (crud.mode === 'new') {
-      setForm({ ...emptyForm, type: drawer, parentId: crud.selected?.id ?? '' });
+      const parentId = crud.selected?.id ?? '';
+      setForm({ ...emptyForm, type: drawer, parentId });
+      setLoadingCode(true);
+      accountsApi
+        .getNextCode({ parentId: parentId || undefined, type: drawer })
+        .then((res) => {
+          const seg = res.parentCode ? res.code.slice(res.parentCode.length) : res.code.slice(-2);
+          setSegmentInput(seg || '01');
+          setForm((f) => ({ ...f, code: res.code }));
+        })
+        .catch(() => {
+          setSegmentInput('01');
+        })
+        .finally(() => setLoadingCode(false));
     } else if (crud.mode === 'edit' && crud.selected) {
       const a = crud.selected;
       setForm({
@@ -99,31 +141,121 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
         isTitle: a.isTitle, isControl: a.isControl,
         isActive: a.isActive, description: a.description ?? '',
       });
+      setSegmentInput('');
     }
     // `drawer` is intentionally excluded: switching drawers mid-edit must not
     // silently rewrite the account type the user is editing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crud.mode, crud.selected]);
 
+  const handleParentChange = (newParentId: string) => {
+    setForm((f) => ({ ...f, parentId: newParentId }));
+    setLoadingCode(true);
+    accountsApi
+      .getNextCode({ parentId: newParentId || undefined, type: form.type })
+      .then((res) => {
+        const seg = res.parentCode ? res.code.slice(res.parentCode.length) : res.code.slice(-2);
+        setSegmentInput(seg || '01');
+        setForm((f) => ({ ...f, code: res.code }));
+      })
+      .catch(() => {
+        setSegmentInput('01');
+      })
+      .finally(() => setLoadingCode(false));
+  };
+
+  const handleTypeChange = (newType: AccountType) => {
+    setForm((f) => ({ ...f, type: newType, parentId: '' }));
+    setLoadingCode(true);
+    accountsApi
+      .getNextCode({ type: newType })
+      .then((res) => {
+        const seg = res.parentCode ? res.code.slice(res.parentCode.length) : res.code.slice(-2);
+        setSegmentInput(seg || '01');
+        setForm((f) => ({ ...f, code: res.code }));
+      })
+      .catch(() => {
+        setSegmentInput('01');
+      })
+      .finally(() => setLoadingCode(false));
+  };
+
+  const activeDrawerConfig =
+    drawers.find((d) => d.type === form.type) ||
+    DEFAULT_DRAWERS.find((d) => d.type === form.type);
+  const activeDrawerCode = activeDrawerConfig?.code || '10';
+
+  const selectedParent = form.parentId ? byId.get(form.parentId) : undefined;
+  // If parent account is chosen, use its code. If no parent, use the active drawer's 2-digit code!
+  const parentPrefix = selectedParent ? selectedParent.code : activeDrawerCode;
+  const fullAccountCode = parentPrefix + segmentInput.trim();
+
   const handleSave = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      crud.setError('Account code and name are required.');
+    if (!form.name.trim()) {
+      crud.setError('Account name is required.');
       return;
     }
-    crud.save({
-      code: form.code.trim(),
-      name: form.name.trim(),
-      type: form.type,
-      // '' means "no subtype"; anything else is one of the enum members the
-      // select is populated from.
-      subtype: (form.subtype || undefined) as AccountSubtype | undefined,
-      parentId: form.parentId || undefined,
-      currency: form.currency || 'USD',
-      isTitle: form.isTitle,
-      isControl: form.isControl,
-      isActive: form.isActive,
-      description: form.description || undefined,
-    });
+
+    if (crud.mode === 'new') {
+      const trimmedSeg = segmentInput.trim();
+      if (!trimmedSeg) {
+        crud.setError('Account code segment is required.');
+        return;
+      }
+      if (!/^\d{2}$/.test(trimmedSeg)) {
+        crud.setError('Account code segment must be exactly two numeric digits (01-99).');
+        return;
+      }
+      const finalCode = parentPrefix + trimmedSeg;
+      const codeRegex = /^(\d{2}){1,7}$/;
+      if (!codeRegex.test(finalCode)) {
+        crud.setError(
+          'Account code must follow 2-digit pure numeric format (e.g. 3010, 301001), up to maximum 7 levels (14 digits).',
+        );
+        return;
+      }
+      const depth = finalCode.length / 2;
+      if (depth > 7) {
+        crud.setError('Maximum allowed hierarchy depth is 7 levels (14 digits max). Level 8 is strictly prohibited.');
+        return;
+      }
+
+      if (!finalCode.startsWith(parentPrefix)) {
+        crud.setError(`Child account code must strictly begin with prefix "${parentPrefix}".`);
+        return;
+      }
+
+      const duplicate = crud.rows.find((a) => a.code === finalCode);
+      if (duplicate) {
+        crud.setError(`Code "${finalCode}" already exists in this company (${duplicate.name}). Please choose another code.`);
+        return;
+      }
+
+      crud.save({
+        code: finalCode,
+        name: form.name.trim(),
+        type: form.type,
+        subtype: (form.subtype || undefined) as AccountSubtype | undefined,
+        parentId: form.parentId || undefined,
+        currency: form.currency || 'USD',
+        isTitle: form.isTitle,
+        isControl: form.isControl,
+        isActive: form.isActive,
+        description: form.description || undefined,
+      });
+    } else {
+      // In edit mode, code is strictly IMMUTABLE and cannot be altered
+      crud.save({
+        name: form.name.trim(),
+        type: form.type,
+        subtype: (form.subtype || undefined) as AccountSubtype | undefined,
+        currency: form.currency || 'USD',
+        isTitle: form.isTitle,
+        isControl: form.isControl,
+        isActive: form.isActive,
+        description: form.description || undefined,
+      });
+    }
   };
 
   const toggle = (id: string) =>
@@ -133,6 +265,22 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
       else next.add(id);
       return next;
     });
+
+  // Collect every node id in the visible tree recursively
+  const collectAllIds = useCallback((nodes: typeof tree): string[] => {
+    const ids: string[] = [];
+    const walk = (list: typeof tree) => {
+      for (const n of list) {
+        ids.push(n.id);
+        if (n.children.length) walk(n.children);
+      }
+    };
+    walk(nodes);
+    return ids;
+  }, []);
+
+  const expandAll = () => setExpanded(new Set(collectAllIds(tree)));
+  const collapseAll = () => setExpanded(new Set());
 
   const matches = (n: AccountNode): boolean => {
     if (!search.trim()) return true;
@@ -171,7 +319,7 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
           ) : (
             <span className="w-3.5 shrink-0" />
           )}
-          <span className="font-mono text-[10.5px] text-gray-600 w-[90px] shrink-0 truncate">
+          <span className="font-mono text-[10.5px] text-gray-600 w-[115px] shrink-0 truncate">
             {node.code}
           </span>
           <span
@@ -251,6 +399,27 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
             />
             Show inactive
           </label>
+          {/* Expand / Collapse All — only meaningful when not searching (search auto-expands) */}
+          {!search.trim() && (
+            <div className="flex items-center gap-1 ml-2 border-l border-[#ccc] pl-2">
+              <button
+                onClick={expandAll}
+                title="Expand all"
+                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gradient-to-b from-[#f8f8f8] to-[#e4e4e4] border border-gray-400 rounded-[2px] shadow-sm hover:brightness-95 active:shadow-inner"
+              >
+                <ChevronsDown className="w-3 h-3" />
+                Expand All
+              </button>
+              <button
+                onClick={collapseAll}
+                title="Collapse all"
+                className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] bg-gradient-to-b from-[#f8f8f8] to-[#e4e4e4] border border-gray-400 rounded-[2px] shadow-sm hover:brightness-95 active:shadow-inner"
+              >
+                <ChevronsUp className="w-3 h-3" />
+                Collapse All
+              </button>
+            </div>
+          )}
           <StatusNote error={crud.error} status={crud.status} />
         </>
       }
@@ -258,28 +427,42 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
         <>
           <span>
             {crud.rows.length} account{crud.rows.length === 1 ? '' : 's'} ·{' '}
-            {DRAWERS.find((d) => d.type === drawer)?.label}
+            {drawers.find((d) => d.type === drawer)?.label || drawer}
           </span>
           <span>Chart of Accounts</span>
         </>
       }
     >
       {/* Drawer tabs */}
-      <div className="flex gap-[2px] px-2 pt-1 bg-[#ececec] shrink-0">
-        {DRAWERS.map((d) => (
-          <button
-            key={d.type}
-            onClick={() => setDrawer(d.type)}
-            className={cn(
-              'px-4 py-0.5 text-[10.5px] border border-[#999] border-b-0 rounded-t-[3px]',
-              drawer === d.type
-                ? 'bg-white font-bold -mb-[1px] z-10 relative'
-                : 'bg-[#e1e1e1] hover:bg-gray-200',
-            )}
-          >
-            {d.label}
-          </button>
-        ))}
+      <div className="flex items-center justify-between px-2 pt-1 bg-[#ececec] shrink-0 border-b border-[#999]">
+        <div className="flex gap-[2px]">
+          {visibleDrawers.map((d) => (
+            <button
+              key={d.type}
+              onClick={() => setDrawer(d.type)}
+              className={cn(
+                'px-3.5 py-0.5 text-[10.5px] border border-[#999] border-b-0 rounded-t-[3px] flex items-center gap-1.5',
+                drawer === d.type
+                  ? 'bg-white font-bold -mb-[1px] z-10 relative'
+                  : 'bg-[#e1e1e1] hover:bg-gray-200',
+              )}
+            >
+              <span>{d.label}</span>
+              <span className="font-mono text-[9px] text-gray-500 font-semibold bg-gray-200/90 px-1 rounded-[2px]">
+                {d.code}
+              </span>
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowDrawerConfig(true)}
+          title="Configure Chart of Accounts drawers (Labels, visibility, order)"
+          className="flex items-center gap-1 px-2 py-0.5 mb-1 text-[10px] text-gray-700 bg-[#f4f4f4] hover:bg-white hover:text-blue-700 border border-gray-400 rounded-[2px] shadow-xs cursor-pointer transition-colors"
+        >
+          <Settings className="w-3 h-3 text-gray-600" />
+          <span>Configure Drawers</span>
+        </button>
       </div>
 
       <div className="flex flex-1 min-h-0 border-t border-[#999]">
@@ -287,7 +470,7 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
         <div className="flex-1 bg-white overflow-auto custom-scrollbar min-w-0">
           <div className="flex items-center gap-1 px-2 py-1 bg-[#f0f0f0] border-b border-[#d4d0c8] sticky top-0 z-10 text-[10px] font-bold text-[#444]">
             <span className="w-3.5" />
-            <span className="w-[90px]">G/L Acct</span>
+            <span className="w-[115px]">G/L Acct</span>
             <span className="flex-1">Name</span>
             <span className="w-[100px] text-right">Balance</span>
           </div>
@@ -318,7 +501,12 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
 
           {!isForm && selected && (
             <>
-              <FieldRow label="G/L Account">{selected.code}</FieldRow>
+              <FieldRow label="G/L Account">
+                <span className="font-mono font-bold text-gray-800">{selected.code}</span>
+                <span className="text-[9.5px] text-gray-500 font-normal ml-2">
+                  (Level {selected.level ?? selected.code.split('-').length})
+                </span>
+              </FieldRow>
               <FieldRow label="Name">{selected.name}</FieldRow>
               <FieldRow label="Type">{pretty(selected.type)}</FieldRow>
               <FieldRow label="Subtype">{selected.subtype ? pretty(selected.subtype) : '—'}</FieldRow>
@@ -341,42 +529,151 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
                   This account carries posted history, so it can be deactivated but not deleted.
                 </div>
               )}
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex items-center gap-2">
                 <YellowBtn onClick={() => crud.openEdit(selected)}>Edit</YellowBtn>
-                <GreyBtn onClick={crud.openNew}>Add child</GreyBtn>
+                {(selected.level ?? Math.floor(selected.code.length / 2)) < 7 ? (
+                  <GreyBtn
+                    onClick={() => {
+                      crud.openNew();
+                      setForm({
+                        ...emptyForm,
+                        type: selected.type,
+                        parentId: selected.id,
+                      });
+                      handleParentChange(selected.id);
+                    }}
+                  >
+                    Add child
+                  </GreyBtn>
+                ) : (
+                  <span className="text-[9px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    Max 7 levels reached
+                  </span>
+                )}
               </div>
             </>
           )}
 
           {isForm && (
             <>
-              <FieldRow label="G/L Account" required>
-                <ClassicInput
-                  value={form.code}
-                  onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
-                  className="w-full font-mono"
-                  placeholder="1100"
-                  autoFocus
-                />
-              </FieldRow>
-              <FieldRow label="Name" required>
-                <ClassicInput
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full"
-                />
-              </FieldRow>
-              <FieldRow label="Type" required>
-                <ClassicSel
-                  value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as AccountType }))}
-                  className="w-full"
-                >
-                  {DRAWERS.map((d) => (
-                    <option key={d.type} value={d.type}>{pretty(d.type)}</option>
-                  ))}
-                </ClassicSel>
-              </FieldRow>
+              {crud.mode === 'edit' ? (
+                <>
+                  <FieldRow label="Account Code">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-[11px] bg-[#f0f0f0] border border-[#ccc] px-2.5 py-0.5 rounded-[2px] text-gray-800">
+                        {form.code}
+                      </span>
+                      <span className="text-[9.5px] text-gray-500 font-medium">
+                        Level {form.code ? Math.floor(form.code.length / 2) : 2} · Immutable
+                      </span>
+                    </div>
+                  </FieldRow>
+                  <FieldRow label="Parent account">
+                    <div className="text-[10.5px] text-gray-700 py-0.5">
+                      {selected?.parent ? `${selected.parent.code} — ${selected.parent.name}` : '— top level —'}
+                      <span className="text-[9px] text-gray-400 ml-1.5">(Lineage locked)</span>
+                    </div>
+                  </FieldRow>
+                  <FieldRow label="Type">
+                    <div className="text-[10.5px] text-gray-700 py-0.5 font-medium">
+                      {pretty(form.type)}
+                      <span className="text-[9px] text-gray-400 ml-1.5">(Locked)</span>
+                    </div>
+                  </FieldRow>
+                  <FieldRow label="Account Name" required>
+                    <ClassicInput
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      className="w-full"
+                      autoFocus
+                    />
+                  </FieldRow>
+                </>
+              ) : (
+                <>
+                  <FieldRow label="Parent account">
+                    <ClassicSel
+                      value={form.parentId}
+                      onChange={(e) => handleParentChange(e.target.value)}
+                      className="w-full"
+                    >
+                      <option value="">
+                        — Top Level under {activeDrawerConfig?.label} ({activeDrawerCode}) —
+                      </option>
+                      {crud.rows
+                        .filter((a) => a.type === form.type && (a.level ?? Math.floor(a.code.length / 2)) < 7)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.code} — {a.name} (Level {a.level ?? Math.floor(a.code.length / 2)})
+                          </option>
+                        ))}
+                    </ClassicSel>
+                  </FieldRow>
+
+                  <FieldRow label="Account Code" required>
+                    <div className="flex items-center gap-1.5">
+                      {parentPrefix && (
+                        <span className="font-mono text-[11px] font-bold text-gray-700 bg-gray-100 px-2 py-0.5 border border-gray-300 rounded-[2px] shrink-0">
+                          {parentPrefix}
+                        </span>
+                      )}
+                      <ClassicInput
+                        value={segmentInput}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^\d]/g, '').slice(0, 2);
+                          setSegmentInput(val);
+                        }}
+                        className="w-16 font-mono text-center font-bold"
+                        placeholder="01"
+                        maxLength={2}
+                        disabled={loadingCode}
+                        autoFocus
+                      />
+                      {loadingCode && (
+                        <span className="text-[9.5px] text-gray-400 italic shrink-0">Suggesting…</span>
+                      )}
+                    </div>
+                    <div className="text-[9px] text-gray-500 mt-0.5">
+                      Two-digit segment (01–99).
+                    </div>
+                  </FieldRow>
+
+                  <FieldRow label="Full Account Code">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-[12px] text-blue-900 bg-blue-50 border border-blue-300 px-2.5 py-0.5 rounded-[2px]">
+                        {fullAccountCode || '—'}
+                      </span>
+                      <span className="text-[9.5px] text-gray-500 font-medium">
+                        Level {fullAccountCode ? Math.floor(fullAccountCode.length / 2) : 2} of 7 (Pure numeric)
+                      </span>
+                    </div>
+                  </FieldRow>
+
+                  <FieldRow label="Account Name" required>
+                    <ClassicInput
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      className="w-full"
+                      placeholder="e.g. Cash or Current Assets"
+                    />
+                  </FieldRow>
+
+                  <FieldRow label="Type" required>
+                    <ClassicSel
+                      value={form.type}
+                      onChange={(e) => handleTypeChange(e.target.value as AccountType)}
+                      className="w-full"
+                    >
+                      {drawers.map((d) => (
+                        <option key={d.type} value={d.type}>
+                          {pretty(d.type)} ({d.label})
+                        </option>
+                      ))}
+                    </ClassicSel>
+                  </FieldRow>
+                </>
+              )}
+
               <FieldRow label="Subtype">
                 <ClassicSel
                   value={form.subtype}
@@ -389,20 +686,7 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
                   ))}
                 </ClassicSel>
               </FieldRow>
-              <FieldRow label="Parent account">
-                <ClassicSel
-                  value={form.parentId}
-                  onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value }))}
-                  className="w-full"
-                >
-                  <option value="">— top level —</option>
-                  {crud.rows
-                    .filter((a) => a.type === form.type && a.id !== selected?.id)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>{a.code} — {a.name}</option>
-                    ))}
-                </ClassicSel>
-              </FieldRow>
+
               <FieldRow label="Currency">
                 <ClassicInput
                   value={form.currency}
@@ -460,7 +744,11 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
 
               <div className="flex gap-2 mt-4">
                 <YellowBtn onClick={handleSave} disabled={crud.isBusy}>
-                  {crud.isBusy ? 'Saving…' : 'Save'}
+                  {crud.isBusy
+                    ? 'Saving…'
+                    : crud.mode === 'edit'
+                      ? 'Save Changes'
+                      : `Create Account ${fullAccountCode ? `(${fullAccountCode})` : ''}`}
                 </YellowBtn>
                 <GreyBtn onClick={crud.cancel}>Cancel</GreyBtn>
               </div>
@@ -468,6 +756,18 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      <ConfigureCoaDrawersModal
+        isOpen={showDrawerConfig}
+        onClose={() => setShowDrawerConfig(false)}
+        currentDrawers={drawers}
+        onSaved={(newDrawers) => {
+          const visible = newDrawers.filter((d) => d.visible);
+          if (visible.length > 0 && !visible.some((d) => d.type === drawer)) {
+            setDrawer(visible[0].type);
+          }
+        }}
+      />
     </ClassicWindow>
   );
 };

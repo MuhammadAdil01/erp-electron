@@ -24,16 +24,6 @@ export const ClassicTab: React.FC<ClassicTabProps> = ({ label, isActive, onClick
   </div>
 );
 
-export const ClassicInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
-  <input 
-    {...props}
-    className={cn(
-      "h-[18px] border border-[#d4d0c8] px-1 text-[10.5px] outline-none focus:border-orange-400 bg-white shadow-inner",
-      props.className
-    )}
-  />
-);
-
 export interface ClassicDateInputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
   value?: string | null;
@@ -163,6 +153,22 @@ export const ClassicDateInput: React.FC<ClassicDateInputProps> = ({
         className="sr-only pointer-events-none absolute opacity-0"
       />
     </div>
+  );
+};
+
+export const ClassicInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ type, ...props }) => {
+  if (type === 'date') {
+    return <ClassicDateInput {...(props as ClassicDateInputProps)} />;
+  }
+  return (
+    <input 
+      type={type}
+      {...props}
+      className={cn(
+        "h-[18px] border border-[#d4d0c8] px-1 text-[10.5px] outline-none focus:border-orange-400 bg-white shadow-inner",
+        props.className
+      )}
+    />
   );
 };
 

@@ -347,7 +347,7 @@ export function useWindowManager() {
   const [leaveApplicationWindowPos,         setLeaveApplicationWindowPos]         = useState({ x: 250, y: 210, width: 950,  height: 650, isMinimized: false, isMaximized: true, zIndex: 58 });
   const [payrollAdjustmentsWindowPos,       setPayrollAdjustmentsWindowPos]       = useState({ x: 300, y: 240, width: 1100, height: 700, isMinimized: false, isMaximized: true, zIndex: 59 });
   const [chartOfAccountsWindowPos,          setChartOfAccountsWindowPos]          = useState(win( 50, 50,  900, 550, 60));
-  const [editChartOfAccountsPos,            setEditChartOfAccountsPos]            = useState(win( 60, 60,  350, 350, 60));
+  const [editChartOfAccountsPos,            setEditChartOfAccountsPos]            = useState(win( 60, 60,  920, 560, 60));
   const [dataNotProvidedPos,                setDataNotProvidedPos]                = useState(win( 80, 80,  300, 150, 60));
   const [journalEntryWindow,                setJournalEntryWindow]                = useState(win( 80, 80, 1000, 600, 61));
   const [postingTemplatesWindow,            setPostingTemplatesWindow]            = useState(win(100,100,  900, 550, 62));

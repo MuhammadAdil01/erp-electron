@@ -15,7 +15,7 @@ import {
   ListPlaceholder,
   type WindowState,
 } from '../../ui/ClassicWindow';
-import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
+import { ClassicInput, ClassicDateInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
 interface Props {
   show: boolean;
@@ -362,10 +362,10 @@ export const LeaveMasterWindow: React.FC<Props> = ({
                         <tr key={idx} className="border-b border-gray-200 h-6">
                           <td className="border-r border-gray-200 px-1 text-[10.5px]">{idx + 1}</td>
                           <td className="border-r border-gray-200 px-1">
-                            <input type="date" value={toDateInput(row.fromDate)} onChange={(e) => updateRange(idx, { fromDate: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                            <ClassicDateInput value={toDateInput(row.fromDate)} onChange={(e) => updateRange(idx, { fromDate: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none shadow-none" />
                           </td>
                           <td className="border-r border-gray-200 px-1">
-                            <input type="date" value={toDateInput(row.toDate)} onChange={(e) => updateRange(idx, { toDate: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none" />
+                            <ClassicDateInput value={toDateInput(row.toDate)} onChange={(e) => updateRange(idx, { toDate: e.target.value })} className="w-full h-[18px] text-[10px] outline-none border-none shadow-none" />
                           </td>
                           <td className="border-r border-gray-200 px-1 text-center">
                             <input type="checkbox" checked={!!row.isLocked} onChange={(e) => updateRange(idx, { isLocked: e.target.checked })} />

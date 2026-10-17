@@ -60,6 +60,25 @@ export const accountsApi = {
     api.get<AccountNode[]>('/financials/accounts/tree', { params }).then((r) => r.data),
   balances: (params?: { from?: string; to?: string; includeUnposted?: boolean }) =>
     api.get<AccountBalance[]>('/financials/accounts/balances', { params }).then((r) => r.data),
+  getNextCode: (params?: { parentId?: string; type?: AccountType }) =>
+    api.get<{ code: string; level: number; parentCode?: string; parentName?: string }>(
+      '/financials/accounts/next-code',
+      { params },
+    ).then((r) => r.data),
+};
+
+export interface CoaDrawerConfig {
+  type: AccountType;
+  code: string;
+  label: string;
+  visible: boolean;
+  order: number;
+}
+
+export const coaDrawersApi = {
+  get: () => api.get<CoaDrawerConfig[]>('/financials/coa-drawers').then((r) => r.data),
+  set: (drawers: CoaDrawerConfig[]) =>
+    api.put<CoaDrawerConfig[]>('/financials/coa-drawers', { drawers }).then((r) => r.data),
 };
 
 // ─── POSTING PERIODS ──────────────────────────────────────────────────────────
