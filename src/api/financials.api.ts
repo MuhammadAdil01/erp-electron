@@ -456,7 +456,12 @@ export interface BudgetScenario extends Auditable {
   basedOnScenarioId?: string | null; basedOn?: CodedRef | null;
   initialRatio: string; isActive: boolean;
 }
-export const budgetScenariosApi = createCrudApi<BudgetScenario>('/financials/budget-scenarios');
+const budgetScenariosBase = createCrudApi<BudgetScenario>('/financials/budget-scenarios');
+export const budgetScenariosApi = {
+  ...budgetScenariosBase,
+  copy: (payload: { sourceScenarioId: string; code: string; name: string; fiscalYear: number; initialRatio?: number }) =>
+    api.post<BudgetScenario>('/financials/budget-scenarios/copy', payload).then((r) => r.data),
+};
 
 export interface BudgetDistributionMethod extends Auditable {
   code: string; name: string; monthlyRatios: number[]; isActive: boolean;
@@ -465,14 +470,27 @@ export const budgetDistributionMethodsApi =
   createCrudApi<BudgetDistributionMethod>('/financials/budget-distribution-methods');
 
 export interface BudgetLine extends Auditable {
-  scenarioId: string; accountId: string; account?: CodedRef;
+  scenarioId: string; accountId: string; account?: CodedRef & { type?: string };
   costCenterId?: string | null; periodId?: string | null; distributionMethodId?: string | null;
+  distributionMethod?: BudgetDistributionMethod | null;
   annualDebit: string; annualCredit: string;
   breakdown?: { month: number; ratio: number; debit: string; credit: string }[] | null;
 }
 const budgetLinesBase = createCrudApi<BudgetLine>('/financials/budget-lines');
 export const budgetLinesApi = {
   ...budgetLinesBase,
+  byScenario: (scenarioId: string) =>
+    api.get<BudgetLine[]>(`/financials/budget-lines/by-scenario/${scenarioId}`).then((r) => r.data),
+  bulkSave: (payload: {
+    scenarioId: string;
+    lines: Array<{
+      accountId: string;
+      annualDebit?: number;
+      annualCredit?: number;
+      distributionMethodId?: string;
+      costCenterId?: string;
+    }>;
+  }) => api.post<BudgetLine[]>('/financials/budget-lines/bulk', payload).then((r) => r.data),
   versusActual: (scenarioId: string) =>
     api.get<{
       scenario: { id: string; code: string; name: string; fiscalYear: number };
@@ -591,7 +609,7 @@ export const financialReportsApi = {
 // Criteria window, load them for printing, and record the Printed / E-Mailed
 // flags once output is confirmed.
 export type PrintDocumentType =
-  | 'journal_entry' | 'ar_invoice' | 'incoming_payment' | 'ap_invoice' | 'outgoing_payment';
+  | 'journal_entry' | 'ar_invoice' | 'incoming_payment' | 'ap_invoice' | 'outgoing_payment' | 'budget_scenario';
 export type PrintPropertyMode = 'ignore' | 'and' | 'or';
 
 export interface DocumentPrintingLookups {

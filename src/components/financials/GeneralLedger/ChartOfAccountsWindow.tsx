@@ -6,12 +6,14 @@ import { useAuth } from '../../../context/AuthContext';
 import {
   accountsApi,
   coaDrawersApi,
+  budgetLinesApi,
   type Account,
   type AccountNode,
   type AccountType,
   type AccountSubtype,
   type CoaDrawerConfig,
 } from '../../../api/financials.api';
+import type { WindowType } from '../../../types/window';
 import {
   ClassicWindow,
   CrudToolbar,
@@ -30,6 +32,7 @@ interface Props {
   setWindowState?: React.Dispatch<React.SetStateAction<WindowState>>;
   onUpdateState?: (patch: Partial<WindowState>) => void;
   onFocus?: () => void;
+  onOpenWindow?: (type: WindowType, title?: string) => void;
 }
 
 const DEFAULT_DRAWERS: CoaDrawerConfig[] = [
@@ -56,7 +59,7 @@ const emptyForm = {
 const pretty = (s: string) => s.replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
 
 export const ChartOfAccountsWindow: React.FC<Props> = ({
-  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus,
+  show = true, onClose, windowState, setWindowState, onUpdateState, onFocus, onOpenWindow,
 }) => {
   const { activeCompanyId } = useAuth();
   const [drawer, setDrawer] = useState<AccountType>('ASSET');
@@ -110,6 +113,25 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
     queryFn: () => accountsApi.balances(),
     enabled: !!activeCompanyId,
   });
+
+  // Budget allocations for accounts
+  const { data: allBudgetLines = [] } = useQuery({
+    queryKey: ['budget-lines-all', activeCompanyId],
+    queryFn: () => budgetLinesApi.getAll({ take: 5000 }),
+    enabled: !!activeCompanyId,
+  });
+
+  const budgetByAccount = useMemo(() => {
+    const map = new Map<string, { annualDebit: number; annualCredit: number }>();
+    for (const bl of allBudgetLines) {
+      const d = Number(bl.annualDebit) || 0;
+      const c = Number(bl.annualCredit) || 0;
+      if (d > 0 || c > 0) {
+        map.set(bl.accountId, { annualDebit: d, annualCredit: c });
+      }
+    }
+    return map;
+  }, [allBudgetLines]);
 
   const balanceByAccount = useMemo(
     () => new Map(balances.map((b) => [b.accountId, b.balance])),
@@ -337,6 +359,9 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
           {node.isTitle && (
             <span className="text-[8.5px] bg-blue-100 text-blue-700 px-1 rounded-[1px] shrink-0">TITLE</span>
           )}
+          {budgetByAccount.has(node.id) && (
+            <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1 rounded-[1px] shrink-0 border border-amber-300">BGT</span>
+          )}
           {!node.isTitle && balance !== undefined && (
             <span
               className={cn(
@@ -518,6 +543,33 @@ export const ChartOfAccountsWindow: React.FC<Props> = ({
               </FieldRow>
               <FieldRow label="Balance">
                 <span className="font-mono">{balanceByAccount.get(selected.id) ?? '0.00'}</span>
+              </FieldRow>
+              <FieldRow label="Budget Allocation">
+                {budgetByAccount.has(selected.id) ? (
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10.5px] font-bold text-amber-800">
+                      Debit: ${budgetByAccount.get(selected.id)?.annualDebit.toFixed(2)} / Credit: ${budgetByAccount.get(selected.id)?.annualCredit.toFixed(2)}
+                    </span>
+                    <button
+                      onClick={() => onOpenWindow?.('budget')}
+                      className="text-[9.5px] px-1.5 py-0.5 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 rounded font-semibold cursor-pointer"
+                    >
+                      View in Budget
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 italic text-[10px]">No budget allocated</span>
+                    {!selected.isTitle && (
+                      <button
+                        onClick={() => onOpenWindow?.('budget')}
+                        className="text-[9.5px] px-1.5 py-0.5 bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-800 rounded font-semibold cursor-pointer"
+                      >
+                        + Allocate Budget
+                      </button>
+                    )}
+                  </div>
+                )}
               </FieldRow>
               <FieldRow label="Journal lines">{postedLines}</FieldRow>
               <FieldRow label="Status">{selected.isActive ? 'Active' : 'Inactive'}</FieldRow>

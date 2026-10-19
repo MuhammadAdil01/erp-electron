@@ -41,7 +41,7 @@ export const fmtMoney = (v: string | number) => {
 };
 
 /** Numeric columns are right-aligned; every other column reads left to right. */
-const NUMERIC = new Set(['Quantity', 'Unit Price', 'Tax %', 'Tax', 'Total', 'Debit', 'Credit', 'Invoice Total', 'Amount Paid']);
+const NUMERIC = new Set(['Quantity', 'Unit Price', 'Tax %', 'Tax', 'Total', 'Debit', 'Credit', 'Invoice Total', 'Amount Paid', 'Annual Debit', 'Annual Credit']);
 
 const prefNumber = (prefs: Record<string, unknown>, key: string, fallback: number) => {
   const n = Number(prefs[key]);

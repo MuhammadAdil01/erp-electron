@@ -42,11 +42,17 @@ const TYPE_OPTIONS: { group: string; items: { label: string; key?: PrintDocument
     ],
   },
   {
+    group: 'Financials',
+    items: [
+      { label: 'Budget Scenarios', key: 'budget_scenario' },
+      { label: 'Journal Entries', key: 'journal_entry' },
+    ],
+  },
+  {
     group: 'Banking',
     items: [
       { label: 'Incoming Payments', key: 'incoming_payment' }, { label: 'Deposits' },
       { label: 'Outgoing Payments', key: 'outgoing_payment' }, { label: 'Checks for Payment' },
-      { label: 'Journal Entries', key: 'journal_entry' },
     ],
   },
 ];
@@ -57,6 +63,7 @@ const TYPE_LABEL: Record<PrintDocumentType, string> = {
   incoming_payment: 'Incoming Payments',
   ap_invoice: 'A/P Invoices',
   outgoing_payment: 'Outgoing Payments',
+  budget_scenario: 'Budget Scenarios',
 };
 
 /** Which partners a type carries — decides which group filter applies. */
@@ -66,6 +73,7 @@ const SIDE: Record<PrintDocumentType, 'customer' | 'vendor' | 'any'> = {
   incoming_payment: 'customer',
   ap_invoice: 'vendor',
   outgoing_payment: 'vendor',
+  budget_scenario: 'any',
 };
 
 const iso = (d: Date) =>

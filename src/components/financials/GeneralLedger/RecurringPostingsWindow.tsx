@@ -6,9 +6,11 @@ import { useCrudResource } from '../../../hooks/useCrudResource';
 import {
   accountsApi,
   recurringPostingsApi,
+  budgetLinesApi,
   type RecurringPosting,
   type RecurringPostingPayload,
 } from '../../../api/financials.api';
+import { settingsApi } from '../../../api/administration.api';
 import { ClassicWindow, CrudToolbar, StatusNote, ListPlaceholder, ToolBtn, type WindowState } from '../../ui/ClassicWindow';
 import { ClassicInput, ClassicSel, FieldRow, YellowBtn, GreyBtn, cn } from '../../ui/ClassicERPUI';
 
@@ -109,6 +111,27 @@ export const RecurringPostingsWindow: React.FC<Props> = ({
   // could never post from here; the backend refuses them too.
   const pickable = useMemo(() => accounts.filter((a) => !a.isControl), [accounts]);
 
+  const { data: budgetLines = [] } = useQuery({
+    queryKey: ['budget-lines-recurring', activeCompanyId],
+    queryFn: () => budgetLinesApi.getAll({ take: 2000 }),
+    enabled: !!activeCompanyId && show,
+  });
+
+  const { data: budgetSettings } = useQuery({
+    queryKey: ['settings-group', activeCompanyId, 'budget'],
+    queryFn: () => settingsApi.getGroup('budget'),
+    enabled: !!activeCompanyId && show,
+  });
+
+  const budgetByAccount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const b of budgetLines) {
+      const amt = Number(b.annualDebit) || Number(b.annualCredit) || 0;
+      if (amt > 0) map.set(b.accountId, amt);
+    }
+    return map;
+  }, [budgetLines]);
+
   const dueQuery = useQuery({
     queryKey: ['recurring-postings', 'due', activeCompanyId],
     queryFn: () => recurringPostingsApi.due(),
@@ -191,6 +214,18 @@ export const RecurringPostingsWindow: React.FC<Props> = ({
     if (!totals.balanced) {
       crud.setError(`Debits (${money(totals.debit)}) must equal credits (${money(totals.credit)}).`);
       return;
+    }
+    if (budgetSettings?.budgetInitialization) {
+      for (const [i, l] of filled.entries()) {
+        const bgt = budgetByAccount.get(l.accountId);
+        const lineAmt = num(l.debit) || num(l.credit);
+        if (bgt && lineAmt > bgt) {
+          if (budgetSettings.blockDeviationFromBudget === 'block') {
+            crud.setError(`Line ${i + 1}: Amount ($${money(lineAmt)}) exceeds allocated annual budget ($${money(bgt)}). Transaction blocked by Budget settings.`);
+            return;
+          }
+        }
+      }
     }
     crud.save({
       code: form.code.trim(),
@@ -417,7 +452,11 @@ export const RecurringPostingsWindow: React.FC<Props> = ({
                         <td className="border-r border-[#eee] p-0.5">
                           <ClassicSel value={l.accountId} onChange={(e) => setLine(l.key, { accountId: e.target.value })} className="w-full">
                             <option value="">— select account —</option>
-                            {pickable.map((a) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
+                            {pickable.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.code} — {a.name}{budgetByAccount.has(a.id) ? ` [Bgt: $${Number(budgetByAccount.get(a.id)).toLocaleString()}]` : ''}
+                              </option>
+                            ))}
                           </ClassicSel>
                         </td>
                         <td className="border-r border-[#eee] p-0.5">
