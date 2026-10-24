@@ -29,3 +29,16 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/annsabbasi/ERP-Backend.git "$RUNNER_TEMP/backend"
           diff -r "$RUNNER_TEMP/backend/packages/contracts" packages/contracts
+
+  # Every commit comes from the owner's account with no co-author lines (ADR 0004).
+  commit-hygiene:
+    runs-on: ubuntu-latest
+    env:
+      # Empty baseline: the whole history of this repository is clean, so every commit is checked.
+      HYGIENE_BASELINE: ''
+      HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - run: sh .github/scripts/commit-hygiene.sh "$HYGIENE_BASELINE" "$HEAD_SHA"
