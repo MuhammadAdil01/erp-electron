@@ -23,9 +23,12 @@ git config core.hooksPath .githooks   # commit checks, see docs/adr/0004-direct-
 cp .env.example .env        # local settings; never commit .env
 ```
 
+Development is local-only until go-live (`docs/adr/0007-local-only-until-go-live.md`); the full
+runbook, with ports and troubleshooting, is `docs/local-dev.md`.
+
 ## Run
 
-Start the API first (`pnpm dev` in ERP-Backend), then here:
+Start the API first (`pnpm local:up`, then `pnpm dev`, in ERP-Backend), then here:
 
 ```sh
 pnpm dev          # web, console and desktop together
