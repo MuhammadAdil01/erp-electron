@@ -1,5 +1,134 @@
 {
   "app": {
-    "title": "ERP System"
+    "title": "ERP System",
+    "console_title": "Platform Console"
+  },
+  "common": {
+    "show": "Show",
+    "hide": "Hide",
+    "close": "Close",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "back": "Back",
+    "sign_out": "Sign out",
+    "loading": "Loading…",
+    "error": "Something went wrong. Try again.",
+    "rate_limited": "Too many attempts. Wait a moment and try again.",
+    "language": "اردو",
+    "done": "Done"
+  },
+  "health": {
+    "checking": "API: checking…",
+    "ok": "API: ok",
+    "down": "API: unreachable",
+    "check_again": "Check again"
+  },
+  "signin": {
+    "title": "Sign in",
+    "email": "E-mail",
+    "password": "Password",
+    "next": "Next",
+    "submit": "Sign in",
+    "forgot": "Forgot password?",
+    "invalid": "Check the e-mail and password and try again. If you have tried many times, look for an e-mail from us.",
+    "change_email": "Use another e-mail",
+    "mfa_title": "Two-step sign-in",
+    "mfa_code": "6-digit code from your authenticator app",
+    "use_recovery": "Use a recovery code instead",
+    "use_code": "Use the authenticator code",
+    "recovery_code": "Recovery code",
+    "verify": "Verify",
+    "mfa_invalid": "That code did not work.",
+    "expired": "The sign-in expired; start again."
+  },
+  "choose": {
+    "title": "Choose a company",
+    "none": "You are not a member of any company yet.",
+    "switch": "Switch company"
+  },
+  "home": {
+    "welcome": "Signed in to {{company}}",
+    "no_company": "No company chosen",
+    "security": "Security"
+  },
+  "forgot": {
+    "title": "Reset your password",
+    "intro": "Enter your e-mail and we will send you a link to choose a new password.",
+    "submit": "Send link",
+    "sent": "If an account exists for that address, we have sent a link. It works for 30 minutes.",
+    "back": "Back to sign-in"
+  },
+  "reset": {
+    "title": "Choose a new password",
+    "password": "New password",
+    "confirm": "Repeat the password",
+    "mismatch": "The passwords do not match",
+    "submit": "Set password",
+    "done": "Your password is set. Sign in with it now.",
+    "invalid": "This link has expired or was already used.",
+    "request_new": "Send me a new link"
+  },
+  "rules": {
+    "length": "At least {{min}} characters",
+    "max_length": "At most {{max}} characters",
+    "not_email": "Does not contain your e-mail name",
+    "not_company": "Does not contain the company name",
+    "not_common": "Not a common password (checked when you save)",
+    "mfa_note": "With two-step sign-in on, 8 characters are enough."
+  },
+  "security": {
+    "title": "Security",
+    "password_title": "Password",
+    "current": "Current password",
+    "new": "New password",
+    "change": "Change password",
+    "changed": "Password changed. Your other sessions were signed out.",
+    "mfa_title": "Two-step sign-in",
+    "mfa_on": "On: an authenticator app is set up.",
+    "mfa_off": "Off.",
+    "mfa_required": "Your company requires it, so it stays on.",
+    "mfa_start": "Set up an authenticator app",
+    "mfa_scan": "Scan this code with an authenticator app, or enter the key by hand.",
+    "mfa_key": "Key",
+    "mfa_confirm": "Enter the 6-digit code it shows",
+    "mfa_enabled": "Two-step sign-in is on.",
+    "mfa_disable": "Turn off two-step sign-in",
+    "mfa_disabled": "Two-step sign-in is off.",
+    "codes_title": "Recovery codes",
+    "codes_intro": "Each code works once if you lose your phone. Keep them somewhere safe; they are not shown again.",
+    "codes_saved": "I have saved them",
+    "codes_copy": "Copy",
+    "codes_download": "Download",
+    "codes_new": "Make new recovery codes",
+    "stepup_title": "Confirm it is you",
+    "stepup_intro": "Enter a code from your authenticator app to continue.",
+    "sessions_title": "Where you are signed in",
+    "session_current": "This device",
+    "session_signout": "Sign out",
+    "session_desktop": "Desktop app",
+    "session_web": "Browser",
+    "last_active": "Last active {{when}}",
+    "signout_all": "Sign out everywhere",
+    "email_title": "E-mail address",
+    "email_new": "New e-mail address",
+    "email_password": "Your password",
+    "email_submit": "Send confirmation",
+    "email_sent": "Open the link we sent to the new address to finish. Until then your old address stays in use."
+  },
+  "email_confirm": {
+    "title": "Confirming your new e-mail",
+    "done": "Your new e-mail address is in use.",
+    "invalid": "This link has expired or was already used."
+  },
+  "console": {
+    "signin_title": "Platform Console sign-in",
+    "enrol_title": "Add an authenticator app",
+    "enrol_intro": "Staff accounts always use two-step sign-in. Scan the code, then enter the 6-digit code it shows.",
+    "setup_title": "Set up your account",
+    "setup_intro": "Hello {{name}}. Choose a password for {{email}}. At your first sign-in you will add an authenticator app.",
+    "setup_done": "Your password is set. Sign in to add your authenticator app.",
+    "idle": "You were signed out after 30 minutes without activity.",
+    "welcome": "Signed in as {{name}}",
+    "roles": "Roles: {{roles}}"
   }
 }
