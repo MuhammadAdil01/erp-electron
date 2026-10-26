@@ -23,12 +23,36 @@ importers:
 
   apps/console:
     dependencies:
+      '@erp/auth-client':
+        specifier: workspace:*
+        version: link:../../packages/auth-client
+      '@erp/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@erp/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
+      '@erp/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@erp/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@tanstack/react-router':
+        specifier: 1.170.45
+        version: 1.170.45(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react:
         specifier: 19.3.1
         version: 19.3.1
       react-dom:
         specifier: 19.3.1
         version: 19.3.1(react@19.3.1)
+      react-i18next:
+        specifier: 17.1.0
+        version: 17.1.0(i18next@26.5.4(typescript@6.0.3))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
     devDependencies:
       '@erp/config':
         specifier: workspace:*
