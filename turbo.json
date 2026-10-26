@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["VITE_*"],
+      "env": ["VITE_*", "ERP_DESKTOP_BUILD"],
       "outputs": ["dist/**"]
     },
     "lint": {},
