@@ -20,6 +20,29 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo run lint typecheck test build
 
+  # The desktop app on Windows, so desktop checks do not depend on one PC (§12.11): the web app
+  # built for file://, the Electron main process, and a Playwright smoke test of the window.
+  desktop-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@erp/web --filter=@erp/desktop
+        env:
+          ERP_DESKTOP_BUILD: '1'
+      - run: pnpm --filter @erp/desktop test:smoke
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-smoke
+          path: apps/desktop/test-results/
+          if-no-files-found: ignore
+
   # packages/contracts is owned by ERP-Backend (ADR 0003); this copy must match its main branch.
   contracts:
     runs-on: ubuntu-latest
