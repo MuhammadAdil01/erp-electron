@@ -56,6 +56,8 @@ const declarations = (roles: ColorRoles) =>
 export const tokensCss = [
   `:root { ${declarations(colors.light)} --erp-radius-sm: ${radii.sm}; --erp-radius-md: ${radii.md}; --erp-radius-lg: ${radii.lg}; --erp-space: ${SPACING_UNIT_PX}px; }`,
   `@media (prefers-color-scheme: dark) { :root { ${declarations(colors.dark)} } }`,
+  // PasswordInput has its own show/hide button; hide Edge's built-in one.
+  'input::-ms-reveal, input::-ms-clear { display: none; }',
 ].join('\n');
 
 /** Adds the token variables to the document once. */
