@@ -11,6 +11,7 @@ import { ChoosePage } from './pages/ChoosePage';
 import { EmailConfirmPage } from './pages/EmailConfirmPage';
 import { ForgotPage } from './pages/ForgotPage';
 import { HomePage } from './pages/HomePage';
+import { NoAccessPage } from './pages/NoAccessPage';
 import { ResetPage } from './pages/ResetPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { SignInPage } from './pages/SignInPage';
@@ -51,6 +52,14 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: parent,
     path: '/account/security',
     component: signedIn(SecurityPage),
+  }),
+  createRoute({
+    getParentRoute: parent,
+    path: '/no-access',
+    validateSearch: (search: Record<string, unknown>) => ({
+      permission: typeof search.permission === 'string' ? search.permission : '',
+    }),
+    component: signedIn(NoAccessPage),
   }),
 ]);
 

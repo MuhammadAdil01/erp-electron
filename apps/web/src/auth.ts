@@ -17,12 +17,20 @@ import { API_BASE } from './api';
 export const API_ORIGIN = new URL(API_BASE).origin;
 
 let client: AuthClient | undefined;
+const versionListeners = new Set<(version: number) => void>();
 
 export const sdk = createSdk({
   baseUrl: API_ORIGIN,
   getAccessToken: () => auth().getAccessToken(),
   onUnauthorized: () => auth().refresh(),
+  onAccessVersion: (version) => versionListeners.forEach((listener) => listener(version)),
 });
+
+/** The X-Access-Version of every company response (the access store listens). */
+export function onAccessVersion(listener: (version: number) => void): () => void {
+  versionListeners.add(listener);
+  return () => versionListeners.delete(listener);
+}
 
 /** The bridge passes failures as data; turn them back into ApiError for the screens. */
 function withApiErrors(bridge: DesktopAuthBridge): DesktopAuthBridge {

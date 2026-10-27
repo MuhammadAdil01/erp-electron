@@ -130,5 +130,17 @@
     "idle": "You were signed out after 30 minutes without activity.",
     "welcome": "Signed in as {{name}}",
     "roles": "Roles: {{roles}}"
+  },
+  "access": {
+    "no_access_title": "You don't have access to this page",
+    "reason_plan": "It is not part of your company's plan. Your company's admins can ask for it.",
+    "reason_role": "Your role does not include it. Ask your company's admins if you need it.",
+    "back_home": "Back to home",
+    "status": {
+      "trial_expired": "Your trial has ended. You can view and export; your Owner can subscribe.",
+      "suspended_read_only": "Your company's account is read-only — contact your Owner.",
+      "suspended_locked": "Your company's account is locked. Only the Owner can sign in, to pay or export.",
+      "pending_termination": "Your company's account is closing. Only the Owner can export its data."
+    }
   }
 }

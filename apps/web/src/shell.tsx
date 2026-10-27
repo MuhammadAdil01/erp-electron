@@ -1,7 +1,8 @@
-import { Button } from '@erp/ui';
+import { Banner, Button } from '@erp/ui';
 import { Navigate, useNavigate } from '@tanstack/react-router';
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { LIMITED_STATUSES, useAccess } from './access';
 import { auth, useAuthState } from './auth';
 
 // The frame around every page: title, language switch (Urdu right to left) and sign-out.
@@ -9,6 +10,7 @@ import { auth, useAuthState } from './auth';
 export function Shell({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
   const state = useAuthState();
+  const status = useAccess()?.tenant.status;
   const navigate = useNavigate();
   useEffect(() => {
     document.documentElement.lang = i18n.language;
@@ -42,7 +44,16 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
         </div>
       </header>
-      <main className="mx-auto flex max-w-xl flex-col gap-6 p-6">{children}</main>
+      <main className="mx-auto flex max-w-xl flex-col gap-6 p-6">
+        {status && LIMITED_STATUSES.includes(status) && (
+          <Banner
+            tone={status === 'trial_expired' || status === 'suspended_read_only' ? 'info' : 'error'}
+          >
+            {t(`access.status.${status}`)}
+          </Banner>
+        )}
+        {children}
+      </main>
     </div>
   );
 }
