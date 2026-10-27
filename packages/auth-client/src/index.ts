@@ -212,3 +212,5 @@ export function desktopTransport(bridge: DesktopAuthBridge): AuthTransport {
 export function desktopBridge(): DesktopAuthBridge | undefined {
   return (globalThis as { erp?: { auth?: DesktopAuthBridge } }).erp?.auth;
 }
+
+export { AccessClient, type AccessClientOptions } from './access';
