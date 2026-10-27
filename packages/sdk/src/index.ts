@@ -1,8 +1,10 @@
 import {
   AcceptedSchema,
+  ACCESS_VERSION_HEADER,
   DoneSchema,
   HealthResponseSchema,
   LoginResponseSchema,
+  MeAccessSchema,
   MembershipsSchema,
   MeSchema,
   ProblemDetailsSchema,
@@ -45,6 +47,8 @@ export type SdkOptions = {
   getAccessToken?: () => Promise<string | null>;
   /** Called once when an authorized call answers 401; true means "retry with a new token". */
   onUnauthorized?: () => Promise<boolean>;
+  /** The X-Access-Version of a company response, so the client can tell when access changed. */
+  onAccessVersion?: (version: number) => void;
 };
 
 type Call = {
@@ -83,6 +87,10 @@ export function createSdk(options: SdkOptions) {
     let response = await send();
     if (response.status === 401 && c.auth && (await options.onUnauthorized?.())) {
       response = await send();
+    }
+    const version = response.headers.get(ACCESS_VERSION_HEADER);
+    if (version !== null && Number.isInteger(Number(version))) {
+      options.onAccessVersion?.(Number(version));
     }
     const text = await response.text();
     const json: unknown = text ? JSON.parse(text) : undefined;
@@ -128,6 +136,8 @@ export function createSdk(options: SdkOptions) {
 
     me: {
       get: () => call(`${app}/me`, MeSchema, { auth: true }),
+      /** Features, permissions with scopes, menu and version in the current company. */
+      access: () => call(`${app}/me/access`, MeAccessSchema, { auth: true }),
       memberships: () => call(`${app}/me/memberships`, MembershipsSchema, { auth: true }),
       sessions: () => call(`${app}/me/sessions`, SessionsSchema, { auth: true }),
       revokeSession: (id: string) =>

@@ -66,4 +66,29 @@ describe('sdk', () => {
     expect(init.credentials).toBe('omit');
     expect(JSON.parse(String(init.body))).toEqual({ refresh_token: 'refresh-token-value-123456' });
   });
+  it('reports the access version of each response, refused ones included', async () => {
+    const versions: number[] = [];
+    const withVersion = (status: number, body: unknown, version: string) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json', 'x-access-version': version },
+      });
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(withVersion(200, { status: 'done' }, '12'))
+      .mockResolvedValueOnce(
+        withVersion(403, { type: 'x', title: 'x', status: 403, code: 'permission_denied' }, '13'),
+      )
+      .mockResolvedValueOnce(json(200, { status: 'done' }));
+    const sdk = createSdk({
+      baseUrl: 'http://api.test',
+      fetch,
+      getAccessToken: async () => 't',
+      onAccessVersion: (v) => versions.push(v),
+    });
+    await sdk.auth.logoutAll();
+    await sdk.auth.logoutAll().catch(() => undefined);
+    await sdk.auth.logoutAll();
+    expect(versions).toEqual([12, 13]);
+  });
 });
