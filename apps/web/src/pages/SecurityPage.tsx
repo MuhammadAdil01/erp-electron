@@ -7,13 +7,13 @@ import {
   PasswordInput,
   QrCode,
   RecoveryCodes,
-  useToast,
 } from '@erp/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { auth, errorMessage, sdk } from '../auth';
+import { useTranslatedToast } from '../toasts';
 import { ruleLabel } from './password';
 
 // My Account › Security (Part 05 §5.3.9–5.3.11): password, two-step sign-in with recovery
@@ -52,7 +52,7 @@ export function SecurityPage() {
 
 function PasswordSection({ mfa, email }: { mfa: boolean; email: string }) {
   const { t } = useTranslation();
-  const toast = useToast();
+  const toast = useTranslatedToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [error, setError] = useState<string>();
@@ -64,7 +64,7 @@ function PasswordSection({ mfa, email }: { mfa: boolean; email: string }) {
       .then(() => {
         setCurrent('');
         setNext('');
-        toast(t('security.changed'));
+        toast('security.changed');
       })
       .catch((e: unknown) => setError(errorMessage(e, t)));
   };
@@ -114,7 +114,7 @@ function useStepUp() {
 
 function MfaSection({ enrolled, required }: { enrolled: boolean; required: boolean }) {
   const { t } = useTranslation();
-  const toast = useToast();
+  const toast = useTranslatedToast();
   const queries = useQueryClient();
   const [enrolment, setEnrolment] = useState<{ secret: string; otpauth_uri: string }>();
   const [code, setCode] = useState('');
@@ -135,7 +135,7 @@ function MfaSection({ enrolled, required }: { enrolled: boolean; required: boole
         setEnrolment(undefined);
         setCode('');
         setCodes(result.recovery_codes);
-        toast(t('security.mfa_enabled'));
+        toast('security.mfa_enabled');
       })
       .catch(fail);
   };
@@ -147,7 +147,7 @@ function MfaSection({ enrolled, required }: { enrolled: boolean; required: boole
     void stepUp
       .run(async () => {
         await sdk.me.disableMfa();
-        toast(t('security.mfa_disabled'));
+        toast('security.mfa_disabled');
         refresh();
       })
       .catch(fail);

@@ -3,11 +3,14 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 import { color, radii, space } from './tokens';
 
 // Short confirmations ("Password changed") that disappear on their own (Part 12 §12.6),
-// announced to screen readers by Radix.
+// announced to screen readers by Radix. The title is a node, so an app can pass one that
+// translates itself and follows a language switch while the toast is open.
 
-type Toast = { id: number; title: string; tone: 'success' | 'error' | 'info' };
+type Toast = { id: number; title: ReactNode; tone: 'success' | 'error' | 'info' };
 
-const ToastContext = createContext<(title: string, tone?: Toast['tone']) => void>(() => undefined);
+const ToastContext = createContext<(title: ReactNode, tone?: Toast['tone']) => void>(
+  () => undefined,
+);
 
 export function ToastProvider({
   children,
@@ -17,7 +20,7 @@ export function ToastProvider({
   closeLabel: string;
 }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const show = useCallback((title: string, tone: Toast['tone'] = 'success') => {
+  const show = useCallback((title: ReactNode, tone: Toast['tone'] = 'success') => {
     setToasts((list) => [...list, { id: Date.now() + Math.random(), title, tone }]);
   }, []);
   return (
