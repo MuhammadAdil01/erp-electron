@@ -96,7 +96,7 @@ describe('sdk', () => {
       key: 't',
       version: '1.0.0',
       status: 'draft',
-      name: { en: 'T', ur: 'ٹی' },
+      name: 'T',
       industry: 'general',
       roles: 0,
       entitlements: 0,
@@ -107,7 +107,7 @@ describe('sdk', () => {
       definition: {
         key: 't',
         version: '1.0.0',
-        name: { en: 'T', ur: 'ٹی' },
+        name: 'T',
         industry: 'general',
         description: '',
         entitlements: [],
