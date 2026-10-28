@@ -82,7 +82,7 @@ apps/
 packages/
   contracts/      Zod schemas and types shared with the API (copy of ERP-Backend's)
   ui/             Design tokens and shared React components
-  i18n/           Translations (en, ur) and the i18next loader
+  i18n/           Translations (English) and the i18next loader
   sdk/            Typed API client (empty for now)
   auth-client/    Client-side sign-in and session handling (empty for now)
   sync/           Offline store and sync for the desktop app (empty for now)

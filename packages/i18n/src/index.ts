@@ -1,13 +1,14 @@
 import i18next, { type i18n, type Module } from 'i18next';
 import en from './locales/en.json';
-import ur from './locales/ur.json';
 
-export const languages = ['en', 'ur'] as const;
+// Screen texts come from the translation file, never from the code (Part 12 §12.7). English is
+// the only language (D12); the file keeps the door open for another one.
+
+export const languages = ['en'] as const;
 export type Language = (typeof languages)[number];
 
 export const resources = {
   en: { translation: en },
-  ur: { translation: ur },
 } as const;
 
 export type CreateI18nOptions = {
