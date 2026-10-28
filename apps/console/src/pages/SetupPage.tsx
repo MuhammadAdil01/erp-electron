@@ -10,7 +10,7 @@ import { errorMessage, sdk } from '../auth';
 
 export function SetupPage() {
   const { t } = useTranslation();
-  const { token } = useParams({ from: '/setup/$token' });
+  const { token } = useParams({ strict: false });
   const [who, setWho] = useState<{ email: string; name: string }>();
   const [state, setState] = useState<'form' | 'done' | 'invalid'>('form');
   const [password, setPassword] = useState('');

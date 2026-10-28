@@ -39,8 +39,10 @@ export function errorMessage(error: unknown, t: (key: string) => string): string
       case 'rate_limited':
         return t('common.rate_limited');
       case 'validation_failed':
-        return error.problem?.errors?.[0]?.message ?? t('common.error');
+        return error.problem?.errors?.[0]?.message ?? error.problem?.detail ?? t('common.error');
     }
+    // Conflicts, refusals and stale versions: the API's own explanation.
+    if (error.problem?.detail) return error.problem.detail;
   }
   return t('common.error');
 }
