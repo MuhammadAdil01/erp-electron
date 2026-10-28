@@ -14,7 +14,9 @@ const PERIODS = ['monthly', 'yearly'] as const;
 
 function priceText(prices: PlanView['prices']): string {
   return Object.entries(prices)
-    .flatMap(([cur, by]) => Object.entries(by).map(([period, amount]) => `${cur} ${amount} / ${period}`))
+    .flatMap(([cur, by]) =>
+      Object.entries(by).map(([period, amount]) => `${cur} ${amount} / ${period}`),
+    )
     .join(' · ');
 }
 
@@ -29,17 +31,42 @@ export function PlansPage() {
   const [pricing, setPricing] = useState<PlanView | null>(null);
   const [editing, setEditing] = useState<PlanView | null>(null);
   const [prices, setPrices] = useState<Record<string, string>>({});
-  const [form, setForm] = useState({ name: '', limits: '{}', features: '', visibility: 'private', reason: '' });
+  const [form, setForm] = useState({
+    name: '',
+    limits: '{}',
+    features: '',
+    visibility: 'private',
+    reason: '',
+  });
 
   const columns = useMemo<ColumnDef<PlanView, unknown>[]>(
     () => [
       { accessorKey: 'name', header: t('console.plans.plan') },
       { accessorKey: 'key', header: t('console.plans.key') },
-      { id: 'kind', header: t('console.plans.kind'), accessorFn: (p) => t(`console.plans.${p.kind}`) },
+      {
+        id: 'kind',
+        header: t('console.plans.kind'),
+        accessorFn: (p) => t(`console.plans.${p.kind}`),
+      },
       { accessorKey: 'tier', header: t('console.plans.tier') },
-      { id: 'limits', header: t('console.plans.limits'), accessorFn: (p) => Object.entries(p.limits).map(([k, v]) => `${k} ${v}`).join(', ') },
-      { id: 'prices', header: t('console.plans.prices'), accessorFn: (p) => priceText(p.prices) || t('console.plans.no_prices') },
-      { id: 'visibility', header: t('console.plans.visibility'), accessorFn: (p) => t(`console.plans.${p.visibility}`) },
+      {
+        id: 'limits',
+        header: t('console.plans.limits'),
+        accessorFn: (p) =>
+          Object.entries(p.limits)
+            .map(([k, v]) => `${k} ${v}`)
+            .join(', '),
+      },
+      {
+        id: 'prices',
+        header: t('console.plans.prices'),
+        accessorFn: (p) => priceText(p.prices) || t('console.plans.no_prices'),
+      },
+      {
+        id: 'visibility',
+        header: t('console.plans.visibility'),
+        accessorFn: (p) => t(`console.plans.${p.visibility}`),
+      },
       {
         id: 'status',
         header: t('console.common.status'),
@@ -53,21 +80,37 @@ export function PlansPage() {
         cell: ({ row }) => (
           <span className="flex gap-2">
             {canPrice && (
-              <button type="button" className="underline" onClick={() => {
-                const next: Record<string, string> = {};
-                for (const c of CURRENCIES) for (const p of PERIODS) next[`${c}.${p}`] = String(row.original.prices[c]?.[p] ?? '');
-                setPrices({ ...next, reason: '' });
-                setPricing(row.original);
-              }}>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => {
+                  const next: Record<string, string> = {};
+                  for (const c of CURRENCIES)
+                    for (const p of PERIODS)
+                      next[`${c}.${p}`] = String(row.original.prices[c]?.[p] ?? '');
+                  setPrices({ ...next, reason: '' });
+                  setPricing(row.original);
+                }}
+              >
                 {t('console.plans.change_prices')}
               </button>
             )}
             {canEdit && (
-              <button type="button" className="underline" onClick={() => {
-                const p = row.original;
-                setForm({ name: p.name, limits: JSON.stringify(p.limits), features: p.feature_keys.join(', '), visibility: p.visibility, reason: '' });
-                setEditing(p);
-              }}>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => {
+                  const p = row.original;
+                  setForm({
+                    name: p.name,
+                    limits: JSON.stringify(p.limits),
+                    features: p.feature_keys.join(', '),
+                    visibility: p.visibility,
+                    reason: '',
+                  });
+                  setEditing(p);
+                }}
+              >
                 {t('console.common.edit')}
               </button>
             )}
@@ -86,7 +129,13 @@ export function PlansPage() {
         if (raw) (next[c] ??= {})[p] = Number(raw);
       }
     void change(
-      () => sdk.console.catalogue.prices(pricing!.kind === 'plan' ? 'plans' : 'addons', pricing!.key, next, prices.reason ?? ''),
+      () =>
+        sdk.console.catalogue.prices(
+          pricing!.kind === 'plan' ? 'plans' : 'addons',
+          pricing!.key,
+          next,
+          prices.reason ?? '',
+        ),
       () => {
         setPricing(null);
         plans.reload();
@@ -111,7 +160,10 @@ export function PlansPage() {
             name: form.name,
             tier: p.tier,
             limits,
-            feature_keys: form.features.split(',').map((f) => f.trim()).filter(Boolean),
+            feature_keys: form.features
+              .split(',')
+              .map((f) => f.trim())
+              .filter(Boolean),
             prices: p.prices,
             visibility: form.visibility as 'public' | 'private',
             reason: form.reason,
@@ -129,7 +181,14 @@ export function PlansPage() {
     <>
       <PageHeader title={t('console.plans.title')} count={plans.data?.data.length} />
       <Loaded resource={plans}>
-        {(data) => <DataGrid data={data.data} columns={columns} getRowId={(p) => `${p.kind}:${p.key}`} labels={labels} />}
+        {(data) => (
+          <DataGrid
+            data={data.data}
+            columns={columns}
+            getRowId={(p) => `${p.kind}:${p.key}`}
+            labels={labels}
+          />
+        )}
       </Loaded>
 
       <Dialog
@@ -156,7 +215,10 @@ export function PlansPage() {
             )),
           )}
         </div>
-        <ReasonField value={prices.reason ?? ''} onChange={(reason) => setPrices({ ...prices, reason })} />
+        <ReasonField
+          value={prices.reason ?? ''}
+          onChange={(reason) => setPrices({ ...prices, reason })}
+        />
       </Dialog>
 
       <Dialog
@@ -171,12 +233,28 @@ export function PlansPage() {
         }
       >
         <div className="grid gap-3">
-          <Input label={t('console.plans.plan')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Input label={`${t('console.plans.limits')} (JSON)`} value={form.limits} onChange={(e) => setForm({ ...form, limits: e.target.value })} />
-          <Input label={t('console.plans.features')} value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} />
+          <Input
+            label={t('console.plans.plan')}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Input
+            label={`${t('console.plans.limits')} (JSON)`}
+            value={form.limits}
+            onChange={(e) => setForm({ ...form, limits: e.target.value })}
+          />
+          <Input
+            label={t('console.plans.features')}
+            value={form.features}
+            onChange={(e) => setForm({ ...form, features: e.target.value })}
+          />
           <label className="grid gap-1">
             <span className="font-medium">{t('console.plans.visibility')}</span>
-            <select value={form.visibility} onChange={(e) => setForm({ ...form, visibility: e.target.value })} className="rounded-md border p-2">
+            <select
+              value={form.visibility}
+              onChange={(e) => setForm({ ...form, visibility: e.target.value })}
+              className="rounded-md border p-2"
+            >
               <option value="private">{t('console.plans.private')}</option>
               <option value="public">{t('console.plans.public')}</option>
             </select>

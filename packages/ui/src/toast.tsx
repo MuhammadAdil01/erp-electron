@@ -4,7 +4,7 @@ import { color, radii, space } from './tokens';
 
 // Short confirmations ("Password changed") that disappear on their own (Part 12 §12.6),
 // announced to screen readers by Radix. The title is a node, so an app can pass one that
-// translates itself and follows a language switch while the toast is open.
+// translates itself.
 
 type Toast = { id: number; title: ReactNode; tone: 'success' | 'error' | 'info' };
 

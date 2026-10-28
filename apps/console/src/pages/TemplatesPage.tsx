@@ -1,4 +1,8 @@
-import { TemplateDefinitionSchema, templateProblems, type TemplateDefinition } from '@erp/contracts';
+import {
+  TemplateDefinitionSchema,
+  templateProblems,
+  type TemplateDefinition,
+} from '@erp/contracts';
 import { Banner, Button, DataGrid, Dialog, Input, PageHeader, Tabs, type ColumnDef } from '@erp/ui';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
@@ -14,22 +18,30 @@ import { holds, useStaffAccess } from '../staff-access';
 type Summary = Awaited<ReturnType<typeof sdk.console.templates.list>>['data'][number];
 
 export function TemplatesPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const templates = useResource(() => sdk.console.templates.list(), []);
   const labels = useGridLabels();
   const columns = useMemo<ColumnDef<Summary, unknown>[]>(
     () => [
-      { id: 'name', header: t('console.templates.template'), accessorFn: (s) => (i18n.language === 'ur' ? s.name.ur : s.name.en) },
+      { id: 'name', header: t('console.templates.template'), accessorFn: (s) => s.name },
       { accessorKey: 'version', header: t('console.common.version') },
-      { accessorKey: 'status', header: t('console.common.status'), cell: (c) => <Status status={c.row.original.status} /> },
+      {
+        accessorKey: 'status',
+        header: t('console.common.status'),
+        cell: (c) => <Status status={c.row.original.status} />,
+      },
       { accessorKey: 'industry', header: t('console.templates.industry') },
       { accessorKey: 'roles', header: t('console.templates.roles') },
       { accessorKey: 'entitlements', header: t('console.templates.entitlements') },
-      { id: 'by', header: t('console.templates.published_by'), accessorFn: (s) => s.published_by?.name ?? '—' },
-      { id: 'updated', header: t('console.common.updated'), accessorFn: (s) => when(s.updated_at, i18n.language) },
+      {
+        id: 'by',
+        header: t('console.templates.published_by'),
+        accessorFn: (s) => s.published_by?.name ?? '—',
+      },
+      { id: 'updated', header: t('console.common.updated'), accessorFn: (s) => when(s.updated_at) },
     ],
-    [t, i18n.language],
+    [t],
   );
   return (
     <>
@@ -41,7 +53,12 @@ export function TemplatesPage() {
             columns={columns}
             getRowId={(s) => `${s.key}@${s.version}`}
             labels={labels}
-            onRowClick={(s) => void navigate({ to: '/catalogue/templates/$key/$version', params: { key: s.key, version: s.version } })}
+            onRowClick={(s) =>
+              void navigate({
+                to: '/catalogue/templates/$key/$version',
+                params: { key: s.key, version: s.version },
+              })
+            }
           />
         )}
       </Loaded>
@@ -57,12 +74,13 @@ function parseDefinition(text: string): { definition?: TemplateDefinition; probl
     return { problems: ['invalid-json'] };
   }
   const parsed = TemplateDefinitionSchema.safeParse(json);
-  if (!parsed.success) return { problems: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) };
+  if (!parsed.success)
+    return { problems: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) };
   return { definition: parsed.data, problems: templateProblems(parsed.data) };
 }
 
 export function TemplatePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { key, version } = useParams({ strict: false });
   const navigate = useNavigate();
   const access = useStaffAccess();
@@ -86,7 +104,9 @@ export function TemplatePage() {
       {({ body, etag }) => {
         const d = body.definition;
         const isDraft = body.status === 'draft';
-        const others = (versions.data?.data ?? []).filter((v) => v.key === key && v.version !== version);
+        const others = (versions.data?.data ?? []).filter(
+          (v) => v.key === key && v.version !== version,
+        );
         return (
           <>
             <Link to="/catalogue/templates" className="underline">
@@ -94,21 +114,29 @@ export function TemplatePage() {
             </Link>
             <div className="mt-2">
               <span className="me-2 text-2xl font-semibold">
-                {i18n.language === 'ur' ? d.name.ur : d.name.en} {body.version}
+                {d.name} {body.version}
               </span>
               <Status status={body.status} />
             </div>
             <div className="my-4 flex flex-wrap gap-2">
               {holds(access, 'catalogue.draft') && (
-                <Button onClick={() => setDrafting(true)}>{t('console.templates.new_draft')}</Button>
+                <Button onClick={() => setDrafting(true)}>
+                  {t('console.templates.new_draft')}
+                </Button>
               )}
               {isDraft && holds(access, 'catalogue.draft') && text === null && (
-                <Button onClick={() => setText(JSON.stringify(d, null, 2))}>{t('console.templates.edit')}</Button>
+                <Button onClick={() => setText(JSON.stringify(d, null, 2))}>
+                  {t('console.templates.edit')}
+                </Button>
               )}
             </div>
             {body.problems.length > 0 ? (
               <Banner tone="error" title={t('console.templates.problems')}>
-                <ul className="list-disc ps-5">{body.problems.map((p) => <li key={p}>{p}</li>)}</ul>
+                <ul className="list-disc ps-5">
+                  {body.problems.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
               </Banner>
             ) : (
               isDraft && <Banner tone="success">{t('console.templates.no_problems')}</Banner>
@@ -116,7 +144,9 @@ export function TemplatePage() {
 
             {text !== null && (
               <section className="my-4 grid gap-2">
-                <label htmlFor="definition" className="font-medium">{t('console.templates.definition')}</label>
+                <label htmlFor="definition" className="font-medium">
+                  {t('console.templates.definition')}
+                </label>
                 <textarea
                   id="definition"
                   value={text}
@@ -128,7 +158,11 @@ export function TemplatePage() {
                 {live && live.problems.length > 0 && (
                   <Banner tone="error" title={t('console.templates.problems')}>
                     <ul className="list-disc ps-5">
-                      {live.problems.map((p) => <li key={p}>{p === 'invalid-json' ? t('console.templates.invalid_json') : p}</li>)}
+                      {live.problems.map((p) => (
+                        <li key={p}>
+                          {p === 'invalid-json' ? t('console.templates.invalid_json') : p}
+                        </li>
+                      ))}
                     </ul>
                   </Banner>
                 )}
@@ -138,7 +172,13 @@ export function TemplatePage() {
                     disabled={!live?.definition || reason.trim().length < 3}
                     onClick={() =>
                       void change(
-                        () => sdk.console.templates.update(key, version, { definition: live!.definition!, reason }, etag),
+                        () =>
+                          sdk.console.templates.update(
+                            key,
+                            version,
+                            { definition: live!.definition!, reason },
+                            etag,
+                          ),
                         () => {
                           setText(null);
                           setReason('');
@@ -159,7 +199,12 @@ export function TemplatePage() {
                 <ReasonField value={reason} onChange={setReason} />
                 <Button
                   disabled={body.problems.length > 0 || reason.trim().length < 3}
-                  onClick={() => void change(() => sdk.console.templates.publish(key, version, reason), () => detail.reload())}
+                  onClick={() =>
+                    void change(
+                      () => sdk.console.templates.publish(key, version, reason),
+                      () => detail.reload(),
+                    )
+                  }
                 >
                   {t('console.templates.publish')}
                 </Button>
@@ -178,17 +223,27 @@ export function TemplatePage() {
                     <div className="grid gap-4">
                       <p>{d.description}</p>
                       <div>
-                        <h3 className="font-semibold">{t('console.templates.entitlements')} ({d.entitlements.length})</h3>
+                        <h3 className="font-semibold">
+                          {t('console.templates.entitlements')} ({d.entitlements.length})
+                        </h3>
                         <p className="text-sm">{d.entitlements.join(', ')}</p>
                       </div>
                       <div>
                         <h3 className="font-semibold">{t('console.templates.limits')}</h3>
-                        <p className="text-sm">{Object.entries(d.limits).map(([k, v]) => `${k}: ${v}`).join(' · ')}</p>
+                        <p className="text-sm">
+                          {Object.entries(d.limits)
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(' · ')}
+                        </p>
                       </div>
                       <div>
                         <h3 className="font-semibold">{t('console.templates.terminology')}</h3>
                         <ul className="text-sm">
-                          {Object.entries(d.terminology).map(([k, v]) => <li key={k}>{k} → {v.en} / {v.ur}</li>)}
+                          {Object.entries(d.terminology).map(([k, v]) => (
+                            <li key={k}>
+                              {k} → {v}
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     </div>
@@ -202,11 +257,19 @@ export function TemplatePage() {
                       {d.roles.map((r) => (
                         <details key={r.key} className="rounded-md border p-2">
                           <summary className="cursor-pointer font-medium">
-                            {i18n.language === 'ur' ? r.name.ur : r.name.en} · {r.owner ? t('console.templates.owner_role') : `${r.grants.length} ${t('console.templates.grants')}`}
+                            {r.name} ·{' '}
+                            {r.owner
+                              ? t('console.templates.owner_role')
+                              : `${r.grants.length} ${t('console.templates.grants')}`}
                           </summary>
                           <p className="text-sm opacity-80">{r.description}</p>
                           <ul className="text-sm">
-                            {r.grants.map((g) => <li key={g.permission}>{g.permission} ({g.scope}){g.thresholds ? ` ${JSON.stringify(g.thresholds)}` : ''}</li>)}
+                            {r.grants.map((g) => (
+                              <li key={g.permission}>
+                                {g.permission} ({g.scope})
+                                {g.thresholds ? ` ${JSON.stringify(g.thresholds)}` : ''}
+                              </li>
+                            ))}
                           </ul>
                         </details>
                       ))}
@@ -220,20 +283,41 @@ export function TemplatePage() {
                     <div className="grid gap-3">
                       <label className="flex items-center gap-2">
                         {t('console.templates.compare_with')}
-                        <select value={compare} onChange={(e) => setCompare(e.target.value)} className="rounded-md border p-1">
+                        <select
+                          value={compare}
+                          onChange={(e) => setCompare(e.target.value)}
+                          className="rounded-md border p-1"
+                        >
                           <option value="">—</option>
-                          {others.map((o) => <option key={o.version} value={o.version}>{o.version} ({t(`console.status.${o.status}`)})</option>)}
+                          {others.map((o) => (
+                            <option key={o.version} value={o.version}>
+                              {o.version} ({t(`console.status.${o.status}`)})
+                            </option>
+                          ))}
                         </select>
                       </label>
                       {diff.data && (
                         <div className="grid gap-2 text-sm">
                           <p>
-                            {t('console.templates.entitlements')}: +{diff.data.entitlements.added.join(', ') || '—'} / −{diff.data.entitlements.removed.join(', ') || '—'}
+                            {t('console.templates.entitlements')}: +
+                            {diff.data.entitlements.added.join(', ') || '—'} / −
+                            {diff.data.entitlements.removed.join(', ') || '—'}
                           </p>
-                          <p>{t('console.templates.limits')}: {diff.data.limits.map((l) => `${l.key} ${l.before ?? '—'} → ${l.after ?? '—'}`).join(' · ') || t('console.templates.no_changes')}</p>
-                          <p>{t('console.templates.roles')}: +{diff.data.roles.added.join(', ') || '—'} / −{diff.data.roles.removed.join(', ') || '—'}</p>
+                          <p>
+                            {t('console.templates.limits')}:{' '}
+                            {diff.data.limits
+                              .map((l) => `${l.key} ${l.before ?? '—'} → ${l.after ?? '—'}`)
+                              .join(' · ') || t('console.templates.no_changes')}
+                          </p>
+                          <p>
+                            {t('console.templates.roles')}: +
+                            {diff.data.roles.added.join(', ') || '—'} / −
+                            {diff.data.roles.removed.join(', ') || '—'}
+                          </p>
                           {diff.data.roles.changed.map((c) => (
-                            <p key={c.key}>{c.key}: +{c.added.join(', ') || '—'} / −{c.removed.join(', ') || '—'}</p>
+                            <p key={c.key}>
+                              {c.key}: +{c.added.join(', ') || '—'} / −{c.removed.join(', ') || '—'}
+                            </p>
                           ))}
                         </div>
                       )}
@@ -253,10 +337,18 @@ export function TemplatePage() {
                   disabled={!/^\d+\.\d+\.\d+$/.test(newVersion) || reason.trim().length < 3}
                   onClick={() =>
                     void change(
-                      () => sdk.console.templates.createDraft(key, { version: newVersion, from_version: version, reason }),
+                      () =>
+                        sdk.console.templates.createDraft(key, {
+                          version: newVersion,
+                          from_version: version,
+                          reason,
+                        }),
                       () => {
                         setDrafting(false);
-                        void navigate({ to: '/catalogue/templates/$key/$version', params: { key, version: newVersion } });
+                        void navigate({
+                          to: '/catalogue/templates/$key/$version',
+                          params: { key, version: newVersion },
+                        });
                       },
                     )
                   }
@@ -265,8 +357,15 @@ export function TemplatePage() {
                 </Button>
               }
             >
-              <p>{t('console.templates.from_version')}: {version}</p>
-              <Input label={t('console.templates.new_version')} placeholder="1.1.0" value={newVersion} onChange={(e) => setNewVersion(e.target.value)} />
+              <p>
+                {t('console.templates.from_version')}: {version}
+              </p>
+              <Input
+                label={t('console.templates.new_version')}
+                placeholder="1.1.0"
+                value={newVersion}
+                onChange={(e) => setNewVersion(e.target.value)}
+              />
               <ReasonField value={reason} onChange={setReason} />
             </Dialog>
           </>

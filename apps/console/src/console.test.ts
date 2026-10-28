@@ -9,7 +9,10 @@ const problem = (code: ProblemDetails['code']) =>
 
 describe('step-up for sensitive console actions (Part 03 §3.3.1)', () => {
   it('asks for a fresh MFA check when the API wants one, then runs the action again', async () => {
-    const action = vi.fn().mockRejectedValueOnce(problem('step_up_required')).mockResolvedValueOnce('done');
+    const action = vi
+      .fn()
+      .mockRejectedValueOnce(problem('step_up_required'))
+      .mockResolvedValueOnce('done');
     const ask = vi.fn().mockResolvedValue(undefined);
     await expect(withStepUp(action, ask)).resolves.toBe('done');
     expect(ask).toHaveBeenCalledOnce();
@@ -19,13 +22,17 @@ describe('step-up for sensitive console actions (Part 03 §3.3.1)', () => {
   it('does not ask when the action runs, and passes other refusals through untouched', async () => {
     const ask = vi.fn();
     await expect(withStepUp(() => Promise.resolve(1), ask)).resolves.toBe(1);
-    await expect(withStepUp(() => Promise.reject(problem('permission_denied')), ask)).rejects.toMatchObject({ code: 'permission_denied' });
+    await expect(
+      withStepUp(() => Promise.reject(problem('permission_denied')), ask),
+    ).rejects.toMatchObject({ code: 'permission_denied' });
     expect(ask).not.toHaveBeenCalled();
   });
 
   it('gives up when the person closes the code dialog', async () => {
     const action = vi.fn().mockRejectedValue(problem('step_up_required'));
-    await expect(withStepUp(action, () => Promise.reject(new Error('step-up cancelled')))).rejects.toThrow('cancelled');
+    await expect(
+      withStepUp(action, () => Promise.reject(new Error('step-up cancelled'))),
+    ).rejects.toThrow('cancelled');
     expect(action).toHaveBeenCalledOnce();
   });
 });
@@ -34,7 +41,10 @@ describe('what a staff member is shown', () => {
   const access = {
     staff_id: 's1',
     roles: ['billing_manager' as const],
-    permissions: { 'catalogue.prices': 'four_eyes' as const, 'audit.view_billing': 'allow' as const },
+    permissions: {
+      'catalogue.prices': 'four_eyes' as const,
+      'audit.view_billing': 'allow' as const,
+    },
     menu: [],
     badges: {},
     mfa_verified_at: null,

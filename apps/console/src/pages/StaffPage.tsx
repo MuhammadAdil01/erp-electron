@@ -10,7 +10,13 @@ import { useStepUp } from '../step-up';
 // Staff (Part 03 §3.2): the Platform Owner invites staff, changes their roles and deactivates
 // them; the Auditor sees the list. Every change needs a reason and a fresh MFA check.
 
-function RolesPicker({ value, onChange }: { value: StaffRoleKey[]; onChange: (roles: StaffRoleKey[]) => void }) {
+function RolesPicker({
+  value,
+  onChange,
+}: {
+  value: StaffRoleKey[];
+  onChange: (roles: StaffRoleKey[]) => void;
+}) {
   const { t } = useTranslation();
   return (
     <fieldset className="grid gap-1">
@@ -20,7 +26,9 @@ function RolesPicker({ value, onChange }: { value: StaffRoleKey[]; onChange: (ro
           <input
             type="checkbox"
             checked={value.includes(role)}
-            onChange={(e) => onChange(e.target.checked ? [...value, role] : value.filter((r) => r !== role))}
+            onChange={(e) =>
+              onChange(e.target.checked ? [...value, role] : value.filter((r) => r !== role))
+            }
           />
           {t(`console.role.${role}`)}
         </label>
@@ -30,7 +38,7 @@ function RolesPicker({ value, onChange }: { value: StaffRoleKey[]; onChange: (ro
 }
 
 export function StaffPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const access = useStaffAccess();
   const manage = holds(access, 'staff.manage');
   const staff = useResource(() => sdk.console.staff.list(), []);
@@ -40,7 +48,12 @@ export function StaffPage() {
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [leaving, setLeaving] = useState<StaffMember | null>(null);
-  const [form, setForm] = useState({ email: '', name: '', roles: [] as StaffRoleKey[], reason: '' });
+  const [form, setForm] = useState({
+    email: '',
+    name: '',
+    roles: [] as StaffRoleKey[],
+    reason: '',
+  });
 
   const columns = useMemo<ColumnDef<StaffMember, unknown>[]>(
     () => [
@@ -51,11 +64,15 @@ export function StaffPage() {
         header: t('console.staff.roles'),
         accessorFn: (m) => m.roles.map((r) => t(`console.role.${r}`)).join(', '),
       },
-      { accessorKey: 'status', header: t('console.common.status'), cell: (c) => <Status status={c.row.original.status} /> },
+      {
+        accessorKey: 'status',
+        header: t('console.common.status'),
+        cell: (c) => <Status status={c.row.original.status} />,
+      },
       {
         id: 'last',
         header: t('console.staff.last_sign_in'),
-        accessorFn: (m) => (m.last_sign_in_at ? when(m.last_sign_in_at, i18n.language) : t('console.staff.never')),
+        accessorFn: (m) => (m.last_sign_in_at ? when(m.last_sign_in_at) : t('console.staff.never')),
       },
       ...(manage
         ? [
@@ -68,22 +85,38 @@ export function StaffPage() {
                 if (m.id === access?.staff_id) return null;
                 return (
                   <span className="flex flex-wrap gap-x-3 whitespace-nowrap">
-                    <button type="button" className="underline" onClick={() => {
-                      setForm({ email: m.email, name: m.name, roles: m.roles, reason: '' });
-                      setEditing(m);
-                    }}>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setForm({ email: m.email, name: m.name, roles: m.roles, reason: '' });
+                        setEditing(m);
+                      }}
+                    >
                       {t('console.staff.change_roles')}
                     </button>
                     {m.status === 'invited' && (
-                      <button type="button" className="underline" onClick={() => void change(() => sdk.console.staff.setupLink(m.id, 'new setup link requested'))}>
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() =>
+                          void change(() =>
+                            sdk.console.staff.setupLink(m.id, 'new setup link requested'),
+                          )
+                        }
+                      >
                         {t('console.staff.setup_link')}
                       </button>
                     )}
                     {m.status !== 'suspended' && (
-                      <button type="button" className="underline" onClick={() => {
-                        setForm((f) => ({ ...f, reason: '' }));
-                        setLeaving(m);
-                      }}>
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => {
+                          setForm((f) => ({ ...f, reason: '' }));
+                          setLeaving(m);
+                        }}
+                      >
                         {t('console.staff.deactivate')}
                       </button>
                     )}
@@ -94,7 +127,7 @@ export function StaffPage() {
           ]
         : []),
     ],
-    [t, i18n.language, manage, access?.staff_id, change],
+    [t, manage, access?.staff_id, change],
   );
 
   return (
@@ -104,17 +137,27 @@ export function StaffPage() {
         count={staff.data?.data.length}
         actions={
           manage && (
-            <Button onClick={() => {
-              setForm({ email: '', name: '', roles: [], reason: '' });
-              setInviting(true);
-            }}>
+            <Button
+              onClick={() => {
+                setForm({ email: '', name: '', roles: [], reason: '' });
+                setInviting(true);
+              }}
+            >
               {t('console.staff.invite')}
             </Button>
           )
         }
       />
       <Loaded resource={staff}>
-        {(data) => <DataGrid data={data.data} columns={columns} getRowId={(m) => m.id} labels={labels} viewsKey="console.staff" />}
+        {(data) => (
+          <DataGrid
+            data={data.data}
+            columns={columns}
+            getRowId={(m) => m.id}
+            labels={labels}
+            viewsKey="console.staff"
+          />
+        )}
       </Loaded>
 
       <Dialog
@@ -124,7 +167,9 @@ export function StaffPage() {
         closeLabel={t('common.cancel')}
         footer={
           <Button
-            disabled={!form.email || !form.name || !form.roles.length || form.reason.trim().length < 3}
+            disabled={
+              !form.email || !form.name || !form.roles.length || form.reason.trim().length < 3
+            }
             onClick={() =>
               void change(
                 () => stepUp(() => sdk.console.staff.invite(form)),
@@ -141,8 +186,17 @@ export function StaffPage() {
         }
       >
         <div className="grid gap-3">
-          <Input label={t('console.staff.name')} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Input label={t('console.staff.email')} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <Input
+            label={t('console.staff.name')}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <Input
+            label={t('console.staff.email')}
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
           <RolesPicker value={form.roles} onChange={(roles) => setForm({ ...form, roles })} />
           <ReasonField value={form.reason} onChange={(reason) => setForm({ ...form, reason })} />
         </div>

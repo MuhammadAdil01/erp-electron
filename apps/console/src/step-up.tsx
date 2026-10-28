@@ -12,7 +12,10 @@ type Guard = <T>(action: () => Promise<T>) => Promise<T>;
 const StepUpContext = createContext<Guard>((action) => action());
 
 /** Runs the action; if the API asks for a fresh MFA check, asks for one and runs it once more. */
-export async function withStepUp<T>(action: () => Promise<T>, ask: () => Promise<void>): Promise<T> {
+export async function withStepUp<T>(
+  action: () => Promise<T>,
+  ask: () => Promise<void>,
+): Promise<T> {
   try {
     return await action();
   } catch (e) {

@@ -12,13 +12,19 @@ import { useStepUp } from '../step-up';
 // requester can withdraw it.
 
 export function ApprovalsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const access = useStaffAccess();
   const change = useChange();
   const stepUp = useStepUp();
   const [tab, setTab] = useState('waiting');
-  const approvals = useResource(() => sdk.console.approvals.list(tab === 'waiting' ? 'pending' : undefined), [tab]);
-  const [deciding, setDeciding] = useState<{ approval: Approval; verdict: 'approve' | 'reject' } | null>(null);
+  const approvals = useResource(
+    () => sdk.console.approvals.list(tab === 'waiting' ? 'pending' : undefined),
+    [tab],
+  );
+  const [deciding, setDeciding] = useState<{
+    approval: Approval;
+    verdict: 'approve' | 'reject';
+  } | null>(null);
   const [note, setNote] = useState('');
   const after = () => {
     setDeciding(null);
@@ -33,7 +39,11 @@ export function ApprovalsPage() {
     ) : (
       <ul className="grid gap-3" data-testid="approvals">
         {items.map((a) => (
-          <li key={a.id} className="rounded-md border p-3" style={{ borderColor: 'var(--erp-color-border)' }}>
+          <li
+            key={a.id}
+            className="rounded-md border p-3"
+            style={{ borderColor: 'var(--erp-color-border)' }}
+          >
             <div className="flex items-center gap-2">
               <strong className="flex-1">
                 {t(`console.approvals.${a.action.replace('.', '_')}`)} · {a.target_id}
@@ -41,19 +51,23 @@ export function ApprovalsPage() {
               <Status status={a.status} />
             </div>
             <p className="text-sm">
-              {t('console.approvals.requested_by')}: {a.requested_by.name} · {when(a.requested_at, i18n.language)}
+              {t('console.approvals.requested_by')}: {a.requested_by.name} · {when(a.requested_at)}
             </p>
             <p className="text-sm">
               {t('console.common.reason')}: {a.reason}
             </p>
             {Object.keys(a.payload).length > 0 && (
-              <pre dir="ltr" className="overflow-auto rounded-md p-2 text-xs" style={{ background: 'var(--erp-color-surface)' }}>
+              <pre
+                dir="ltr"
+                className="overflow-auto rounded-md p-2 text-xs"
+                style={{ background: 'var(--erp-color-surface)' }}
+              >
                 {JSON.stringify(a.payload, null, 2)}
               </pre>
             )}
             {a.decided_by && (
               <p className="text-sm">
-                {t('console.approvals.decided_by')}: {a.decided_by.name} · {when(a.decided_at, i18n.language)}
+                {t('console.approvals.decided_by')}: {a.decided_by.name} · {when(a.decided_at)}
                 {a.decision_note ? ` · ${a.decision_note}` : ''}
               </p>
             )}
@@ -61,8 +75,13 @@ export function ApprovalsPage() {
               <div className="mt-2 flex gap-2">
                 {a.can_decide && (
                   <>
-                    <Button onClick={() => setDeciding({ approval: a, verdict: 'approve' })}>{t('console.approvals.approve')}</Button>
-                    <Button style={{ background: 'var(--erp-color-danger)' }} onClick={() => setDeciding({ approval: a, verdict: 'reject' })}>
+                    <Button onClick={() => setDeciding({ approval: a, verdict: 'approve' })}>
+                      {t('console.approvals.approve')}
+                    </Button>
+                    <Button
+                      style={{ background: 'var(--erp-color-danger)' }}
+                      onClick={() => setDeciding({ approval: a, verdict: 'reject' })}
+                    >
                       {t('console.approvals.reject')}
                     </Button>
                   </>
@@ -70,7 +89,11 @@ export function ApprovalsPage() {
                 {a.requested_by.id === access?.staff_id && (
                   <>
                     <em className="self-center text-sm">{t('console.approvals.own')}</em>
-                    <Button onClick={() => void change(() => sdk.console.approvals.cancel(a.id), after)}>{t('console.approvals.withdraw')}</Button>
+                    <Button
+                      onClick={() => void change(() => sdk.console.approvals.cancel(a.id), after)}
+                    >
+                      {t('console.approvals.withdraw')}
+                    </Button>
                   </>
                 )}
               </div>
@@ -88,14 +111,26 @@ export function ApprovalsPage() {
         onValueChange={setTab}
         label={t('console.approvals.title')}
         tabs={[
-          { value: 'waiting', label: t('console.approvals.waiting'), content: <Loaded resource={approvals}>{(d) => list(d.data)}</Loaded> },
-          { value: 'history', label: t('console.approvals.history'), content: <Loaded resource={approvals}>{(d) => list(d.data)}</Loaded> },
+          {
+            value: 'waiting',
+            label: t('console.approvals.waiting'),
+            content: <Loaded resource={approvals}>{(d) => list(d.data)}</Loaded>,
+          },
+          {
+            value: 'history',
+            label: t('console.approvals.history'),
+            content: <Loaded resource={approvals}>{(d) => list(d.data)}</Loaded>,
+          },
         ]}
       />
       <Dialog
         open={deciding !== null}
         onOpenChange={(o) => !o && setDeciding(null)}
-        title={deciding ? `${t(`console.approvals.${deciding.verdict}`)}: ${deciding.approval.target_id}` : ''}
+        title={
+          deciding
+            ? `${t(`console.approvals.${deciding.verdict}`)}: ${deciding.approval.target_id}`
+            : ''
+        }
         closeLabel={t('common.cancel')}
         footer={
           <Button
@@ -105,7 +140,9 @@ export function ApprovalsPage() {
               void change(
                 () =>
                   d.verdict === 'approve'
-                    ? stepUp(() => sdk.console.approvals.approve(d.approval.id, note.trim() || undefined))
+                    ? stepUp(() =>
+                        sdk.console.approvals.approve(d.approval.id, note.trim() || undefined),
+                      )
                     : sdk.console.approvals.reject(d.approval.id, note.trim()),
                 after,
               );
@@ -116,7 +153,11 @@ export function ApprovalsPage() {
         }
       >
         <Input
-          label={deciding?.verdict === 'reject' ? t('console.approvals.note_required') : t('console.approvals.note')}
+          label={
+            deciding?.verdict === 'reject'
+              ? t('console.approvals.note_required')
+              : t('console.approvals.note')
+          }
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />

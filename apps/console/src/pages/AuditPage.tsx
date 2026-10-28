@@ -11,7 +11,7 @@ import { holds, useStaffAccess } from '../staff-access';
 // the Auditor. Entries cannot be changed or removed.
 
 export function AuditPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const access = useStaffAccess();
   const change = useChange();
   const labels = useGridLabels();
@@ -22,7 +22,11 @@ export function AuditPage() {
 
   const load = useCallback(
     async (from?: string) => {
-      const page = await sdk.console.audit.list({ action: action.trim() || undefined, cursor: from, limit: '100' });
+      const page = await sdk.console.audit.list({
+        action: action.trim() || undefined,
+        cursor: from,
+        limit: '100',
+      });
       setEntries((prev) => (from ? [...prev, ...page.data] : page.data));
       setCursor(page.next_cursor);
     },
@@ -35,14 +39,26 @@ export function AuditPage() {
 
   const columns = useMemo<ColumnDef<AuditEntry, unknown>[]>(
     () => [
-      { id: 'at', header: t('console.audit.at'), accessorFn: (e) => when(e.at, i18n.language) },
-      { id: 'actor', header: t('console.audit.actor'), accessorFn: (e) => e.actor?.name ?? t('console.audit.system') },
+      { id: 'at', header: t('console.audit.at'), accessorFn: (e) => when(e.at) },
+      {
+        id: 'actor',
+        header: t('console.audit.actor'),
+        accessorFn: (e) => e.actor?.name ?? t('console.audit.system'),
+      },
       { accessorKey: 'action', header: t('console.audit.action') },
-      { id: 'target', header: t('console.audit.target'), accessorFn: (e) => [e.target_type, e.target_id].filter(Boolean).join(' · ') },
+      {
+        id: 'target',
+        header: t('console.audit.target'),
+        accessorFn: (e) => [e.target_type, e.target_id].filter(Boolean).join(' · '),
+      },
       { accessorKey: 'reason', header: t('console.audit.reason') },
-      { accessorKey: 'result', header: t('console.audit.result'), cell: (c) => <Status status={c.row.original.result} /> },
+      {
+        accessorKey: 'result',
+        header: t('console.audit.result'),
+        cell: (c) => <Status status={c.row.original.result} />,
+      },
     ],
-    [t, i18n.language],
+    [t],
   );
 
   const exportCsv = () =>
@@ -60,32 +76,62 @@ export function AuditPage() {
     <>
       <PageHeader
         title={t('console.audit.title')}
-        actions={holds(access, 'audit.export') && <Button onClick={exportCsv}>{t('console.audit.export')}</Button>}
+        actions={
+          holds(access, 'audit.export') && (
+            <Button onClick={exportCsv}>{t('console.audit.export')}</Button>
+          )
+        }
       />
-      <FilterBar search={action} onSearch={setAction} searchLabel={t('console.audit.filter_action')} />
-      <DataGrid data={entries} columns={columns} getRowId={(e) => e.id} labels={labels} onRowClick={setOpen} viewsKey="console.audit" />
+      <FilterBar
+        search={action}
+        onSearch={setAction}
+        searchLabel={t('console.audit.filter_action')}
+      />
+      <DataGrid
+        data={entries}
+        columns={columns}
+        getRowId={(e) => e.id}
+        labels={labels}
+        onRowClick={setOpen}
+        viewsKey="console.audit"
+      />
       {cursor && (
         <div className="mt-3">
           <Button onClick={() => void load(cursor)}>{t('console.audit.load_more')}</Button>
         </div>
       )}
-      <Drawer open={open !== null} onOpenChange={(o) => !o && setOpen(null)} title={t('console.audit.entry')} closeLabel={t('common.close')}>
+      <Drawer
+        open={open !== null}
+        onOpenChange={(o) => !o && setOpen(null)}
+        title={t('console.audit.entry')}
+        closeLabel={t('common.close')}
+      >
         {open && (
           <div className="grid gap-2 text-sm">
-            <p>{when(open.at, i18n.language)} · {open.actor?.name ?? t('console.audit.system')}</p>
+            <p>
+              {when(open.at)} · {open.actor?.name ?? t('console.audit.system')}
+            </p>
             <p>
               <strong>{open.action}</strong> · {open.target_type} {open.target_id}
             </p>
-            <p>{t('console.audit.reason')}: {open.reason ?? '—'}</p>
+            <p>
+              {t('console.audit.reason')}: {open.reason ?? '—'}
+            </p>
             {(['before', 'after'] as const).map((k) => (
               <div key={k}>
                 <h3 className="font-semibold">{t(`console.audit.${k}`)}</h3>
-                <pre dir="ltr" className="overflow-auto rounded-md p-2 text-xs" style={{ background: 'var(--erp-color-surface)' }}>
+                <pre
+                  dir="ltr"
+                  className="overflow-auto rounded-md p-2 text-xs"
+                  style={{ background: 'var(--erp-color-surface)' }}
+                >
                   {JSON.stringify(open[k], null, 2) ?? '—'}
                 </pre>
               </div>
             ))}
-            <p className="opacity-70">#{open.seq} · {open.correlation_id ?? ''}</p>
+            <p className="opacity-70">
+              #{open.seq} · {open.correlation_id ?? ''}
+            </p>
           </div>
         )}
       </Drawer>

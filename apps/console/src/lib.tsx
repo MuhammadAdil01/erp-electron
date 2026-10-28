@@ -12,7 +12,9 @@ import { errorMessage } from './auth';
  * reload runs the last data stays on screen; after the inputs change it does not.
  */
 export function useResource<T>(load: () => Promise<T>, inputs: readonly unknown[]) {
-  const [state, setState] = useState<{ data?: T; error?: unknown; inputs?: string; key?: string }>({});
+  const [state, setState] = useState<{ data?: T; error?: unknown; inputs?: string; key?: string }>(
+    {},
+  );
   const [round, setRound] = useState(0);
   const loader = useRef(load);
   useLayoutEffect(() => {
@@ -55,7 +57,13 @@ export function Loaded<T>({
 }
 
 /** The reason every console change carries into the audit log. */
-export function ReasonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function ReasonField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const { t } = useTranslation();
   return (
     <Input
@@ -71,7 +79,9 @@ export function ReasonField({ value, onChange }: { value: string; onChange: (val
 
 export function Status({ status }: { status: string }) {
   const { t } = useTranslation();
-  return <StatusChip status={status} label={t(`console.status.${status}`, { defaultValue: status })} />;
+  return (
+    <StatusChip status={status} label={t(`console.status.${status}`, { defaultValue: status })} />
+  );
 }
 
 export function useGridLabels(): DataGridLabels {
@@ -97,7 +107,10 @@ export function useChange() {
     try {
       const result = await action();
       const pending = (result as ChangeResult | undefined)?.status === 'pending';
-      toast(pending ? t('console.common.pending_approval') : (done ?? t('console.common.saved')), 'success');
+      toast(
+        pending ? t('console.common.pending_approval') : (done ?? t('console.common.saved')),
+        'success',
+      );
       after?.();
       return true;
     } catch (e) {
@@ -107,6 +120,6 @@ export function useChange() {
   };
 }
 
-export function when(iso: string | null | undefined, locale: string): string {
-  return iso ? new Date(iso).toLocaleString(locale === 'ur' ? 'ur-PK' : 'en-GB') : '—';
+export function when(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleString('en-GB') : '—';
 }

@@ -123,17 +123,34 @@ const guarded = (anyOf: StaffPermission[], Page: () => ReactNode) =>
     );
   };
 const staffPage = () => staffLayout;
-const AUDIT: StaffPermission[] = ['audit.view', 'audit.view_own', 'audit.view_billing', 'audit.view_ops'];
+const AUDIT: StaffPermission[] = [
+  'audit.view',
+  'audit.view_own',
+  'audit.view_billing',
+  'audit.view_ops',
+];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     publicLayout.addChildren([
       createRoute({ getParentRoute: () => publicLayout, path: '/signin', component: SignInRoute }),
-      createRoute({ getParentRoute: () => publicLayout, path: '/setup/$token', component: SetupPage }),
+      createRoute({
+        getParentRoute: () => publicLayout,
+        path: '/setup/$token',
+        component: SetupPage,
+      }),
     ]),
     staffLayout.addChildren([
-      createRoute({ getParentRoute: staffPage, path: '/', component: guarded(['dashboard.view'], HomePage) }),
-      createRoute({ getParentRoute: staffPage, path: '/staff', component: guarded(['staff.view'], StaffPage) }),
+      createRoute({
+        getParentRoute: staffPage,
+        path: '/',
+        component: guarded(['dashboard.view'], HomePage),
+      }),
+      createRoute({
+        getParentRoute: staffPage,
+        path: '/staff',
+        component: guarded(['staff.view'], StaffPage),
+      }),
       createRoute({
         getParentRoute: staffPage,
         path: '/catalogue/modules',
@@ -164,8 +181,16 @@ export const router = createRouter({
         path: '/catalogue/country-packs/$country/$version',
         component: guarded(['country_packs.view'], CountryPackPage),
       }),
-      createRoute({ getParentRoute: staffPage, path: '/approvals', component: guarded(['approvals.view'], ApprovalsPage) }),
-      createRoute({ getParentRoute: staffPage, path: '/audit', component: guarded(AUDIT, AuditPage) }),
+      createRoute({
+        getParentRoute: staffPage,
+        path: '/approvals',
+        component: guarded(['approvals.view'], ApprovalsPage),
+      }),
+      createRoute({
+        getParentRoute: staffPage,
+        path: '/audit',
+        component: guarded(AUDIT, AuditPage),
+      }),
     ]),
   ]),
 });

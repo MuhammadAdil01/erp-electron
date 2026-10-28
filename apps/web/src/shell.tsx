@@ -1,21 +1,17 @@
 import { Banner, Button } from '@erp/ui';
 import { Navigate, useNavigate } from '@tanstack/react-router';
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LIMITED_STATUSES, useAccess } from './access';
 import { auth, useAuthState } from './auth';
 
-// The frame around every page: title, language switch (Urdu right to left) and sign-out.
+// The frame around every page: title and sign-out.
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const state = useAuthState();
   const status = useAccess()?.tenant.status;
   const navigate = useNavigate();
-  useEffect(() => {
-    document.documentElement.lang = i18n.language;
-    document.documentElement.dir = i18n.language === 'ur' ? 'rtl' : 'ltr';
-  }, [i18n.language]);
   return (
     <div className="min-h-screen">
       <header
@@ -24,13 +20,6 @@ export function Shell({ children }: { children: ReactNode }) {
       >
         <span className="text-lg font-semibold">{t('app.title')}</span>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="underline"
-            onClick={() => void i18n.changeLanguage(i18n.language === 'ur' ? 'en' : 'ur')}
-          >
-            {t('common.language')}
-          </button>
           {state.status === 'signed_in' && (
             <Button
               onClick={() => {
