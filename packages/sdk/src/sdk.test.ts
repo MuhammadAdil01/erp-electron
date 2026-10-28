@@ -91,4 +91,56 @@ describe('sdk', () => {
     await sdk.auth.logoutAll();
     expect(versions).toEqual([12, 13]);
   });
+  it('reads ETags, sends If-Match, returns CSV as text and leaves out empty query values', async () => {
+    const detail = {
+      key: 't',
+      version: '1.0.0',
+      status: 'draft',
+      name: { en: 'T', ur: 'ٹی' },
+      industry: 'general',
+      roles: 0,
+      entitlements: 0,
+      published_at: null,
+      published_by: null,
+      updated_at: '2026-10-29T00:00:00.000Z',
+      revision: 2,
+      definition: {
+        key: 't',
+        version: '1.0.0',
+        name: { en: 'T', ur: 'ٹی' },
+        industry: 'general',
+        description: '',
+        entitlements: [],
+        limits: {},
+        terminology: {},
+        roles: [],
+        settings: {},
+        wizard: [],
+      },
+      problems: [],
+    };
+    const CSV = ['seq,at', '1,x', ''].join(String.fromCharCode(13, 10));
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(detail), { status: 200, headers: { etag: 'W/"2"' } }),
+      )
+      .mockResolvedValueOnce(new Response(CSV, { status: 200 }))
+      .mockResolvedValueOnce(json(200, { data: [] }));
+    const sdk = createSdk({ baseUrl: 'http://api.test', fetch, getAccessToken: async () => 't' });
+    const got = await sdk.console.templates.update(
+      't',
+      '1.0.0',
+      { definition: detail.definition, reason: 'test' } as never,
+      'W/"1"',
+    );
+    expect(got.etag).toBe('W/"2"');
+    const [, init] = fetch.mock.calls[0] as unknown as [URL, RequestInit];
+    expect((init.headers as Record<string, string>)['if-match']).toBe('W/"1"');
+    expect(init.method).toBe('PUT');
+    expect(await sdk.console.audit.exportCsv({ action: 'catalogue.' })).toBe(CSV);
+    await sdk.console.approvals.list();
+    const [url] = fetch.mock.calls[2] as unknown as [URL];
+    expect(url.toString()).toBe('http://api.test/api/platform/v1/approvals');
+  });
 });

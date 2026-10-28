@@ -1,21 +1,44 @@
 import {
   AcceptedSchema,
   ACCESS_VERSION_HEADER,
+  ApprovalsSchema,
+  AuditPageSchema,
+  CatalogueModulesSchema,
+  ChangeResultSchema,
+  ConsoleSearchSchema,
+  CountryPackDetailSchema,
+  CountryPacksSchema,
   DoneSchema,
   HealthResponseSchema,
   LoginResponseSchema,
   MeAccessSchema,
   MembershipsSchema,
   MeSchema,
+  PlanSchema,
+  PlansSchema,
   ProblemDetailsSchema,
   RecoveryCodesSchema,
   SessionsSchema,
   SignedInSchema,
+  StaffAccessSchema,
   StaffEnrolledSchema,
+  StaffListSchema,
+  StaffMemberSchema,
   StaffMeSchema,
   StaffSetupInfoSchema,
+  TemplateDetailSchema,
+  TemplateDiffSchema,
+  TemplatesSchema,
   TotpEnrolmentSchema,
+  type Approval,
+  type CountryPackDraftUpdateSchema,
+  type FeatureDisplayPatchSchema,
+  type ModuleDisplayPatchSchema,
+  type PlanUpsertSchema,
+  type PricesSchema,
   type ProblemDetails,
+  type StaffRoleKey,
+  type TemplateDraftUpdateSchema,
 } from '@erp/contracts';
 import type { z } from 'zod';
 
@@ -52,10 +75,11 @@ export type SdkOptions = {
 };
 
 type Call = {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   auth?: boolean;
-  query?: Record<string, string>;
+  query?: Record<string, string | undefined>;
+  headers?: Record<string, string>;
 };
 
 export function createSdk(options: SdkOptions) {
@@ -66,8 +90,19 @@ export function createSdk(options: SdkOptions) {
     schema: S,
     c: Call = {},
   ): Promise<z.infer<S>> {
+    return (await exchange(path, c, (text) => schema.parse(text ? JSON.parse(text) : undefined)))
+      .body;
+  }
+
+  /** A call that also returns the ETag, for records edited with If-Match. */
+  async function callWithEtag<S extends z.ZodType>(path: string, schema: S, c: Call = {}) {
+    const { body, response } = await exchange(path, c, (text) => schema.parse(JSON.parse(text)));
+    return { body: body as z.infer<S>, etag: response.headers.get('etag') ?? '' };
+  }
+
+  async function exchange<T>(path: string, c: Call, parse: (text: string) => T) {
     const send = async () => {
-      const headers: Record<string, string> = { accept: 'application/json' };
+      const headers: Record<string, string> = { accept: 'application/json', ...c.headers };
       if (c.body !== undefined) headers['content-type'] = 'application/json';
       if (options.client === 'desktop') headers['x-erp-client'] = 'desktop';
       if (c.auth) {
@@ -75,7 +110,8 @@ export function createSdk(options: SdkOptions) {
         if (token) headers.authorization = `Bearer ${token}`;
       }
       const url = new URL(path, options.baseUrl);
-      for (const [k, v] of Object.entries(c.query ?? {})) url.searchParams.set(k, v);
+      for (const [k, v] of Object.entries(c.query ?? {}))
+        if (v !== undefined) url.searchParams.set(k, v);
       return doFetch(url, {
         method: c.method ?? (c.body !== undefined ? 'POST' : 'GET'),
         headers,
@@ -93,12 +129,17 @@ export function createSdk(options: SdkOptions) {
       options.onAccessVersion?.(Number(version));
     }
     const text = await response.text();
-    const json: unknown = text ? JSON.parse(text) : undefined;
     if (!response.ok) {
+      let json: unknown;
+      try {
+        json = text ? JSON.parse(text) : undefined;
+      } catch {
+        json = undefined;
+      }
       const problem = ProblemDetailsSchema.safeParse(json);
       throw new ApiError(response.status, problem.success ? problem.data : null);
     }
-    return schema.parse(json);
+    return { body: parse(text), response };
   }
 
   const app = '/api/v1';
@@ -180,7 +221,228 @@ export function createSdk(options: SdkOptions) {
         call(`${platform}/auth/setup`, DoneSchema, { body: { token, password } }),
       me: () => call(`${platform}/me`, StaffMeSchema, { auth: true }),
     },
+
+    /** Platform Console (Part 11 §11.10.3); every call needs a staff token. */
+    console: {
+      access: () => call(`${platform}/me/access`, StaffAccessSchema, { auth: true }),
+      stepUp: (body: { code?: string; recovery_code?: string }) =>
+        call(`${platform}/me/step-up`, DoneSchema, { body, auth: true }),
+      search: (q: string) =>
+        call(`${platform}/search`, ConsoleSearchSchema, { query: { q }, auth: true }),
+      staff: {
+        list: () => call(`${platform}/staff`, StaffListSchema, { auth: true }),
+        invite: (body: { email: string; name: string; roles: StaffRoleKey[]; reason: string }) =>
+          call(`${platform}/staff`, StaffMemberSchema, { body, auth: true }),
+        roles: (id: string, roles: StaffRoleKey[], reason: string) =>
+          call(`${platform}/staff/${encodeURIComponent(id)}/roles`, StaffMemberSchema, {
+            method: 'PUT',
+            body: { roles, reason },
+            auth: true,
+          }),
+        deactivate: (id: string, reason: string) =>
+          call(`${platform}/staff/${encodeURIComponent(id)}/deactivate`, StaffMemberSchema, {
+            body: { reason },
+            auth: true,
+          }),
+        setupLink: (id: string, reason: string) =>
+          call(`${platform}/staff/${encodeURIComponent(id)}/setup-link`, DoneSchema, {
+            body: { reason },
+            auth: true,
+          }),
+      },
+      catalogue: {
+        modules: () =>
+          call(`${platform}/catalogue/modules`, CatalogueModulesSchema, { auth: true }),
+        patchModule: (key: string, body: z.input<typeof ModuleDisplayPatchSchema>) =>
+          call(`${platform}/catalogue/modules/${encodeURIComponent(key)}`, DoneSchema, {
+            method: 'PATCH',
+            body,
+            auth: true,
+          }),
+        patchFeature: (key: string, body: z.input<typeof FeatureDisplayPatchSchema>) =>
+          call(`${platform}/catalogue/features/${encodeURIComponent(key)}`, DoneSchema, {
+            method: 'PATCH',
+            body,
+            auth: true,
+          }),
+        plans: () => call(`${platform}/catalogue/plans`, PlansSchema, { auth: true }),
+        upsertPlan: (body: z.input<typeof PlanUpsertSchema>, ifMatch?: string) =>
+          call(`${platform}/catalogue/plans`, PlanSchema, {
+            method: 'PUT',
+            body,
+            auth: true,
+            headers: ifMatch ? { 'if-match': ifMatch } : undefined,
+          }),
+        prices: (
+          kind: 'plans' | 'addons',
+          key: string,
+          prices: z.input<typeof PricesSchema>,
+          reason: string,
+        ) =>
+          call(
+            `${platform}/catalogue/${kind}/${encodeURIComponent(key)}/prices`,
+            ChangeResultSchema,
+            {
+              body: { prices, reason },
+              auth: true,
+            },
+          ),
+        archive: (kind: 'plans' | 'addons', key: string, reason: string) =>
+          call(`${platform}/catalogue/${kind}/${encodeURIComponent(key)}/archive`, DoneSchema, {
+            body: { reason },
+            auth: true,
+          }),
+      },
+      templates: {
+        list: () => call(`${platform}/catalogue/templates`, TemplatesSchema, { auth: true }),
+        get: (key: string, version: string) =>
+          callWithEtag(
+            `${platform}/catalogue/templates/${encodeURIComponent(key)}/${version}`,
+            TemplateDetailSchema,
+            { auth: true },
+          ),
+        createDraft: (
+          key: string,
+          body: { version: string; from_version: string; reason: string },
+        ) =>
+          call(
+            `${platform}/catalogue/templates/${encodeURIComponent(key)}/drafts`,
+            TemplateDetailSchema,
+            { body, auth: true },
+          ),
+        update: (
+          key: string,
+          version: string,
+          body: z.input<typeof TemplateDraftUpdateSchema>,
+          ifMatch: string,
+        ) =>
+          callWithEtag(
+            `${platform}/catalogue/templates/${encodeURIComponent(key)}/${version}`,
+            TemplateDetailSchema,
+            {
+              method: 'PUT',
+              body,
+              auth: true,
+              headers: { 'if-match': ifMatch },
+            },
+          ),
+        publish: (key: string, version: string, reason: string) =>
+          call(
+            `${platform}/catalogue/templates/${encodeURIComponent(key)}/${version}/publish`,
+            ChangeResultSchema,
+            {
+              body: { reason },
+              auth: true,
+            },
+          ),
+        deprecate: (key: string, version: string, reason: string) =>
+          call(
+            `${platform}/catalogue/templates/${encodeURIComponent(key)}/${version}/deprecate`,
+            DoneSchema,
+            {
+              body: { reason },
+              auth: true,
+            },
+          ),
+        diff: (key: string, from: string, to: string) =>
+          call(
+            `${platform}/catalogue/templates/${encodeURIComponent(key)}/diff`,
+            TemplateDiffSchema,
+            {
+              query: { from, to },
+              auth: true,
+            },
+          ),
+      },
+      countryPacks: {
+        list: () => call(`${platform}/catalogue/country-packs`, CountryPacksSchema, { auth: true }),
+        get: (country: string, version: string) =>
+          callWithEtag(
+            `${platform}/catalogue/country-packs/${encodeURIComponent(country)}/${version}`,
+            CountryPackDetailSchema,
+            { auth: true },
+          ),
+        createDraft: (
+          country: string,
+          body: { version: string; from_version: string; reason: string },
+        ) =>
+          call(
+            `${platform}/catalogue/country-packs/${encodeURIComponent(country)}/drafts`,
+            CountryPackDetailSchema,
+            { body, auth: true },
+          ),
+        update: (
+          country: string,
+          version: string,
+          body: z.input<typeof CountryPackDraftUpdateSchema>,
+          ifMatch: string,
+        ) =>
+          callWithEtag(
+            `${platform}/catalogue/country-packs/${encodeURIComponent(country)}/${version}`,
+            CountryPackDetailSchema,
+            {
+              method: 'PUT',
+              body,
+              auth: true,
+              headers: { 'if-match': ifMatch },
+            },
+          ),
+        publish: (country: string, version: string, reason: string) =>
+          call(
+            `${platform}/catalogue/country-packs/${encodeURIComponent(country)}/${version}/publish`,
+            ChangeResultSchema,
+            {
+              body: { reason },
+              auth: true,
+            },
+          ),
+      },
+      approvals: {
+        list: (status?: Approval['status']) =>
+          call(`${platform}/approvals`, ApprovalsSchema, { query: { status }, auth: true }),
+        approve: (id: string, note?: string) =>
+          call(`${platform}/approvals/${encodeURIComponent(id)}/approve`, DoneSchema, {
+            body: { note },
+            auth: true,
+          }),
+        reject: (id: string, note: string) =>
+          call(`${platform}/approvals/${encodeURIComponent(id)}/reject`, DoneSchema, {
+            body: { note },
+            auth: true,
+          }),
+        cancel: (id: string) =>
+          call(`${platform}/approvals/${encodeURIComponent(id)}/cancel`, DoneSchema, {
+            body: {},
+            auth: true,
+          }),
+      },
+      audit: {
+        list: (query: AuditFilter = {}) =>
+          call(`${platform}/audit`, AuditPageSchema, { query, auth: true }),
+        /** The CSV export (Owner and Auditor), as text. */
+        exportCsv: async (query: AuditFilter = {}) =>
+          (
+            await exchange(
+              `${platform}/audit/export`,
+              { query, auth: true, headers: { accept: 'text/csv' } },
+              (t) => t,
+            )
+          ).body,
+      },
+    },
   };
 }
+
+/** Filters of the platform audit log (all optional). */
+export type AuditFilter = {
+  limit?: string;
+  cursor?: string;
+  actor?: string;
+  action?: string;
+  target_type?: string;
+  target_id?: string;
+  from?: string;
+  to?: string;
+};
 
 export type Sdk = ReturnType<typeof createSdk>;
