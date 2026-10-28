@@ -36,7 +36,17 @@ describe('design tokens', () => {
 
   it.each(['light', 'dark'] as const)('meets WCAG AA contrast for text in %s mode', (mode) => {
     const c = colors[mode];
-    for (const fg of [c.text, c.textMuted, c.success, c.danger, c.primary]) {
+    for (const fg of [
+      c.text,
+      c.textMuted,
+      c.success,
+      c.danger,
+      c.primary,
+      c.warning,
+      c.info,
+      c.offline,
+      c.posted,
+    ]) {
       expect(contrast(fg, c.background)).toBeGreaterThanOrEqual(4.5);
     }
     expect(contrast(c.onPrimary, c.primary)).toBeGreaterThanOrEqual(4.5);

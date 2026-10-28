@@ -11,6 +11,11 @@ type ColorRoles = {
   onPrimary: string;
   success: string;
   danger: string;
+  /** Status chips (§12.5): amber, blue, purple and the dark green of posted documents. */
+  warning: string;
+  info: string;
+  offline: string;
+  posted: string;
 };
 
 export const colors: { light: ColorRoles; dark: ColorRoles } = {
@@ -24,6 +29,10 @@ export const colors: { light: ColorRoles; dark: ColorRoles } = {
     onPrimary: '#ffffff',
     success: '#15803d',
     danger: '#b91c1c',
+    warning: '#b45309',
+    info: '#1d4ed8',
+    offline: '#7e22ce',
+    posted: '#166534',
   },
   dark: {
     background: '#0b0f17',
@@ -35,6 +44,10 @@ export const colors: { light: ColorRoles; dark: ColorRoles } = {
     onPrimary: '#0b0f17',
     success: '#4ade80',
     danger: '#f87171',
+    warning: '#fbbf24',
+    info: '#60a5fa',
+    offline: '#c084fc',
+    posted: '#22c55e',
   },
 };
 
