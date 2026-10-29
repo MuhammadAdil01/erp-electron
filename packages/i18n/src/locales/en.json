@@ -1,7 +1,9 @@
 {
   "app": {
     "title": "ERP System",
-    "console_title": "Platform Console"
+    "console_title": "Platform Console",
+    "console_subtitle": "Platform Console",
+    "tagline": "ERP System"
   },
   "common": {
     "show": "Show",
@@ -38,24 +40,37 @@
     "recovery_code": "Recovery code",
     "verify": "Verify",
     "mfa_invalid": "That code did not work.",
-    "expired": "The sign-in expired; start again."
+    "expired": "The sign-in expired; start again.",
+    "subtitle": "Use the e-mail address your company invited.",
+    "mfa_subtitle": "Enter the code from your authenticator app."
   },
   "choose": {
     "title": "Choose a company",
     "none": "You are not a member of any company yet.",
-    "switch": "Switch company"
+    "switch": "Switch company",
+    "subtitle": "You work for more than one company. Pick where to start."
   },
   "home": {
     "welcome": "Signed in to {{company}}",
     "no_company": "No company chosen",
-    "security": "Security"
+    "security": "Security",
+    "subtitle": "Your work in {{company}} starts here.",
+    "status_title": "System status",
+    "account_title": "Your account",
+    "account_text": "Password, two-step sign-in and the devices you are signed in on.",
+    "open_security": "Open security settings",
+    "companies_title": "Your companies",
+    "companies_text": "You work for {{count}} companies; switch whenever you need to.",
+    "modules_title": "Your modules",
+    "modules_text": "Your company’s modules appear in the menu as they are built."
   },
   "forgot": {
     "title": "Reset your password",
     "intro": "Enter your e-mail and we will send you a link to choose a new password.",
     "submit": "Send link",
     "sent": "If an account exists for that address, we have sent a link. It works for 30 minutes.",
-    "back": "Back to sign-in"
+    "back": "Back to sign-in",
+    "subtitle": "We will e-mail you a link to choose a new password."
   },
   "reset": {
     "title": "Choose a new password",
@@ -112,7 +127,8 @@
     "email_new": "New e-mail address",
     "email_password": "Your password",
     "email_submit": "Send confirmation",
-    "email_sent": "Open the link we sent to the new address to finish. Until then your old address stays in use."
+    "email_sent": "Open the link we sent to the new address to finish. Until then your old address stays in use.",
+    "subtitle": "Your password, two-step sign-in, signed-in devices and e-mail address."
   },
   "email_confirm": {
     "title": "Confirming your new e-mail",
@@ -337,6 +353,17 @@
       "before": "Before",
       "after": "After",
       "entry": "Audit entry"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "subtitle": "Signed in as {{name}} · {{roles}}",
+      "waiting_title": "Waiting for you",
+      "waiting_none": "Nothing is waiting for you.",
+      "approvals": "Approvals waiting for a decision",
+      "catalogue_title": "Catalogue",
+      "templates": "Industry templates published",
+      "packs": "Country packs published",
+      "staff": "Staff"
     }
   },
   "access": {
@@ -350,5 +377,38 @@
       "suspended_locked": "Your company's account is locked. Only the Owner can sign in, to pay or export.",
       "pending_termination": "Your company's account is closing. Only the Owner can export its data."
     }
+  },
+  "shell": {
+    "search": "Search or jump to…",
+    "search_title": "Search",
+    "search_placeholder": "Type a page or record name…",
+    "no_results": "Nothing matches that.",
+    "pages": "Pages",
+    "notifications": "Notifications",
+    "no_notifications": "You’re all caught up.",
+    "help": "Help",
+    "shortcuts": "Keyboard shortcuts",
+    "shortcut_palette": "Open search",
+    "shortcut_close": "Close a dialog or panel",
+    "shortcut_save": "Save",
+    "account": "Your account",
+    "my_account": "My account",
+    "theme": "Theme",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "collapse": "Collapse",
+    "expand": "Expand the menu",
+    "new": "New",
+    "menu": "Main menu",
+    "quick_nav": "Quick navigation",
+    "breadcrumbs": "Breadcrumbs",
+    "company": "Company",
+    "switch_company": "Switch company",
+    "group_workspace": "Workspace",
+    "group_account": "My account"
+  },
+  "nav": {
+    "home": "Home",
+    "security": "Security"
   }
 }
