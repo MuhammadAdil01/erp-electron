@@ -1,8 +1,9 @@
-import { Banner } from '@erp/ui';
+import { Banner, Skeleton } from '@erp/ui';
 import { Link, useParams } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { sdk } from '../auth';
+import { AuthPage } from '../shell';
 
 // The link sent to a new e-mail address (§5.3.11): opening it makes the change.
 
@@ -21,16 +22,17 @@ export function EmailConfirmPage() {
       .catch(() => setState('invalid'));
   }, [token]);
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="email-confirm-title">
-      <h1 id="email-confirm-title" className="text-2xl font-semibold">
-        {t('email_confirm.title')}
-      </h1>
-      {state === 'working' && <p aria-busy="true">{t('common.loading')}</p>}
+    <AuthPage
+      title={t('email_confirm.title')}
+      footer={
+        <Link to="/signin" className="font-medium text-link no-underline hover:underline">
+          {t('forgot.back')}
+        </Link>
+      }
+    >
+      {state === 'working' && <Skeleton lines={2} label={t('common.loading')} />}
       {state === 'done' && <Banner tone="success">{t('email_confirm.done')}</Banner>}
       {state === 'invalid' && <Banner tone="error">{t('email_confirm.invalid')}</Banner>}
-      <Link to="/signin" className="underline">
-        {t('forgot.back')}
-      </Link>
-    </section>
+    </AuthPage>
   );
 }

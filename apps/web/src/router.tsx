@@ -15,19 +15,25 @@ import { NoAccessPage } from './pages/NoAccessPage';
 import { ResetPage } from './pages/ResetPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { SignInPage } from './pages/SignInPage';
-import { RequireAuth, Shell } from './shell';
+import { RequireAuth, WebShell } from './shell';
 
-const rootRoute = createRootRoute({
-  component: () => (
-    <Shell>
-      <Outlet />
-    </Shell>
-  ),
-});
+const rootRoute = createRootRoute({ component: Outlet });
 
-/** Pages for signed-in people only. */
+/** Pages for signed-in people only, in the app shell. */
 const signedIn = (Page: ComponentType) =>
   function SignedInPage() {
+    return (
+      <RequireAuth>
+        <WebShell>
+          <Page />
+        </WebShell>
+      </RequireAuth>
+    );
+  };
+
+/** Signed-in pages without the shell: the company choice comes before any company. */
+const signedInBare = (Page: ComponentType) =>
+  function SignedInBarePage() {
     return (
       <RequireAuth>
         <Page />
@@ -47,7 +53,7 @@ const routeTree = rootRoute.addChildren([
     path: '/email/confirm/$token',
     component: EmailConfirmPage,
   }),
-  createRoute({ getParentRoute: parent, path: '/choose', component: signedIn(ChoosePage) }),
+  createRoute({ getParentRoute: parent, path: '/choose', component: signedInBare(ChoosePage) }),
   createRoute({
     getParentRoute: parent,
     path: '/account/security',

@@ -1,4 +1,5 @@
-import { injectTokens } from '@erp/ui';
+import '@fontsource-variable/inter';
+import { applyTheme, injectTokens, storedTheme } from '@erp/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
@@ -12,6 +13,8 @@ import { Toasts } from './toasts';
 import './index.css';
 
 injectTokens();
+// Light unless this person chose dark in the account menu (D13).
+applyTheme(storedTheme());
 // Signed in again if the refresh cookie (or the desktop's stored token) is still good.
 void auth().restore();
 startAccess();

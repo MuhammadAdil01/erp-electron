@@ -1,15 +1,20 @@
 import { ApiError } from '@erp/sdk';
 import {
   Banner,
+  Breadcrumbs,
   Button,
+  Card,
   Input,
+  PageHeader,
   passwordChecklist,
   PasswordInput,
   QrCode,
   RecoveryCodes,
+  StatusChip,
 } from '@erp/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { Globe, Monitor } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { auth, errorMessage, sdk } from '../auth';
@@ -22,13 +27,9 @@ import { ruleLabel } from './password';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section
-      className="flex flex-col gap-3 rounded-lg border p-4"
-      style={{ borderColor: 'var(--erp-color-border)' }}
-    >
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {children}
-    </section>
+    <Card title={title}>
+      <div className="flex flex-col gap-4 text-sm">{children}</div>
+    </Card>
   );
 }
 
@@ -37,14 +38,27 @@ export function SecurityPage() {
   const me = useQuery({ queryKey: ['me'], queryFn: () => sdk.me.get() });
   return (
     <>
-      <h1 className="text-2xl font-semibold">{t('security.title')}</h1>
+      <PageHeader
+        breadcrumbs={
+          <Breadcrumbs
+            label={t('shell.breadcrumbs')}
+            items={[{ label: t('shell.my_account') }, { label: t('nav.security') }]}
+          />
+        }
+        title={t('security.title')}
+        description={t('security.subtitle')}
+      />
       {me.data && (
-        <>
-          <PasswordSection mfa={me.data.mfa.enrolled} email={me.data.email} />
-          <MfaSection enrolled={me.data.mfa.enrolled} required={me.data.mfa.required} />
-          <SessionsSection />
-          <EmailSection current={me.data.email} />
-        </>
+        <div className="grid items-start gap-6 xl:grid-cols-2">
+          <div className="flex flex-col gap-6">
+            <MfaSection enrolled={me.data.mfa.enrolled} required={me.data.mfa.required} />
+            <SessionsSection />
+          </div>
+          <div className="flex flex-col gap-6">
+            <PasswordSection mfa={me.data.mfa.enrolled} email={me.data.email} />
+            <EmailSection current={me.data.email} />
+          </div>
+        </div>
       )}
     </>
   );
@@ -167,8 +181,13 @@ function MfaSection({ enrolled, required }: { enrolled: boolean; required: boole
   return (
     <Section title={t('security.mfa_title')}>
       {error && <Banner tone="error">{error}</Banner>}
-      <p>{enrolled ? t('security.mfa_on') : t('security.mfa_off')}</p>
-      {required && <p>{t('security.mfa_required')}</p>}
+      <p className="m-0 flex items-center gap-2">
+        <StatusChip
+          status={enrolled ? 'active' : 'draft'}
+          label={enrolled ? t('security.mfa_on') : t('security.mfa_off')}
+        />
+      </p>
+      {required && <p className="m-0 text-muted">{t('security.mfa_required')}</p>}
 
       {codes ? (
         <RecoveryCodes
@@ -188,8 +207,8 @@ function MfaSection({ enrolled, required }: { enrolled: boolean; required: boole
         />
       ) : stepUp.pending ? (
         <form noValidate onSubmit={confirmStepUp} className="flex flex-col gap-3">
-          <h3 className="font-semibold">{t('security.stepup_title')}</h3>
-          <p>{t('security.stepup_intro')}</p>
+          <h3 className="m-0 text-sm font-semibold">{t('security.stepup_title')}</h3>
+          <p className="m-0 text-muted">{t('security.stepup_intro')}</p>
           <Input
             label={t('signin.mfa_code')}
             inputMode="numeric"
@@ -204,11 +223,14 @@ function MfaSection({ enrolled, required }: { enrolled: boolean; required: boole
         </form>
       ) : enrolment ? (
         <form noValidate onSubmit={confirm} className="flex flex-col gap-3">
-          <p>{t('security.mfa_scan')}</p>
+          <p className="m-0 text-muted">{t('security.mfa_scan')}</p>
           <QrCode value={enrolment.otpauth_uri} label={t('security.mfa_scan')} />
-          <p>
+          <p className="m-0">
             {t('security.mfa_key')}:{' '}
-            <code data-testid="totp-secret" style={{ direction: 'ltr', display: 'inline-block' }}>
+            <code
+              data-testid="totp-secret"
+              className="rounded-sm bg-subtle px-1.5 py-0.5 font-mono text-xs"
+            >
               {enrolment.secret}
             </code>
           </p>
@@ -225,8 +247,14 @@ function MfaSection({ enrolled, required }: { enrolled: boolean; required: boole
         </form>
       ) : enrolled ? (
         <div className="flex flex-wrap gap-2">
-          <Button onClick={newCodes}>{t('security.codes_new')}</Button>
-          {!required && <Button onClick={disable}>{t('security.mfa_disable')}</Button>}
+          <Button variant="secondary" onClick={newCodes}>
+            {t('security.codes_new')}
+          </Button>
+          {!required && (
+            <Button variant="secondary" onClick={disable}>
+              {t('security.mfa_disable')}
+            </Button>
+          )}
         </div>
       ) : (
         <div>
@@ -248,17 +276,35 @@ function SessionsSection() {
     );
   return (
     <Section title={t('security.sessions_title')}>
-      <ul className="flex flex-col gap-2">
+      <ul className="m-0 flex list-none flex-col divide-y divide-line rounded-md border border-line p-0">
         {sessions.data?.data.map((s) => (
-          <li key={s.id} className="flex items-center justify-between gap-3">
-            <span>
-              {s.client === 'desktop' ? t('security.session_desktop') : t('security.session_web')}
-              {s.current && <strong> · {t('security.session_current')}</strong>}
-              <br />
-              <small>{t('security.last_active', { when: when(s.last_seen_at) })}</small>
+          <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="flex items-center gap-3">
+              <span className="flex size-9 items-center justify-center rounded-md bg-subtle text-muted">
+                {s.client === 'desktop' ? (
+                  <Monitor aria-hidden className="size-4" />
+                ) : (
+                  <Globe aria-hidden className="size-4" />
+                )}
+              </span>
+              <span className="flex flex-col">
+                <span className="flex items-center gap-2 font-medium text-fg">
+                  {s.client === 'desktop'
+                    ? t('security.session_desktop')
+                    : t('security.session_web')}
+                  {s.current && (
+                    <StatusChip status="active" label={t('security.session_current')} />
+                  )}
+                </span>
+                <span className="text-xs text-muted">
+                  {t('security.last_active', { when: when(s.last_seen_at) })}
+                </span>
+              </span>
             </span>
             {!s.current && (
               <Button
+                variant="secondary"
+                size="sm"
                 onClick={() =>
                   void sdk.me
                     .revokeSession(s.id)
@@ -273,6 +319,7 @@ function SessionsSection() {
       </ul>
       <div>
         <Button
+          variant="secondary"
           onClick={() =>
             void sdk.auth
               .logoutAll()

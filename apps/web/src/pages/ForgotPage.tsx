@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, sdk } from '../auth';
+import { AuthPage } from '../shell';
 
 // Forgot password (§5.3.7): always the same answer, whether or not the address has an account.
 
@@ -25,15 +26,19 @@ export function ForgotPage() {
   };
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="forgot-title">
-      <h1 id="forgot-title" className="text-2xl font-semibold">
-        {t('forgot.title')}
-      </h1>
+    <AuthPage
+      title={t('forgot.title')}
+      description={sent ? undefined : t('forgot.subtitle')}
+      footer={
+        <Link to="/signin" className="font-medium text-link no-underline hover:underline">
+          {t('forgot.back')}
+        </Link>
+      }
+    >
       {sent ? (
         <Banner tone="success">{t('forgot.sent')}</Banner>
       ) : (
         <form noValidate onSubmit={submit} className="flex flex-col gap-4">
-          <p>{t('forgot.intro')}</p>
           {error && <Banner tone="error">{error}</Banner>}
           <Input
             label={t('signin.email')}
@@ -43,12 +48,11 @@ export function ForgotPage() {
             onChange={(e) => setEmail(e.target.value)}
             autoFocus
           />
-          <Button type="submit">{t('forgot.submit')}</Button>
+          <Button type="submit" size="lg" className="w-full">
+            {t('forgot.submit')}
+          </Button>
         </form>
       )}
-      <Link to="/signin" className="underline">
-        {t('forgot.back')}
-      </Link>
-    </section>
+    </AuthPage>
   );
 }

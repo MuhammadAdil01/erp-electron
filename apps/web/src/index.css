@@ -1,7 +1,5 @@
 @import 'tailwindcss';
+@import '@erp/ui/theme.css';
 
-body {
-  background: var(--erp-color-background);
-  color: var(--erp-color-text);
-  font-family: system-ui, 'Segoe UI', sans-serif;
-}
+/* The design system's components carry their own classes. */
+@source '../../../packages/ui/src';

@@ -4,6 +4,7 @@ import { Link, useParams } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errorMessage, sdk } from '../auth';
+import { AuthPage } from '../shell';
 import { ruleLabel } from './password';
 
 // A new password from a reset, lockout or first-password link (§5.3.7). The link works once;
@@ -32,33 +33,29 @@ export function ResetPage() {
       });
   };
 
+  const link = (to: '/signin' | '/forgot', text: string) => (
+    <Link to={to} className="font-medium text-link no-underline hover:underline">
+      {text}
+    </Link>
+  );
   if (state === 'done') {
     return (
-      <section className="flex flex-col gap-4">
+      <AuthPage title={t('reset.title')} footer={link('/signin', t('forgot.back'))}>
         <Banner tone="success">{t('reset.done')}</Banner>
-        <Link to="/signin" className="underline">
-          {t('forgot.back')}
-        </Link>
-      </section>
+      </AuthPage>
     );
   }
   if (state === 'invalid') {
     return (
-      <section className="flex flex-col gap-4">
+      <AuthPage title={t('reset.title')} footer={link('/forgot', t('reset.request_new'))}>
         <Banner tone="error">{t('reset.invalid')}</Banner>
-        <Link to="/forgot" className="underline">
-          {t('reset.request_new')}
-        </Link>
-      </section>
+      </AuthPage>
     );
   }
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="reset-title">
-      <h1 id="reset-title" className="text-2xl font-semibold">
-        {t('reset.title')}
-      </h1>
-      {error && <Banner tone="error">{error}</Banner>}
+    <AuthPage title={t('reset.title')} footer={link('/signin', t('forgot.back'))}>
       <form noValidate onSubmit={submit} className="flex flex-col gap-4">
+        {error && <Banner tone="error">{error}</Banner>}
         <PasswordInput
           label={t('reset.password')}
           autoComplete="new-password"
@@ -78,10 +75,10 @@ export function ResetPage() {
           showLabel={t('common.show')}
           hideLabel={t('common.hide')}
         />
-        <Button type="submit" disabled={!password || !confirm}>
+        <Button type="submit" size="lg" className="w-full" disabled={!password || !confirm}>
           {t('reset.submit')}
         </Button>
       </form>
-    </section>
+    </AuthPage>
   );
 }

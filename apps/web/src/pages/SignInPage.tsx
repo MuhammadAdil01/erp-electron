@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { auth, errorMessage, useAuthState } from '../auth';
+import { AuthPage } from '../shell';
 
 // Sign-in (Part 05 §5.3.4): e-mail first, then the password, then the second factor when one
 // is enrolled. The same message for an unknown e-mail and a wrong password.
@@ -76,79 +77,90 @@ export function SignInPage() {
   };
 
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="signin-title">
-      <h1 id="signin-title" className="text-2xl font-semibold">
-        {step.kind === 'mfa' ? t('signin.mfa_title') : t('signin.title')}
-      </h1>
-      {error && <Banner tone="error">{error}</Banner>}
+    <AuthPage
+      title={step.kind === 'mfa' ? t('signin.mfa_title') : t('signin.title')}
+      description={step.kind === 'mfa' ? t('signin.mfa_subtitle') : t('signin.subtitle')}
+    >
+      <div className="flex flex-col gap-4">
+        {error && <Banner tone="error">{error}</Banner>}
 
-      {step.kind === 'email' && (
-        <form noValidate onSubmit={submitEmail} className="flex flex-col gap-4">
-          <Input
-            label={t('signin.email')}
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoFocus
-          />
-          <Button type="submit">{t('signin.next')}</Button>
-        </form>
-      )}
+        {step.kind === 'email' && (
+          <form noValidate onSubmit={submitEmail} className="flex flex-col gap-4">
+            <Input
+              label={t('signin.email')}
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+            <Button type="submit" size="lg" className="w-full">
+              {t('signin.next')}
+            </Button>
+          </form>
+        )}
 
-      {step.kind === 'password' && (
-        <form noValidate onSubmit={submitPassword} className="flex flex-col gap-4">
-          {/* Kept for password managers, which pair the password with the account name. */}
-          <input type="email" autoComplete="username" value={email} readOnly hidden />
-          <p>
-            {email}{' '}
-            <button type="button" className="underline" onClick={() => setStep({ kind: 'email' })}>
-              {t('signin.change_email')}
+        {step.kind === 'password' && (
+          <form noValidate onSubmit={submitPassword} className="flex flex-col gap-4">
+            {/* Kept for password managers, which pair the password with the account name. */}
+            <input type="email" autoComplete="username" value={email} readOnly hidden />
+            <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-subtle px-3 py-2 text-sm">
+              <span className="truncate text-fg">{email}</span>
+              <button
+                type="button"
+                className="shrink-0 cursor-pointer font-medium text-link hover:underline"
+                onClick={() => setStep({ kind: 'email' })}
+              >
+                {t('signin.change_email')}
+              </button>
+            </div>
+            <PasswordInput
+              label={t('signin.password')}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              showLabel={t('common.show')}
+              hideLabel={t('common.hide')}
+              autoFocus
+            />
+            <Button type="submit" size="lg" className="w-full" disabled={!password} loading={busy}>
+              {t('signin.submit')}
+            </Button>
+            <Link
+              to="/forgot"
+              className="text-center text-sm font-medium text-link no-underline hover:underline"
+            >
+              {t('signin.forgot')}
+            </Link>
+          </form>
+        )}
+
+        {step.kind === 'mfa' && (
+          <form noValidate onSubmit={submitCode} className="flex flex-col gap-4">
+            <Input
+              label={useRecovery ? t('signin.recovery_code') : t('signin.mfa_code')}
+              inputMode={useRecovery ? 'text' : 'numeric'}
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.trim())}
+              autoFocus
+            />
+            <Button type="submit" size="lg" className="w-full" disabled={!code} loading={busy}>
+              {t('signin.verify')}
+            </Button>
+            <button
+              type="button"
+              className="cursor-pointer text-sm font-medium text-link hover:underline"
+              onClick={() => {
+                setUseRecovery((v) => !v);
+                setCode('');
+              }}
+            >
+              {useRecovery ? t('signin.use_code') : t('signin.use_recovery')}
             </button>
-          </p>
-          <PasswordInput
-            label={t('signin.password')}
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            showLabel={t('common.show')}
-            hideLabel={t('common.hide')}
-            autoFocus
-          />
-          <Button type="submit" disabled={busy || !password}>
-            {t('signin.submit')}
-          </Button>
-          <Link to="/forgot" className="underline">
-            {t('signin.forgot')}
-          </Link>
-        </form>
-      )}
-
-      {step.kind === 'mfa' && (
-        <form noValidate onSubmit={submitCode} className="flex flex-col gap-4">
-          <Input
-            label={useRecovery ? t('signin.recovery_code') : t('signin.mfa_code')}
-            inputMode={useRecovery ? 'text' : 'numeric'}
-            autoComplete="one-time-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.trim())}
-            autoFocus
-          />
-          <Button type="submit" disabled={busy || !code}>
-            {t('signin.verify')}
-          </Button>
-          <button
-            type="button"
-            className="underline"
-            onClick={() => {
-              setUseRecovery((v) => !v);
-              setCode('');
-            }}
-          >
-            {useRecovery ? t('signin.use_code') : t('signin.use_recovery')}
-          </button>
-        </form>
-      )}
-    </section>
+          </form>
+        )}
+      </div>
+    </AuthPage>
   );
 }
