@@ -14,6 +14,7 @@ const ignores = {
     '**/coverage/**',
     '**/generated/**',
     '**/.turbo/**',
+    '**/storybook-static/**',
     '**/*.bundled_*.mjs',
     '**/*.timestamp-*.mjs',
   ],

@@ -8,12 +8,14 @@ import {
   type VisibilityState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, Columns3, Rows3, Search } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { color, radii, space } from './tokens';
+import { cn } from './cn';
+import { fieldClass } from './forms';
 
 // The list pattern of Part 12 §12.3: a filter bar over a data grid with sortable columns, a
-// column chooser and saved views. Long lists render only the rows on screen (virtual rows).
-// Saved views are a per-person convenience kept in this browser.
+// column chooser, a density toggle and saved views. Long lists render only the rows on screen
+// (virtual rows). Saved views are a per-person convenience kept in this browser.
 
 export type { ColumnDef } from '@tanstack/react-table';
 
@@ -25,6 +27,8 @@ export type DataGridLabels = {
   saveView: string;
   viewName: string;
   noRows: string;
+  /** The density toggle's label (comfortable or compact rows, §12.6); no toggle without it. */
+  density?: string;
 };
 
 /** Saved views as stored: read defensively, since browser storage can hold anything or nothing. */
@@ -43,7 +47,7 @@ export function parseViews(raw: string | null): GridView[] {
 }
 
 const VIRTUAL_FROM = 100;
-const ROW_HEIGHT = 40;
+const ROW_HEIGHT = 44;
 
 function readStorage(key: string): string | null {
   try {
@@ -60,6 +64,9 @@ function writeStorage(key: string, value: string): void {
     // Storage blocked or full: the view simply is not remembered.
   }
 }
+
+const toolbarButton =
+  'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-muted hover:bg-subtle hover:text-fg';
 
 export function DataGrid<T>({
   data,
@@ -84,6 +91,7 @@ export function DataGrid<T>({
   const [views, setViews] = useState<GridView[]>([]);
   const [chooser, setChooser] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   useEffect(() => {
     if (viewsKey) setViews(parseViews(readStorage(viewsKey)));
   }, [viewsKey]);
@@ -134,22 +142,14 @@ export function DataGrid<T>({
     setVisibility(Object.fromEntries(view.hidden.map((id) => [id, false])));
   };
 
-  const cell = {
-    padding: `${space(2)} ${space(3)}`,
-    textAlign: 'start' as const,
-    borderBlockEnd: `1px solid ${color('border')}`,
-  };
+  const compact = density === 'compact';
+  const cell = cn(
+    'border-b border-line px-4 text-start align-middle',
+    compact ? 'py-1.5' : 'py-2.5',
+  );
   return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          gap: space(2),
-          justifyContent: 'flex-end',
-          marginBlockEnd: space(2),
-          position: 'relative',
-        }}
-      >
+    <div className="flex flex-col gap-2">
+      <div className="relative flex flex-wrap items-center justify-end gap-1">
         {viewsKey && views.length > 0 && (
           <select
             aria-label={labels.views}
@@ -158,7 +158,7 @@ export function DataGrid<T>({
               const view = views.find((v) => v.name === e.target.value);
               if (view) applyView(view);
             }}
-            style={{ font: 'inherit', padding: space(1) }}
+            className={cn(fieldClass, 'h-8 w-auto shadow-none')}
           >
             <option value="" disabled>
               {labels.views}
@@ -171,17 +171,8 @@ export function DataGrid<T>({
           </select>
         )}
         {viewsKey && naming === null && (
-          <button
-            type="button"
-            onClick={() => setNaming('')}
-            style={{
-              font: 'inherit',
-              background: 'none',
-              border: 'none',
-              color: color('primary'),
-              cursor: 'pointer',
-            }}
-          >
+          <button type="button" onClick={() => setNaming('')} className={toolbarButton}>
+            <Bookmark aria-hidden className="size-4" />
             {labels.saveView}
           </button>
         )}
@@ -191,7 +182,7 @@ export function DataGrid<T>({
               e.preventDefault();
               saveView(naming);
             }}
-            style={{ display: 'flex', gap: space(1) }}
+            className="flex items-center gap-1"
           >
             <input
               autoFocus
@@ -202,63 +193,43 @@ export function DataGrid<T>({
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setNaming(null);
               }}
-              style={{
-                font: 'inherit',
-                padding: space(1),
-                borderRadius: radii.sm,
-                border: `1px solid ${color('border')}`,
-              }}
+              className={cn(fieldClass, 'h-8 w-44 shadow-none')}
             />
-            <button
-              type="submit"
-              style={{
-                font: 'inherit',
-                background: 'none',
-                border: 'none',
-                color: color('primary'),
-                cursor: 'pointer',
-              }}
-            >
+            <button type="submit" className={toolbarButton}>
               {labels.saveView}
             </button>
           </form>
+        )}
+        {labels.density && (
+          <button
+            type="button"
+            aria-pressed={compact}
+            onClick={() => setDensity(compact ? 'comfortable' : 'compact')}
+            className={toolbarButton}
+          >
+            <Rows3 aria-hidden className="size-4" />
+            {labels.density}
+          </button>
         )}
         <button
           type="button"
           aria-expanded={chooser}
           onClick={() => setChooser((c) => !c)}
-          style={{
-            font: 'inherit',
-            background: 'none',
-            border: 'none',
-            color: color('primary'),
-            cursor: 'pointer',
-          }}
+          className={toolbarButton}
         >
+          <Columns3 aria-hidden className="size-4" />
           {labels.columns}
         </button>
         {chooser && (
-          <fieldset
-            style={{
-              position: 'absolute',
-              insetBlockStart: '100%',
-              insetInlineEnd: 0,
-              zIndex: 10,
-              background: color('background'),
-              border: `1px solid ${color('border')}`,
-              borderRadius: radii.md,
-              padding: space(3),
-              display: 'grid',
-              gap: space(1),
-            }}
-          >
-            <legend style={{ fontWeight: 600 }}>{labels.columns}</legend>
+          <fieldset className="absolute end-0 top-full z-10 m-0 mt-1 grid min-w-48 gap-1.5 rounded-md border border-line bg-surface p-3 shadow-2">
+            <legend className="sr-only">{labels.columns}</legend>
             {table.getAllLeafColumns().map((c) => (
-              <label key={c.id} style={{ display: 'flex', gap: space(2) }}>
+              <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={c.getIsVisible()}
                   onChange={c.getToggleVisibilityHandler()}
+                  className="size-4 accent-(--erp-color-primary)"
                 />
                 {typeof c.columnDef.header === 'string' ? c.columnDef.header : c.id}
               </label>
@@ -268,15 +239,11 @@ export function DataGrid<T>({
       </div>
       <div
         ref={scroller}
-        style={{
-          maxHeight: height,
-          overflow: 'auto',
-          border: `1px solid ${color('border')}`,
-          borderRadius: radii.md,
-        }}
+        style={{ maxHeight: height }}
+        className="overflow-auto rounded-lg border border-line bg-surface shadow-1"
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ position: 'sticky', insetBlockStart: 0, background: color('surface') }}>
+        <table className="w-full border-collapse text-sm">
+          <thead className="sticky top-0 z-1 bg-subtle">
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
                 {group.headers.map((header) => {
@@ -287,24 +254,25 @@ export function DataGrid<T>({
                       aria-sort={
                         sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'
                       }
-                      style={{ ...cell, fontWeight: 600, whiteSpace: 'nowrap' }}
+                      className={cn(
+                        cell,
+                        'py-2.5 text-xs font-semibold tracking-wide whitespace-nowrap text-muted uppercase',
+                      )}
                     >
                       {header.column.getCanSort() ? (
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          style={{
-                            font: 'inherit',
-                            fontWeight: 600,
-                            background: 'none',
-                            border: 'none',
-                            padding: 0,
-                            cursor: 'pointer',
-                            color: color('text'),
-                          }}
+                          className="inline-flex cursor-pointer items-center gap-1 uppercase hover:text-fg"
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          {sorted === 'asc' ? ' ↑' : sorted === 'desc' ? ' ↓' : ''}
+                          {sorted === 'asc' ? (
+                            <ArrowUp aria-hidden className="size-3.5" />
+                          ) : sorted === 'desc' ? (
+                            <ArrowDown aria-hidden className="size-3.5" />
+                          ) : (
+                            <ArrowUpDown aria-hidden className="size-3.5 opacity-40" />
+                          )}
                         </button>
                       ) : (
                         flexRender(header.column.columnDef.header, header.getContext())
@@ -322,10 +290,13 @@ export function DataGrid<T>({
                 key={row.id}
                 data-row-id={row.id}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                style={{ height: ROW_HEIGHT, cursor: onRowClick ? 'pointer' : undefined }}
+                className={cn(
+                  'transition-colors duration-100 hover:bg-subtle/60',
+                  onRowClick && 'cursor-pointer',
+                )}
               >
                 {row.getVisibleCells().map((c) => (
-                  <td key={c.id} style={cell}>
+                  <td key={c.id} className={cn(cell, 'text-fg')}>
                     {flexRender(c.column.columnDef.cell, c.getContext())}
                   </td>
                 ))}
@@ -336,7 +307,7 @@ export function DataGrid<T>({
               <tr>
                 <td
                   colSpan={table.getVisibleLeafColumns().length}
-                  style={{ ...cell, color: color('textMuted'), textAlign: 'center' }}
+                  className={cn(cell, 'py-10 text-center text-muted')}
                 >
                   {labels.noRows}
                 </td>
@@ -362,32 +333,52 @@ export function FilterBar({
   children?: ReactNode;
 }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: space(2),
-        alignItems: 'center',
-        marginBlockEnd: space(3),
-      }}
-    >
-      <input
-        type="search"
-        aria-label={searchLabel}
-        placeholder={searchLabel}
-        value={search}
-        onChange={(e) => onSearch(e.target.value)}
-        style={{
-          flex: '1 1 240px',
-          padding: space(2),
-          borderRadius: radii.md,
-          border: `1px solid ${color('border')}`,
-          font: 'inherit',
-          background: color('background'),
-          color: color('text'),
-        }}
-      />
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="relative min-w-60 flex-[1_1_280px]">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-faint"
+        />
+        <input
+          type="search"
+          aria-label={searchLabel}
+          placeholder={searchLabel}
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          className={cn(fieldClass, 'h-9 ps-9')}
+        />
+      </div>
       {children}
     </div>
+  );
+}
+
+/** One filter in a FilterBar: on or off, with its count when known. */
+export function FilterChip({
+  label,
+  active,
+  count,
+  onClick,
+}: {
+  label: ReactNode;
+  active: boolean;
+  count?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors',
+        active
+          ? 'border-primary/40 bg-primary-subtle text-link'
+          : 'border-line-strong bg-surface text-muted hover:text-fg',
+      )}
+    >
+      {label}
+      {count !== undefined && <span className="text-xs tabular opacity-80">{count}</span>}
+    </button>
   );
 }

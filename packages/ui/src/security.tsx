@@ -1,9 +1,9 @@
 import { checkPassword, type PasswordContext, type PasswordRule } from '@erp/contracts';
+import { Copy, Download } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { Button } from './Button';
-import type { ChecklistItem } from './forms';
-import { color, radii, space } from './tokens';
+import { Checkbox, type ChecklistItem } from './forms';
 
 // Pieces of the sign-in and account-security screens shared by the web app and the Platform
 // Console (Part 05 §5.3.1, §5.3.9). Text comes from the app.
@@ -23,7 +23,7 @@ export function passwordChecklist(
 export function QrCode({
   value,
   label,
-  size = 192,
+  size = 176,
 }: {
   value: string;
   label: string;
@@ -37,10 +37,14 @@ export function QrCode({
       live = false;
     };
   }, [value, size]);
-  return src ? (
-    <img src={src} alt={label} width={size} height={size} style={{ borderRadius: radii.md }} />
-  ) : (
-    <div style={{ width: size, height: size }} aria-busy="true" />
+  return (
+    <div className="inline-flex rounded-lg border border-line bg-white p-2 shadow-1">
+      {src ? (
+        <img src={src} alt={label} width={size} height={size} />
+      ) : (
+        <div style={{ width: size, height: size }} aria-busy="true" />
+      )}
+    </div>
   );
 }
 
@@ -74,38 +78,38 @@ export function RecoveryCodes({
     URL.revokeObjectURL(url);
   };
   return (
-    <section
-      aria-labelledby="recovery-codes-title"
-      style={{ display: 'flex', flexDirection: 'column', gap: space(3) }}
-    >
-      <h3 id="recovery-codes-title" style={{ margin: 0 }}>
-        {labels.title}
-      </h3>
-      <p style={{ margin: 0 }}>{labels.intro}</p>
+    <section aria-labelledby="recovery-codes-title" className="flex flex-col gap-4">
+      <div>
+        <h3 id="recovery-codes-title" className="m-0 text-base font-semibold text-fg">
+          {labels.title}
+        </h3>
+        <p className="m-0 mt-1 text-sm text-muted">{labels.intro}</p>
+      </div>
       <ol
         data-testid="recovery-codes"
-        style={{
-          fontFamily: 'ui-monospace, Consolas, monospace',
-          background: color('surface'),
-          padding: space(4),
-          borderRadius: radii.md,
-          columns: 2,
-          margin: 0,
-          direction: 'ltr',
-        }}
+        className="m-0 grid list-none grid-cols-2 gap-x-6 gap-y-1.5 rounded-lg border border-line bg-subtle px-5 py-4 font-mono text-sm text-fg"
       >
         {codes.map((code) => (
           <li key={code}>{code}</li>
         ))}
       </ol>
-      <div style={{ display: 'flex', gap: space(2), flexWrap: 'wrap' }}>
-        <Button onClick={() => void navigator.clipboard?.writeText(text)}>{labels.copy}</Button>
-        <Button onClick={download}>{labels.download}</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          icon={<Copy aria-hidden className="size-4" />}
+          onClick={() => void navigator.clipboard?.writeText(text)}
+        >
+          {labels.copy}
+        </Button>
+        <Button
+          variant="secondary"
+          icon={<Download aria-hidden className="size-4" />}
+          onClick={download}
+        >
+          {labels.download}
+        </Button>
       </div>
-      <label style={{ display: 'flex', gap: space(2), alignItems: 'center' }}>
-        <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-        {labels.saved}
-      </label>
+      <Checkbox checked={saved} onCheckedChange={setSaved} label={labels.saved} />
       <Button disabled={!saved} onClick={onDone}>
         {labels.done}
       </Button>

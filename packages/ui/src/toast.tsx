@@ -1,8 +1,9 @@
 import * as RadixToast from '@radix-ui/react-toast';
+import { CircleAlert, CircleCheck, Info, X } from 'lucide-react';
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
-import { color, radii, space } from './tokens';
+import { cn } from './cn';
 
-// Short confirmations ("Password changed") that disappear on their own (Part 12 §12.6),
+// Short confirmations ("Password changed") that disappear on their own (Part 12 §12.5–12.6),
 // announced to screen readers by Radix. The title is a node, so an app can pass one that
 // translates itself.
 
@@ -11,6 +12,12 @@ type Toast = { id: number; title: ReactNode; tone: 'success' | 'error' | 'info' 
 const ToastContext = createContext<(title: ReactNode, tone?: Toast['tone']) => void>(
   () => undefined,
 );
+
+const ICONS: Record<Toast['tone'], ReactNode> = {
+  success: <CircleCheck aria-hidden className="size-5 text-success" />,
+  error: <CircleAlert aria-hidden className="size-5 text-danger" />,
+  info: <Info aria-hidden className="size-5 text-info" />,
+};
 
 export function ToastProvider({
   children,
@@ -33,39 +40,24 @@ export function ToastProvider({
             onOpenChange={(open) => {
               if (!open) setToasts((list) => list.filter((t) => t.id !== toast.id));
             }}
-            style={{
-              background: color('surface'),
-              border: `1px solid ${toast.tone === 'error' ? color('danger') : color('border')}`,
-              borderRadius: radii.md,
-              padding: space(3),
-              display: 'flex',
-              gap: space(3),
-              alignItems: 'center',
-            }}
+            className={cn(
+              'flex w-[min(380px,calc(100vw-32px))] items-start gap-3 rounded-lg border bg-surface px-4 py-3 text-sm text-fg shadow-3',
+              toast.tone === 'error' ? 'border-danger/40' : 'border-line',
+            )}
           >
-            <RadixToast.Title>{toast.title}</RadixToast.Title>
+            <span className="mt-px shrink-0">{ICONS[toast.tone]}</span>
+            <RadixToast.Title className="min-w-0 flex-1 font-medium">
+              {toast.title}
+            </RadixToast.Title>
             <RadixToast.Close
               aria-label={closeLabel}
-              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              className="-me-1 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-muted hover:bg-subtle hover:text-fg"
             >
-              ×
+              <X aria-hidden className="size-4" />
             </RadixToast.Close>
           </RadixToast.Root>
         ))}
-        <RadixToast.Viewport
-          style={{
-            position: 'fixed',
-            bottom: space(4),
-            insetInlineEnd: space(4),
-            display: 'flex',
-            flexDirection: 'column',
-            gap: space(2),
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            zIndex: 1000,
-          }}
-        />
+        <RadixToast.Viewport className="fixed end-4 bottom-4 z-1000 m-0 flex list-none flex-col gap-2 p-0" />
       </RadixToast.Provider>
     </ToastContext.Provider>
   );

@@ -34,21 +34,34 @@ describe('design tokens', () => {
     }
   });
 
+  it('is light unless the person chose dark: the operating system does not decide (D13)', () => {
+    expect(tokensCss).not.toContain('prefers-color-scheme');
+    expect(tokensCss.split('\n')[1]).toMatch(/^:root\[data-theme='dark'\] \{/);
+  });
+
   it.each(['light', 'dark'] as const)('meets WCAG AA contrast for text in %s mode', (mode) => {
     const c = colors[mode];
-    for (const fg of [
-      c.text,
-      c.textMuted,
-      c.success,
-      c.danger,
-      c.primary,
-      c.warning,
-      c.info,
-      c.offline,
-      c.posted,
-    ]) {
-      expect(contrast(fg, c.background)).toBeGreaterThanOrEqual(4.5);
+    const text = [c.text, c.textMuted, c.textSubtle, c.primaryText, c.success, c.danger];
+    for (const fg of [...text, c.warning, c.info, c.offline, c.posted]) {
+      expect(contrast(fg, c.background), fg).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(fg, c.surface), fg).toBeGreaterThanOrEqual(4.5);
+    }
+    // Status chips and banners: the text on its own tint.
+    for (const [fg, bg] of [
+      [c.textMuted, c.neutralSubtle],
+      [c.info, c.infoSubtle],
+      [c.success, c.successSubtle],
+      [c.posted, c.successSubtle],
+      [c.warning, c.warningSubtle],
+      [c.danger, c.dangerSubtle],
+      [c.offline, c.offlineSubtle],
+      [c.primaryText, c.primarySubtle],
+      [c.text, c.surfaceSubtle],
+    ] as const) {
+      expect(contrast(fg, bg), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
     }
     expect(contrast(c.onPrimary, c.primary)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(c.onPrimary, c.primaryHover)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#ffffff', c.dangerSolid)).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -1,20 +1,51 @@
-export { Button, type ButtonProps } from './Button';
-export { colors, color, injectTokens, radii, space, SPACING_UNIT_PX, tokensCss } from './tokens';
+export {
+  Button,
+  buttonClass,
+  IconButton,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+} from './Button';
+export { cn } from './cn';
+export {
+  applyTheme,
+  color,
+  colors,
+  currentTheme,
+  injectTokens,
+  radii,
+  space,
+  SPACING_UNIT_PX,
+  storedTheme,
+  tokensCss,
+  type Theme,
+} from './tokens';
 export {
   Banner,
+  Checkbox,
+  fieldClass,
   Form,
   Input,
   PasswordInput,
+  Select,
+  Textarea,
   TextField,
   type BannerProps,
+  type BannerTone,
   type ChecklistItem,
   type FormProps,
   type InputProps,
   type PasswordInputProps,
+  type SelectOption,
+  type TextareaProps,
 } from './forms';
 export { ToastProvider, useToast } from './toast';
 export { passwordChecklist, QrCode, RecoveryCodes, type RecoveryCodesLabels } from './security';
 export {
+  Avatar,
+  Badge,
+  Breadcrumbs,
+  Card,
   Combobox,
   ConfirmByNameDialog,
   confirmsName,
@@ -22,6 +53,9 @@ export {
   Drawer,
   EmptyState,
   filterOptions,
+  initialsOf,
+  KpiTile,
+  Menu,
   PageHeader,
   Skeleton,
   STATUS_TONES,
@@ -30,14 +64,36 @@ export {
   Switch,
   Tabs,
   toneOf,
+  Tooltip,
   type ComboboxOption,
+  type Crumb,
+  type MenuItem,
   type StatusTone,
 } from './kit';
 export {
   DataGrid,
   FilterBar,
+  FilterChip,
   parseViews,
   type ColumnDef,
   type DataGridLabels,
   type GridView,
 } from './data-grid';
+export {
+  AppShell,
+  AuthLayout,
+  AvatarButton,
+  BottomNav,
+  CommandPalette,
+  Logo,
+  SearchButton,
+  SideNav,
+  SwitcherButton,
+  TopBar,
+  useCommandShortcut,
+  type CommandGroup,
+  type CommandItem,
+  type NavGroup,
+  type NavItem,
+  type RenderLink,
+} from './shell';
