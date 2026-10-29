@@ -63,22 +63,15 @@ export function SignInPage({ idle }: { idle?: boolean }) {
   };
 
   return (
-    <section
-      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-      aria-labelledby="signin-title"
-    >
-      <h1 id="signin-title">
+    <section className="flex flex-col gap-4" aria-labelledby="signin-title">
+      <h1 id="signin-title" className="m-0 text-xl font-semibold tracking-tight">
         {step.kind === 'enrol' ? t('console.enrol_title') : t('console.signin_title')}
       </h1>
       {idle && step.kind === 'password' && <Banner>{t('console.idle')}</Banner>}
       {error && <Banner tone="error">{error}</Banner>}
 
       {step.kind === 'password' && (
-        <form
-          noValidate
-          onSubmit={submitPassword}
-          style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-        >
+        <form noValidate onSubmit={submitPassword} className="flex flex-col gap-4">
           <Input
             label={t('signin.email')}
             type="email"
@@ -95,27 +88,23 @@ export function SignInPage({ idle }: { idle?: boolean }) {
             showLabel={t('common.show')}
             hideLabel={t('common.hide')}
           />
-          <Button type="submit" disabled={!email || !password}>
+          <Button type="submit" size="lg" className="w-full" disabled={!email || !password}>
             {t('signin.submit')}
           </Button>
         </form>
       )}
 
       {(step.kind === 'mfa' || step.kind === 'enrol') && (
-        <form
-          noValidate
-          onSubmit={submitCode}
-          style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-        >
+        <form noValidate onSubmit={submitCode} className="flex flex-col gap-4">
           {step.kind === 'enrol' && (
             <>
-              <p>{t('console.enrol_intro')}</p>
+              <p className="m-0 text-sm text-muted">{t('console.enrol_intro')}</p>
               <QrCode value={step.uri} label={t('security.mfa_scan')} />
-              <p>
+              <p className="m-0 text-sm">
                 {t('security.mfa_key')}:{' '}
                 <code
                   data-testid="totp-secret"
-                  style={{ direction: 'ltr', display: 'inline-block' }}
+                  className="rounded-sm bg-subtle px-1.5 py-0.5 font-mono text-xs"
                 >
                   {step.secret}
                 </code>
@@ -130,7 +119,7 @@ export function SignInPage({ idle }: { idle?: boolean }) {
             onChange={(e) => setCode(e.target.value.trim())}
             autoFocus
           />
-          <Button type="submit" disabled={!code}>
+          <Button type="submit" size="lg" className="w-full" disabled={!code}>
             {t('signin.verify')}
           </Button>
         </form>

@@ -109,7 +109,10 @@ export function TemplatePage() {
         );
         return (
           <>
-            <Link to="/catalogue/templates" className="underline">
+            <Link
+              to="/catalogue/templates"
+              className="text-sm font-medium text-link no-underline hover:underline"
+            >
               {t('console.common.back')}
             </Link>
             <div className="mt-2">
@@ -152,7 +155,7 @@ export function TemplatePage() {
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   spellCheck={false}
-                  className="min-h-96 rounded-md border p-2 font-mono text-sm"
+                  className="min-h-96 rounded-md border border-line-strong bg-surface p-3 font-mono text-xs text-fg shadow-1"
                   dir="ltr"
                 />
                 {live && live.problems.length > 0 && (
@@ -189,7 +192,9 @@ export function TemplatePage() {
                   >
                     {t('console.common.save')}
                   </Button>
-                  <Button onClick={() => setText(null)}>{t('common.cancel')}</Button>
+                  <Button variant="secondary" onClick={() => setText(null)}>
+                    {t('common.cancel')}
+                  </Button>
                 </div>
               </section>
             )}
@@ -255,7 +260,10 @@ export function TemplatePage() {
                   content: (
                     <div className="grid gap-3">
                       {d.roles.map((r) => (
-                        <details key={r.key} className="rounded-md border p-2">
+                        <details
+                          key={r.key}
+                          className="w-full h-9 rounded-md border border-line-strong bg-surface px-3 text-sm text-fg shadow-1"
+                        >
                           <summary className="cursor-pointer font-medium">
                             {r.name} ·{' '}
                             {r.owner
@@ -286,7 +294,7 @@ export function TemplatePage() {
                         <select
                           value={compare}
                           onChange={(e) => setCompare(e.target.value)}
-                          className="rounded-md border p-1"
+                          className="h-9 rounded-md border border-line-strong bg-surface px-3 text-sm text-fg shadow-1"
                         >
                           <option value="">—</option>
                           {others.map((o) => (

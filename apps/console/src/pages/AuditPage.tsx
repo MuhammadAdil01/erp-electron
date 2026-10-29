@@ -120,11 +120,7 @@ export function AuditPage() {
             {(['before', 'after'] as const).map((k) => (
               <div key={k}>
                 <h3 className="font-semibold">{t(`console.audit.${k}`)}</h3>
-                <pre
-                  dir="ltr"
-                  className="overflow-auto rounded-md p-2 text-xs"
-                  style={{ background: 'var(--erp-color-surface)' }}
-                >
+                <pre dir="ltr" className="overflow-auto rounded-md bg-subtle p-3 text-xs">
                   {JSON.stringify(open[k], null, 2) ?? '—'}
                 </pre>
               </div>

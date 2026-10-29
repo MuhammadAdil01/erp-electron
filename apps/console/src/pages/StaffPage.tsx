@@ -87,7 +87,7 @@ export function StaffPage() {
                   <span className="flex flex-wrap gap-x-3 whitespace-nowrap">
                     <button
                       type="button"
-                      className="underline"
+                      className="cursor-pointer text-sm font-medium text-link hover:underline"
                       onClick={() => {
                         setForm({ email: m.email, name: m.name, roles: m.roles, reason: '' });
                         setEditing(m);
@@ -98,7 +98,7 @@ export function StaffPage() {
                     {m.status === 'invited' && (
                       <button
                         type="button"
-                        className="underline"
+                        className="cursor-pointer text-sm font-medium text-link hover:underline"
                         onClick={() =>
                           void change(() =>
                             sdk.console.staff.setupLink(m.id, 'new setup link requested'),
@@ -111,7 +111,7 @@ export function StaffPage() {
                     {m.status !== 'suspended' && (
                       <button
                         type="button"
-                        className="underline"
+                        className="cursor-pointer text-sm font-medium text-link hover:underline"
                         onClick={() => {
                           setForm((f) => ({ ...f, reason: '' }));
                           setLeaving(m);
@@ -239,7 +239,7 @@ export function StaffPage() {
         footer={
           <Button
             disabled={form.reason.trim().length < 3}
-            style={{ background: 'var(--erp-color-danger)' }}
+            variant="danger"
             onClick={() =>
               void change(
                 () => stepUp(() => sdk.console.staff.deactivate(leaving!.id, form.reason)),

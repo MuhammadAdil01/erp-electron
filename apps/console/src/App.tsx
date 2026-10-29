@@ -1,5 +1,6 @@
 import type { StaffPermission } from '@erp/contracts';
-import { injectTokens, ToastProvider } from '@erp/ui';
+import '@fontsource-variable/inter';
+import { applyTheme, AuthLayout, injectTokens, Logo, storedTheme, ToastProvider } from '@erp/ui';
 import {
   createRootRoute,
   createRoute,
@@ -56,12 +57,9 @@ function IdleWatch() {
 export function ConsoleFrame({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', minHeight: '100vh' }}>
-      <header style={{ padding: '12px 24px', borderBottom: '1px solid var(--erp-color-border)' }}>
-        <strong>{t('app.console_title')}</strong>
-      </header>
-      <main style={{ maxWidth: 560, margin: '0 auto', padding: 24 }}>{children}</main>
-    </div>
+    <AuthLayout logo={<Logo name={t('app.tagline')} subtitle={t('app.console_subtitle')} />}>
+      {children}
+    </AuthLayout>
   );
 }
 
@@ -213,6 +211,8 @@ export function App() {
 
 export function start(): void {
   injectTokens();
+  // Light unless this person chose dark in the account menu (D13).
+  applyTheme(storedTheme());
   followStaffAccess();
   void auth().restore();
 }

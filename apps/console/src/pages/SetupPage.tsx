@@ -38,9 +38,11 @@ export function SetupPage() {
   if (state === 'invalid') return <Banner tone="error">{t('reset.invalid')}</Banner>;
   if (state === 'done') {
     return (
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <section className="flex flex-col gap-4">
         <Banner tone="success">{t('console.setup_done')}</Banner>
-        <Link to="/signin">{t('signin.submit')}</Link>
+        <Link to="/signin" className="text-sm font-medium text-link no-underline hover:underline">
+          {t('signin.submit')}
+        </Link>
       </section>
     );
   }
@@ -48,18 +50,15 @@ export function SetupPage() {
   const rule = (r: { key: string; min?: number; max?: number }) =>
     t(`rules.${r.key}`, { min: r.min, max: r.max });
   return (
-    <section
-      style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-      aria-labelledby="setup-title"
-    >
-      <h1 id="setup-title">{t('console.setup_title')}</h1>
-      <p>{t('console.setup_intro', { name: who.name, email: who.email })}</p>
+    <section className="flex flex-col gap-4" aria-labelledby="setup-title">
+      <h1 id="setup-title" className="m-0 text-xl font-semibold tracking-tight">
+        {t('console.setup_title')}
+      </h1>
+      <p className="m-0 text-sm text-muted">
+        {t('console.setup_intro', { name: who.name, email: who.email })}
+      </p>
       {error && <Banner tone="error">{error}</Banner>}
-      <form
-        noValidate
-        onSubmit={submit}
-        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-      >
+      <form noValidate onSubmit={submit} className="flex flex-col gap-4">
         <input type="email" autoComplete="username" value={who.email} readOnly hidden />
         <PasswordInput
           label={t('reset.password')}
@@ -71,7 +70,7 @@ export function SetupPage() {
           checklist={passwordChecklist(password, { mfa: true, email: who.email }, rule)}
           autoFocus
         />
-        <Button type="submit" disabled={!password}>
+        <Button type="submit" size="lg" className="w-full" disabled={!password}>
           {t('reset.submit')}
         </Button>
       </form>

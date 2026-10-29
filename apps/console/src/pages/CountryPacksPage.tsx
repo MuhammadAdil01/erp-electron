@@ -96,7 +96,10 @@ export function CountryPackPage() {
         const isDraft = body.status === 'draft';
         return (
           <>
-            <Link to="/catalogue/country-packs" className="underline">
+            <Link
+              to="/catalogue/country-packs"
+              className="text-sm font-medium text-link no-underline hover:underline"
+            >
               {t('console.common.back')}
             </Link>
             <div className="mt-2">
@@ -152,7 +155,7 @@ export function CountryPackPage() {
                   spellCheck={false}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  className="min-h-96 rounded-md border p-2 font-mono text-sm"
+                  className="min-h-96 rounded-md border border-line-strong bg-surface p-3 font-mono text-xs text-fg shadow-1"
                 />
                 {live && live.problems.length > 0 && (
                   <Banner tone="error" title={t('console.templates.problems')}>
@@ -188,7 +191,9 @@ export function CountryPackPage() {
                   >
                     {t('console.common.save')}
                   </Button>
-                  <Button onClick={() => setText(null)}>{t('common.cancel')}</Button>
+                  <Button variant="secondary" onClick={() => setText(null)}>
+                    {t('common.cancel')}
+                  </Button>
                 </div>
               </section>
             )}

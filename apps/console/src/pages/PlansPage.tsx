@@ -82,7 +82,7 @@ export function PlansPage() {
             {canPrice && (
               <button
                 type="button"
-                className="underline"
+                className="cursor-pointer text-sm font-medium text-link hover:underline"
                 onClick={() => {
                   const next: Record<string, string> = {};
                   for (const c of CURRENCIES)
@@ -98,7 +98,7 @@ export function PlansPage() {
             {canEdit && (
               <button
                 type="button"
-                className="underline"
+                className="cursor-pointer text-sm font-medium text-link hover:underline"
                 onClick={() => {
                   const p = row.original;
                   setForm({
@@ -253,7 +253,7 @@ export function PlansPage() {
             <select
               value={form.visibility}
               onChange={(e) => setForm({ ...form, visibility: e.target.value })}
-              className="rounded-md border p-2"
+              className="w-full h-9 rounded-md border border-line-strong bg-surface px-3 text-sm text-fg shadow-1"
             >
               <option value="private">{t('console.plans.private')}</option>
               <option value="public">{t('console.plans.public')}</option>

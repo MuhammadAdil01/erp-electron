@@ -168,7 +168,7 @@ export function ModulesPage() {
                 value={form.status}
                 disabled={!edit}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="rounded-md border p-2"
+                className="w-full h-9 rounded-md border border-line-strong bg-surface px-3 text-sm text-fg shadow-1"
               >
                 <option value="">
                   {t('console.modules.registry_default')} ({editing.status})

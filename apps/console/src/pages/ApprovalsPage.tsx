@@ -39,11 +39,7 @@ export function ApprovalsPage() {
     ) : (
       <ul className="grid gap-3" data-testid="approvals">
         {items.map((a) => (
-          <li
-            key={a.id}
-            className="rounded-md border p-3"
-            style={{ borderColor: 'var(--erp-color-border)' }}
-          >
+          <li key={a.id} className="rounded-lg border border-line bg-surface p-4 shadow-1">
             <div className="flex items-center gap-2">
               <strong className="flex-1">
                 {t(`console.approvals.${a.action.replace('.', '_')}`)} · {a.target_id}
@@ -57,11 +53,7 @@ export function ApprovalsPage() {
               {t('console.common.reason')}: {a.reason}
             </p>
             {Object.keys(a.payload).length > 0 && (
-              <pre
-                dir="ltr"
-                className="overflow-auto rounded-md p-2 text-xs"
-                style={{ background: 'var(--erp-color-surface)' }}
-              >
+              <pre dir="ltr" className="overflow-auto rounded-md bg-subtle p-3 text-xs">
                 {JSON.stringify(a.payload, null, 2)}
               </pre>
             )}
@@ -79,7 +71,7 @@ export function ApprovalsPage() {
                       {t('console.approvals.approve')}
                     </Button>
                     <Button
-                      style={{ background: 'var(--erp-color-danger)' }}
+                      variant="danger"
                       onClick={() => setDeciding({ approval: a, verdict: 'reject' })}
                     >
                       {t('console.approvals.reject')}
