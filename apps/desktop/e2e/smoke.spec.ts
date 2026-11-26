@@ -5,18 +5,32 @@ import { join, resolve } from 'node:path';
 
 // The built desktop app opens on the sign-in screen, with the security baseline of §10.12.3:
 // no Node in the page, only the preload bridge, and no refresh token anywhere the page can read.
+// With ERP_DESKTOP_EXECUTABLE set (the installers workflow), the packaged app is started instead:
+// its own web files and the API address it was built for, so a package that misses a runtime
+// dependency fails here rather than on a tester's computer.
 
 const desktop = resolve(__dirname, '..');
 const webDist = resolve(desktop, '../web/dist');
+const packaged = process.env.ERP_DESKTOP_EXECUTABLE;
+const userData = () => `--user-data-dir=${mkdtempSync(join(tmpdir(), 'erp-smoke-'))}`;
 
 test('opens on the sign-in screen with only the bridge exposed', async () => {
-  const app = await electron.launch({
-    args: [
-      join(desktop, 'dist/main.js'),
-      `--user-data-dir=${mkdtempSync(join(tmpdir(), 'erp-smoke-'))}`,
-    ],
-    env: { ...process.env, ERP_WEB_DIST: webDist, ERP_API_URL: 'http://localhost:3000' },
-  });
+  // Without the test-run overrides; ELECTRON_RUN_AS_NODE (set by VS Code) would start plain Node.
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(
+      (e): e is [string, string] =>
+        e[1] !== undefined &&
+        !['ERP_API_URL', 'ERP_WEB_DIST', 'ELECTRON_RUN_AS_NODE'].includes(e[0]),
+    ),
+  );
+  const app = await electron.launch(
+    packaged
+      ? { executablePath: packaged, args: [userData()], env }
+      : {
+          args: [join(desktop, 'dist/main.js'), userData()],
+          env: { ...env, ERP_WEB_DIST: webDist, ERP_API_URL: 'http://localhost:3000' },
+        },
+  );
   const window = await app.firstWindow();
   await expect(window.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 30_000 });
   await expect(window.getByLabel('E-mail')).toBeVisible();

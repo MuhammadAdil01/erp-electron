@@ -1,4 +1,5 @@
-# Packaging config only. Installers are built by a later task.
+# Installers for testers come from the `installers` workflow (.github/workflows/installers.yml),
+# which writes the API address into the packaged package.json (`erpApiUrl`, src/api-url.ts).
 appId: com.erp.system
 productName: ERP System
 directories:
@@ -10,9 +11,15 @@ files:
 extraResources:
   - from: ../web/dist
     to: web
+# macOS: ad-hoc signature, so Apple Silicon Macs open the unsigned app (build/after-pack.cjs).
+afterPack: build/after-pack.cjs
 win:
   target: nsis
+  artifactName: ERP-System-Setup-${version}.${ext}
 mac:
   target: dmg
+  artifactName: ERP-System-${version}-${arch}.${ext}
+  # Not code-signed yet (decision D11): no Developer ID, no notarisation.
+  identity: null
 linux:
   target: AppImage

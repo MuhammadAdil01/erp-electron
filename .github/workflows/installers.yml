@@ -1,0 +1,100 @@
+name: Installers
+
+# Desktop installers for testers (ERP-Backend docs/adr/0011-hosted-test-server.md): Windows (.exe,
+# NSIS) and macOS (.dmg, Apple Silicon and Intel), for the API address given when the run starts.
+# Not code-signed yet (decision D11). Run by hand from the Actions tab: "Run workflow".
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: API origin the installers use, for example https://erp-api-staging.up.railway.app
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win nsis --x64
+          - os: macos-14
+            target: --mac dmg --arm64 --x64
+    runs-on: ${{ matrix.os }}
+    env:
+      API_URL: ${{ inputs.api_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: The address is a hosted HTTPS origin
+        shell: bash
+        run: |
+          API_URL="${API_URL%/}"
+          if ! [[ "$API_URL" =~ ^https://[a-z0-9.-]+(:[0-9]+)?$ ]]; then
+            echo "::error::api_url must be an https origin with no path, for example https://erp-api-staging.up.railway.app"
+            exit 1
+          fi
+          echo "API_URL=$API_URL" >> "$GITHUB_ENV"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the web app for file:// and the desktop main process
+        shell: bash
+        env:
+          ERP_DESKTOP_BUILD: '1'
+        run: VITE_API_BASE="$API_URL/api/v1" pnpm turbo run build --filter=@erp/web --filter=@erp/desktop
+
+      - name: The web app talks to that address
+        shell: bash
+        run: |
+          grep -q "connect-src 'self' $API_URL" apps/web/dist/index.html || {
+            echo "::error::apps/web/dist does not allow $API_URL in its Content-Security-Policy"
+            exit 1
+          }
+
+      - name: Package
+        shell: bash
+        working-directory: apps/desktop
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish never "-c.extraMetadata.erpApiUrl=$API_URL"
+
+      # Starts the packaged app itself (its own web files and the address above): a package that
+      # misses a runtime dependency fails here, not on a tester's computer.
+      - name: The packaged app opens on the sign-in screen
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            exe="$PWD/release/win-unpacked/ERP System.exe"
+          else
+            exe="$PWD/release/mac-arm64/ERP System.app/Contents/MacOS/ERP System"
+          fi
+          ERP_DESKTOP_EXECUTABLE="$exe" pnpm test:smoke
+
+      - name: Checksums
+        shell: bash
+        working-directory: apps/desktop/release
+        run: |
+          for f in *.exe *.dmg; do
+            [ -e "$f" ] || continue
+            if command -v sha256sum >/dev/null; then sha256sum "$f"; else shasum -a 256 "$f"; fi
+          done | tee "SHA256SUMS-${{ runner.os }}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ runner.os }}
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.dmg
+            apps/desktop/release/SHA256SUMS-*.txt
+          if-no-files-found: error
+          retention-days: 14
