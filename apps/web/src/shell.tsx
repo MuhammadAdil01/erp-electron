@@ -47,7 +47,7 @@ import { auth, sdk, useAuthState } from './auth';
 // built and added to BUILT below.
 
 /** Paths of /me/access menu entries whose screens exist. */
-const BUILT: ReadonlySet<string> = new Set<string>([]);
+const BUILT: ReadonlySet<string> = new Set<string>(['/parties']);
 
 const renderLink: RenderLink = ({ href, className, children, title, ...rest }) => (
   <Link to={href} className={className} title={title} aria-current={rest['aria-current']}>
@@ -64,7 +64,8 @@ function useNavGroups(path: string): NavGroup[] {
       href,
       label,
       icon,
-      active: path === href,
+      // A record page (/parties/…) keeps its list's entry highlighted.
+      active: path === href || (href !== '/' && path.startsWith(`${href}/`)),
     });
     const modules: NavGroup[] = (access?.menu ?? [])
       .map((g) => ({

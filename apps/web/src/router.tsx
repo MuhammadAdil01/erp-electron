@@ -12,9 +12,12 @@ import { EmailConfirmPage } from './pages/EmailConfirmPage';
 import { ForgotPage } from './pages/ForgotPage';
 import { HomePage } from './pages/HomePage';
 import { NoAccessPage } from './pages/NoAccessPage';
+import { PartiesPage } from './pages/parties/PartiesPage';
+import { NewPartyPage, PartyRecordPage } from './pages/parties/PartyPage';
 import { ResetPage } from './pages/ResetPage';
 import { SecurityPage } from './pages/SecurityPage';
 import { SignInPage } from './pages/SignInPage';
+import { requirePermission } from './access';
 import { RequireAuth, WebShell } from './shell';
 
 const rootRoute = createRootRoute({ component: Outlet });
@@ -58,6 +61,25 @@ const routeTree = rootRoute.addChildren([
     getParentRoute: parent,
     path: '/account/security',
     component: signedIn(SecurityPage),
+  }),
+  // Parties (Part 06 §6.2.1): replaces the old build's Business Partners.
+  createRoute({
+    getParentRoute: parent,
+    path: '/parties',
+    beforeLoad: requirePermission('core.parties.view'),
+    component: signedIn(PartiesPage),
+  }),
+  createRoute({
+    getParentRoute: parent,
+    path: '/parties/new',
+    beforeLoad: requirePermission('core.parties.create'),
+    component: signedIn(NewPartyPage),
+  }),
+  createRoute({
+    getParentRoute: parent,
+    path: '/parties/$id',
+    beforeLoad: requirePermission('core.parties.view'),
+    component: signedIn(PartyRecordPage),
   }),
   createRoute({
     getParentRoute: parent,
