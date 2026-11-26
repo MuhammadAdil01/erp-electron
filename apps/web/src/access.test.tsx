@@ -2,7 +2,8 @@ import type { MeAccess } from '@erp/contracts';
 import { isRedirect } from '@tanstack/react-router';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { AccessPreview, Can, reasonOf, requirePermission } from './access';
+import type { AuthState } from '@erp/auth-client';
+import { AccessPreview, Can, reasonOf, requirePermission, sessionSettled } from './access';
 
 const waiter: MeAccess = {
   tenant: { id: 't', code: 'T-AAAAAA', status: 'active' },
@@ -75,5 +76,40 @@ describe('reasonOf (Part 05 §5.5.7)', () => {
     expect(reasonOf(waiter, 'core.members.view')).toBe('plan'); // core.iam not listed here
     expect(reasonOf(waiter, 'core.branches.view')).toBe('role');
     expect(reasonOf(waiter, 'restaurant.orders.transfer')).toBe('role');
+  });
+});
+
+describe('sessionSettled (route guards on a cold start)', () => {
+  function session(initial: AuthState) {
+    let state = initial;
+    const listeners = new Set<(s: AuthState) => void>();
+    return {
+      getState: () => state,
+      subscribe: (listener: (s: AuthState) => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      set(next: AuthState) {
+        state = next;
+        listeners.forEach((l) => l(next));
+      },
+      listening: () => listeners.size,
+    };
+  }
+
+  it('resolves at once when the session is already known', async () => {
+    await expect(sessionSettled(session({ status: 'signed_out' }))).resolves.toBeUndefined();
+  });
+
+  it('waits while the session is still being restored, then stops listening', async () => {
+    const s = session({ status: 'loading' });
+    let settled = false;
+    const done = sessionSettled(s).then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    s.set({ status: 'signed_in', membership: null, memberships: [] });
+    await done;
+    expect(settled).toBe(true);
+    expect(s.listening()).toBe(0);
   });
 });

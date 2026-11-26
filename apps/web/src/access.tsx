@@ -1,4 +1,4 @@
-import { AccessClient } from '@erp/auth-client';
+import { AccessClient, type AuthState } from '@erp/auth-client';
 import {
   canAccess,
   CATALOGUE,
@@ -68,13 +68,44 @@ export function Can({
   return <>{useCan()(permission, record) ? children : fallback}</>;
 }
 
+type SessionSource = {
+  getState(): AuthState;
+  subscribe(listener: (state: AuthState) => void): () => void;
+};
+
+/**
+ * Resolves once the session is known. On a cold start (a reload or a link to /parties/…)
+ * restore() is still running, and access read then would be empty for a signed-in member.
+ */
+export function sessionSettled(session: SessionSource): Promise<void> {
+  if (session.getState().status !== 'loading') return Promise.resolve();
+  return new Promise((resolve) => {
+    const stop = session.subscribe((state) => {
+      if (state.status === 'loading') return;
+      stop();
+      resolve();
+    });
+  });
+}
+
+/**
+ * What route guards read: the company's access once the session is known. The access store
+ * follows the session from start-up, so it has seen the company before this resolves.
+ */
+const routeAccess = {
+  ready: async (): Promise<MeAccess | null> => {
+    await sessionSettled(auth());
+    return access.ready();
+  },
+};
+
 /**
  * A route's beforeLoad: without the permission, go to the "no access" page, which says why.
  * `source` is for tests.
  */
 export function requirePermission(
   permission: string,
-  source: { ready(): Promise<MeAccess | null> } = access,
+  source: { ready(): Promise<MeAccess | null> } = routeAccess,
 ) {
   return async () => {
     const current = await source.ready();
