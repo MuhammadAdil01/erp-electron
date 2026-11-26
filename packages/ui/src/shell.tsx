@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import {
   forwardRef,
+  Fragment,
   useEffect,
   useMemo,
   useState,
@@ -157,22 +158,24 @@ export function BottomNav({
 }) {
   return (
     <nav aria-label={label} className="flex h-16 items-stretch justify-around px-2">
-      {items.map((item) =>
-        renderLink({
-          href: item.href,
-          'aria-current': item.active ? 'page' : undefined,
-          className: cn(
-            'flex min-w-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium no-underline',
-            item.active ? 'text-link' : 'text-muted',
-          ),
-          children: (
-            <>
-              <span className="[&>svg]:size-5">{item.icon}</span>
-              {item.label}
-            </>
-          ),
-        }),
-      )}
+      {items.map((item) => (
+        <Fragment key={item.key}>
+          {renderLink({
+            href: item.href,
+            'aria-current': item.active ? 'page' : undefined,
+            className: cn(
+              'flex min-w-14 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-medium no-underline',
+              item.active ? 'text-link' : 'text-muted',
+            ),
+            children: (
+              <>
+                <span className="[&>svg]:size-5">{item.icon}</span>
+                {item.label}
+              </>
+            ),
+          })}
+        </Fragment>
+      ))}
     </nav>
   );
 }
