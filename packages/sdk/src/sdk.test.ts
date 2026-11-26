@@ -143,4 +143,71 @@ describe('sdk', () => {
     const [url] = fetch.mock.calls[2] as unknown as [URL];
     expect(url.toString()).toBe('http://api.test/api/platform/v1/approvals');
   });
+
+  it('lists parties with filters, saves with If-Match and exports CSV', async () => {
+    const party = {
+      id: '01a21996-f803-77ef-992a-68741e31ad9e',
+      code: 'C-0042',
+      kind: 'organization',
+      name: 'Al-Noor Traders',
+      other_name: null,
+      status: 'active',
+      archived_at: null,
+      national_id: { value: '•••••-••••567-1', masked: true },
+      ntn: null,
+      strn: null,
+      email: null,
+      phone: null,
+      mobile: null,
+      whatsapp: null,
+      website: null,
+      tags: [],
+      owner: null,
+      notes: null,
+      roles: ['customer'],
+      contacts: [],
+      addresses: [],
+      customer: {
+        customer_group: null,
+        currency: 'PKR',
+        payment_terms_days: 30,
+        credit_limit: '250000.00',
+        credit_hold: false,
+        discount_pct: null,
+        sales_rep: null,
+      },
+      supplier: null,
+      created_at: '2026-11-27T00:00:00.000Z',
+      created_by: null,
+      updated_at: '2026-11-27T00:00:00.000Z',
+      updated_by: null,
+      version: 3,
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(json(200, { data: [], next_cursor: null }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(party), { status: 200, headers: { etag: 'W/"3"' } }),
+      )
+      .mockResolvedValueOnce(new Response('"code","name"', { status: 200 }))
+      .mockResolvedValueOnce(json(200, { ...party, roles: ['nobody'] }));
+    const sdk = createSdk({ baseUrl: 'http://api.test', fetch, getAccessToken: async () => 't' });
+
+    await sdk.parties.list({ q: '  noor ', role: 'customer', archived: false, limit: 20 });
+    const [listUrl] = fetch.mock.calls[0] as unknown as [URL];
+    expect(listUrl.toString()).toBe('http://api.test/api/v1/parties?q=noor&role=customer&limit=20');
+
+    const saved = await sdk.parties.update(party.id, { kind: 'organization', name: 'X' }, 'W/"2"');
+    expect(saved).toMatchObject({ etag: 'W/"3"', body: { version: 3 } });
+    const [, init] = fetch.mock.calls[1] as unknown as [URL, RequestInit];
+    expect(init.method).toBe('PUT');
+    expect((init.headers as Record<string, string>)['if-match']).toBe('W/"2"');
+
+    expect(await sdk.parties.exportCsv({ archived: true })).toBe('"code","name"');
+    const [csvUrl] = fetch.mock.calls[2] as unknown as [URL];
+    expect(csvUrl.toString()).toBe('http://api.test/api/v1/parties/export?archived=true');
+
+    // A response that breaks the contract is refused, not shown.
+    await expect(sdk.parties.get(party.id)).rejects.toThrow();
+  });
 });

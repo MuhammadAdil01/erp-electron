@@ -14,6 +14,11 @@ import {
   MeAccessSchema,
   MembershipsSchema,
   MeSchema,
+  PartyActivitySchema,
+  PartyDetailSchema,
+  PartyDuplicatesSchema,
+  PartyMembersSchema,
+  PartyPageSchema,
   PlanSchema,
   PlansSchema,
   ProblemDetailsSchema,
@@ -34,6 +39,11 @@ import {
   type CountryPackDraftUpdateSchema,
   type FeatureDisplayPatchSchema,
   type ModuleDisplayPatchSchema,
+  type PartyDuplicateQuery,
+  type PartyInput,
+  type PartyKind,
+  type PartyRole,
+  type PartyStatus,
   type PlanUpsertSchema,
   type PricesSchema,
   type ProblemDetails,
@@ -81,6 +91,31 @@ type Call = {
   query?: Record<string, string | undefined>;
   headers?: Record<string, string>;
 };
+
+/** GET /parties filters (Part 11 §11.9); archived: true lists only archived parties. */
+export type PartyListParams = {
+  q?: string;
+  role?: PartyRole;
+  kind?: PartyKind;
+  status?: PartyStatus;
+  archived?: boolean;
+  tag?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+function partyQuery(params: PartyListParams): Record<string, string | undefined> {
+  return {
+    q: params.q?.trim() || undefined,
+    role: params.role,
+    kind: params.kind,
+    status: params.status,
+    archived: params.archived ? 'true' : undefined,
+    tag: params.tag,
+    limit: params.limit === undefined ? undefined : String(params.limit),
+    cursor: params.cursor,
+  };
+}
 
 export function createSdk(options: SdkOptions) {
   const doFetch: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
@@ -202,6 +237,55 @@ export function createSdk(options: SdkOptions) {
           body: { new_email: newEmail, password },
           auth: true,
         }),
+    },
+
+    /** Parties (Part 06 §6.2.1): the persons and organizations the company deals with. */
+    parties: {
+      list: (params: PartyListParams = {}) =>
+        call(`${app}/parties`, PartyPageSchema, { query: partyQuery(params), auth: true }),
+      get: (id: string) =>
+        callWithEtag(`${app}/parties/${encodeURIComponent(id)}`, PartyDetailSchema, {
+          auth: true,
+        }),
+      create: (body: PartyInput) =>
+        callWithEtag(`${app}/parties`, PartyDetailSchema, { body, auth: true }),
+      /** Saves the whole record; `ifMatch` is the ETag of the version that was read. */
+      update: (id: string, body: PartyInput, ifMatch: string) =>
+        callWithEtag(`${app}/parties/${encodeURIComponent(id)}`, PartyDetailSchema, {
+          method: 'PUT',
+          body,
+          auth: true,
+          headers: { 'if-match': ifMatch },
+        }),
+      archive: (id: string, ifMatch: string, reason?: string) =>
+        callWithEtag(`${app}/parties/${encodeURIComponent(id)}/archive`, PartyDetailSchema, {
+          body: { reason: reason ?? null },
+          auth: true,
+          headers: { 'if-match': ifMatch },
+        }),
+      restore: (id: string, ifMatch: string) =>
+        callWithEtag(`${app}/parties/${encodeURIComponent(id)}/restore`, PartyDetailSchema, {
+          body: {},
+          auth: true,
+          headers: { 'if-match': ifMatch },
+        }),
+      activity: (id: string) =>
+        call(`${app}/parties/${encodeURIComponent(id)}/activity`, PartyActivitySchema, {
+          auth: true,
+        }),
+      duplicates: (body: PartyDuplicateQuery) =>
+        call(`${app}/parties/duplicates`, PartyDuplicatesSchema, { body, auth: true }),
+      accountManagers: () =>
+        call(`${app}/parties/account-managers`, PartyMembersSchema, { auth: true }),
+      /** The filtered list as CSV text, sensitive values masked as on screen. */
+      exportCsv: async (params: PartyListParams = {}) =>
+        (
+          await exchange(
+            `${app}/parties/export`,
+            { query: partyQuery(params), auth: true, headers: { accept: 'text/csv' } },
+            (text) => text,
+          )
+        ).body,
     },
 
     staff: {
