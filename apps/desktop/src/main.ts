@@ -10,6 +10,7 @@ import {
 } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolveApiUrl } from './api-url';
 import { DesktopAuth } from './desktop-auth';
 import type { DeviceInfo } from './device-info';
 
@@ -18,7 +19,12 @@ import type { DeviceInfo } from './device-info';
 const isDev = !app.isPackaged;
 const DEV_URL = 'http://localhost:5173';
 const WINDOW_TITLE = 'ERP System';
-const API_URL = process.env.ERP_API_URL ?? 'http://localhost:3000';
+// ERP_API_URL, else the address an installer was built for, else the local API (src/api-url.ts).
+const API_URL = resolveApiUrl({
+  env: process.env,
+  packaged: app.isPackaged,
+  appPath: app.getAppPath(),
+});
 
 // Packaged builds load the web app shipped as an extra resource (electron-builder.yml).
 // ERP_WEB_DIST points a test run at a web build on disk instead of the dev server.
