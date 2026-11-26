@@ -14,3 +14,4 @@ export * from './staff';
 export * from './templates';
 export * from './country-packs';
 export * from './console';
+export * from './parties';

@@ -95,6 +95,8 @@ export const core = defineModule({
         // Sensitive: national ID and passport numbers (Part 04 §4.9.4).
         identity_numbers: actions(['view']),
       },
+      // Replaces the old build's Business Partners (Part 06 §6.2.1).
+      menu: [{ path: '/parties', label: 'nav.parties', requires: 'core.parties.view' }],
     }),
     files: feature({
       name: 'Files & Attachments',
