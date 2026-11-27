@@ -1,15 +1,20 @@
 name: Installers
 
 # Desktop installers for testers (ERP-Backend docs/adr/0011-hosted-test-server.md): Windows (.exe,
-# NSIS) and macOS (.dmg, Apple Silicon and Intel), for the API address given when the run starts.
-# Not code-signed yet (decision D11). Run by hand from the Actions tab: "Run workflow".
+# NSIS) and macOS (.dmg, Apple Silicon and Intel), for the test server's API address. Runs when
+# apps/desktop/installers-api-url.txt changes on main (that file holds the address), or by hand
+# with an address. A run from main publishes the files as the pre-release test-v<version>.
+# Not code-signed yet (decision D11).
 
 on:
+  push:
+    branches: [main]
+    paths: [apps/desktop/installers-api-url.txt]
   workflow_dispatch:
     inputs:
       api_url:
-        description: API origin the installers use, for example https://erp-api-staging.up.railway.app
-        required: true
+        description: API origin the installers use; empty for apps/desktop/installers-api-url.txt
+        required: false
         type: string
 
 permissions:
@@ -39,6 +44,7 @@ jobs:
       - name: The address is a hosted HTTPS origin
         shell: bash
         run: |
+          [ -n "$API_URL" ] || API_URL="$(tr -d '[:space:]' < apps/desktop/installers-api-url.txt)"
           API_URL="${API_URL%/}"
           if ! [[ "$API_URL" =~ ^https://[a-z0-9.-]+(:[0-9]+)?$ ]]; then
             echo "::error::api_url must be an https origin with no path, for example https://erp-api-staging.up.railway.app"
@@ -98,3 +104,33 @@ jobs:
             apps/desktop/release/SHA256SUMS-*.txt
           if-no-files-found: error
           retention-days: 14
+
+  # The installers as a public pre-release, so they can be downloaded without a GitHub sign-in.
+  release:
+    needs: installers
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          tag="test-v$version"
+          api=$(tr -d '[:space:]' < apps/desktop/installers-api-url.txt)
+          cat out/SHA256SUMS-*.txt > out/SHA256SUMS.txt
+          rm out/SHA256SUMS-*.txt
+          notes="Test build $version for the test server $api. Not code-signed: on Windows choose More info > Run anyway; on a Mac right-click the app > Open the first time."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" out/* --clobber
+            gh release edit "$tag" --notes "$notes"
+          else
+            gh release create "$tag" out/* --prerelease --title "ERP System $version (test)" --notes "$notes" --target "$GITHUB_SHA"
+          fi
